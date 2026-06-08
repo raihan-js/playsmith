@@ -247,6 +247,19 @@ class GodotAdapter:
         presets = self.project_dir / "export_presets.cfg"
         text = presets.read_text() if presets.exists() else ""
         if f'name="{target.value}"' in text:
+            # Upgrade a stale Web preset (made before single-threaded export) so it still runs in
+            # an embedded iframe. `extensions_support` is web-only, pinning the Web options block.
+            if (
+                target is ExportTarget.WEB
+                and "variant/thread_support=false" not in text
+                and "variant/extensions_support=false" in text
+            ):
+                text = text.replace(
+                    "variant/extensions_support=false",
+                    "variant/extensions_support=false\nvariant/thread_support=false",
+                    1,
+                )
+                presets.write_text(text)
             return
         indices = [int(m) for m in re.findall(r"\[preset\.(\d+)\]", text)]
         idx = (max(indices) + 1) if indices else 0
