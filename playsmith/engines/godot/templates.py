@@ -60,6 +60,28 @@ def node2d_scene_with_script(root_name: str, script_res: str) -> str:
     )
 
 
+def trivial_3d_scene() -> str:
+    """A minimal renderable Node3D scene (camera + light) — proves 3D runs."""
+    return (
+        "[gd_scene format=3]\n\n"
+        '[node name="Main" type="Node3D"]\n\n'
+        '[node name="Camera3D" type="Camera3D" parent="."]\n'
+        "transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 2, 6)\n\n"
+        '[node name="DirectionalLight3D" type="DirectionalLight3D" parent="."]\n'
+        "transform = Transform3D(1, 0, 0, 0, 0.7, 0.7, 0, -0.7, 0.7, 0, 6, 0)\n"
+    )
+
+
+def node3d_scene_with_script(root_name: str, script_res: str) -> str:
+    """A Node3D scene whose root has a script attached."""
+    return (
+        "[gd_scene load_steps=2 format=3]\n\n"
+        f'[ext_resource type="Script" path="{script_res}" id="1"]\n\n'
+        f'[node name="{root_name}" type="Node3D"]\n'
+        'script = ExtResource("1")\n'
+    )
+
+
 def screenshot_harness_script() -> str:
     """A GDScript harness that instances a target scene, renders a few frames, saves a PNG.
 
@@ -125,7 +147,7 @@ def verify_harness_script() -> str:
         "\t_player = _find_body(self)\n"
         "\n"
         "func _find_body(node: Node) -> Node:\n"
-        "\tif node is CharacterBody2D:\n"
+        "\tif node is CharacterBody2D or node is CharacterBody3D:\n"
         "\t\treturn node\n"
         "\tfor child in node.get_children():\n"
         "\t\tvar found = _find_body(child)\n"
@@ -135,7 +157,7 @@ def verify_harness_script() -> str:
         "\n"
         "func _physics_process(_delta: float) -> void:\n"
         "\t_frames += 1\n"
-        "\tif _player != null and _player is Node2D:\n"
+        "\tif _player != null and (_player is Node2D or _player is Node3D):\n"
         "\t\tvar y: float = _player.global_position.y\n"
         "\t\tif _frames == 1:\n"
         "\t\t\t_start_y = y\n"

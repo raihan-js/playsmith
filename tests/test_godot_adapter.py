@@ -141,6 +141,16 @@ def test_export_web_writes_preset_and_builds_command(tmp_path, monkeypatch) -> N
     assert "Web" in captured["cmd"]
 
 
+def test_verify_harness_and_templates_support_3d() -> None:
+    # The reality-loop harness must find 3D bodies too, and a 3D scene template must render.
+    script = templates.verify_harness_script()
+    assert "CharacterBody3D" in script
+    assert "CharacterBody2D" in script  # still supports 2D
+    assert "Node3D" in script
+    assert "Camera3D" in templates.trivial_3d_scene()
+    assert "Node3D" in templates.node3d_scene_with_script("Main", "res://m.gd")
+
+
 def test_verify_parses_assertions_and_adds_no_errors(tmp_path, monkeypatch) -> None:
     captured = {}
 

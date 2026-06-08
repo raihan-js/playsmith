@@ -43,11 +43,23 @@ def test_loads_real_2d_platformer_fixture() -> None:
     assert "player_on_floor" in skill.assertions
 
 
-def test_routes_between_the_two_repo_skills() -> None:
-    # Two real skills now ship; routing must distinguish them (keyword fallback, no gateway).
+def test_routes_between_repo_skills() -> None:
+    # Real skills ship; routing must distinguish them (keyword fallback, no gateway).
     router = SkillRouter(SkillLoader([DEFAULT_SKILLS_ROOT]))
     assert router.route("a jump-and-run platformer with a fox").name == "2d-platformer"
+    assert (
+        router.route("a 3D platformer where a robot collects orbs in three dimensions").name
+        == "3d-platformer"
+    )
     assert router.route("a branching detective story with dialogue choices").name == "visual-novel"
+
+
+def test_3d_platformer_skill_loads() -> None:
+    skill = SkillLoader([DEFAULT_SKILLS_ROOT]).get("3d-platformer")
+    assert skill is not None
+    assert "player_on_floor" in skill.assertions
+    assert "player_3d.gd" in skill.scripts()
+    assert "CharacterBody3D" in skill.read_script("player_3d.gd")
 
 
 def test_loader_skips_dirs_without_name(tmp_path) -> None:
