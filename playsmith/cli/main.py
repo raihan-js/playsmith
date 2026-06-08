@@ -757,6 +757,23 @@ def unreal_check(
     console.print("[dim]The Unreal track is experimental; Godot is the default, tested engine.[/]")
 
 
+@app.command()
+def web(
+    host: str = typer.Option("0.0.0.0", "--host", help="Bind host."),
+    port: int = typer.Option(8000, "--port", help="Bind port."),
+) -> None:
+    """Launch the Playsmith web UI (chat + interactive panel). Needs the `web` extra."""
+    try:
+        import uvicorn
+    except ModuleNotFoundError as exc:
+        console.print(
+            '[bold red]The web UI needs extra deps.[/] Install with: pip install -e ".[web]"'
+        )
+        raise typer.Exit(code=1) from exc
+    console.print(f"Playsmith web UI → [bold cyan]http://localhost:{port}[/]  (Ctrl-C to stop)")
+    uvicorn.run("playsmith.web.server:app", host=host, port=port, log_level="warning")
+
+
 def main() -> None:
     """Console-script entrypoint."""
     app()

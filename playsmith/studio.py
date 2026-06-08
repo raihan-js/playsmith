@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import json
 import re
+from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -71,6 +72,14 @@ class BuildOutcome:
     @property
     def final_run(self) -> RunResult | None:
         return self.final_verify.run if self.final_verify else None
+
+
+def _emit(on_event: Callable[[dict], None] | None, payload: dict) -> None:
+    if on_event is not None:
+        try:
+            on_event(payload)
+        except Exception:  # noqa: BLE001 - a broken sink must never break a build
+            pass
 
 
 def slugify(text: str, *, fallback: str = "game") -> str:
@@ -149,6 +158,7 @@ def new_game(
     max_iterations: int = 24,
     project_name: str | None = None,
     verbose: bool = True,
+    on_event: Callable[[dict], None] | None = None,
 ) -> BuildOutcome:
     """Route, scaffold, run the agent, then do a final authoritative reality check."""
     cfg = config or load_config()
@@ -159,6 +169,9 @@ def new_game(
     skill = router.route(prompt)
     if verbose:
         console.print(f"Skill: [bold cyan]{skill.name if skill else '(none — generic build)'}[/]")
+    _emit(
+        on_event, {"type": "phase", "text": f"Routed to skill: {skill.name if skill else 'none'}"}
+    )
     if skill is not None and not skill.trusted:
         console.print(
             f"[yellow]⚠ '{skill.name}' is a community skill from {skill.source}. Its instructions "
@@ -185,6 +198,11 @@ def new_game(
         console.print(f"Project: [dim]{adapter.project_dir}[/]")
         if scaffolded:
             console.print(f"Scaffolded a working base: [dim]{', '.join(scaffolded)}[/]")
+    if scaffolded:
+        _emit(
+            on_event,
+            {"type": "phase", "text": f"Scaffolded a working base ({len(scaffolded)} files)"},
+        )
 
     if approver is None:
         approver = AutoApprover() if auto_approve else InteractiveApprover(console)
@@ -194,7 +212,14 @@ def new_game(
         asset_generator=get_asset_generator(cfg),
         mesh_generator=get_mesh_generator(cfg),
     )
-    loop = AgentLoop(gateway, ctx, max_iterations=max_iterations, console=console, verbose=verbose)
+    loop = AgentLoop(
+        gateway,
+        ctx,
+        max_iterations=max_iterations,
+        console=console,
+        verbose=verbose,
+        on_event=on_event,
+    )
     agent_result = loop.run(build_goal(prompt, skill, adapter.project_dir, scaffolded))
 
     # Record what made this project so `playsmith edit` can verify it correctly later.
@@ -217,12 +242,28 @@ def new_game(
         if verbose:
             console.print(f"[yellow]Final verification could not run:[/] {exc}")
 
-    return BuildOutcome(
+    outcome = BuildOutcome(
         project_dir=Path(adapter.project_dir),
         skill_name=skill.name if skill else None,
         agent_result=agent_result,
         final_verify=final_verify,
     )
+    _emit(on_event, _outcome_event(outcome))
+    return outcome
+
+
+def _outcome_event(outcome: BuildOutcome) -> dict:
+    return {
+        "type": "done",
+        "done": outcome.agent_result.done,
+        "runs_clean": outcome.runs_clean,
+        "project": outcome.project_dir.name,
+        "project_path": str(outcome.project_dir),
+        "skill": outcome.skill_name,
+        "assertions": dict(outcome.final_verify.assertions) if outcome.final_verify else {},
+        "summary": outcome.agent_result.summary,
+        "reason": outcome.agent_result.reason,
+    }
 
 
 def build_edit_goal(change: str, project_dir: Path, assertions: list[str] | None) -> str:
@@ -259,6 +300,7 @@ def edit_game(
     console: Console | None = None,
     max_iterations: int = 24,
     verbose: bool = True,
+    on_event: Callable[[dict], None] | None = None,
 ) -> BuildOutcome:
     """Apply a natural-language change to an existing project, then verify it still works."""
     cfg = config or load_config()
@@ -291,7 +333,14 @@ def edit_game(
         asset_generator=get_asset_generator(cfg),
         mesh_generator=get_mesh_generator(cfg),
     )
-    loop = AgentLoop(gateway, ctx, max_iterations=max_iterations, console=console, verbose=verbose)
+    loop = AgentLoop(
+        gateway,
+        ctx,
+        max_iterations=max_iterations,
+        console=console,
+        verbose=verbose,
+        on_event=on_event,
+    )
     agent_result = loop.run(build_edit_goal(change, adapter.project_dir, checks))
 
     final_verify: VerifyResult | None = None
@@ -301,12 +350,14 @@ def edit_game(
         if verbose:
             console.print(f"[yellow]Final verification could not run:[/] {exc}")
 
-    return BuildOutcome(
+    outcome = BuildOutcome(
         project_dir=Path(adapter.project_dir),
         skill_name=skill_name,
         agent_result=agent_result,
         final_verify=final_verify,
     )
+    _emit(on_event, _outcome_event(outcome))
+    return outcome
 
 
 def latest_project(workspace_dir: Path) -> Path | None:

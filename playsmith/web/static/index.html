@@ -1,0 +1,223 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Playsmith</title>
+<style>
+  :root{
+    --bg:#0e0f13; --panel:#16181f; --panel2:#1c1f29; --line:#272b36;
+    --text:#e7e9ee; --dim:#9aa0ad; --accent:#7c9cff; --green:#46d39a; --yellow:#f2c14e; --red:#ff6b6b;
+    --mono:"SF Mono",ui-monospace,"JetBrains Mono",Menlo,Consolas,monospace;
+  }
+  *{box-sizing:border-box}
+  html,body{height:100%;margin:0}
+  body{background:var(--bg);color:var(--text);font:14px/1.5 system-ui,-apple-system,Segoe UI,Roboto,sans-serif;display:flex;flex-direction:column}
+  header{display:flex;align-items:center;gap:12px;padding:10px 16px;border-bottom:1px solid var(--line);background:var(--panel)}
+  header .logo{font-weight:700;font-size:16px;letter-spacing:.2px}
+  header .logo span{color:var(--accent)}
+  header .badge{margin-left:auto;font-size:12px;color:var(--dim);background:var(--panel2);border:1px solid var(--line);padding:3px 9px;border-radius:999px}
+  main{flex:1;display:flex;min-height:0}
+  .chat{width:42%;min-width:360px;display:flex;flex-direction:column;border-right:1px solid var(--line)}
+  .stream{flex:1;overflow:auto;padding:16px;display:flex;flex-direction:column;gap:10px}
+  .msg{max-width:92%;padding:9px 12px;border-radius:12px;white-space:pre-wrap;word-break:break-word}
+  .msg.user{align-self:flex-end;background:var(--accent);color:#0b0d12;border-bottom-right-radius:4px}
+  .msg.sys{align-self:flex-start;background:var(--panel);border:1px solid var(--line)}
+  .turn{align-self:flex-start;width:100%;background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:10px 12px}
+  .turn .phase{color:var(--accent);font-size:12.5px;margin:2px 0}
+  .turn .tool{font-family:var(--mono);font-size:12.5px;color:var(--text);margin-top:6px}
+  .turn .obs{font-family:var(--mono);font-size:12px;color:var(--dim);margin:1px 0 2px 14px;white-space:pre-wrap}
+  .card{border-radius:12px;padding:12px;border:1px solid var(--line);background:var(--panel2)}
+  .card.ok{border-color:#1f5d45}.card.warn{border-color:#5e4f1e}.card.err{border-color:#5e2626;color:var(--red)}
+  .card h4{margin:0 0 6px}
+  .chips{display:flex;flex-wrap:wrap;gap:6px;margin-top:6px}
+  .chip{font-family:var(--mono);font-size:11.5px;padding:2px 8px;border-radius:999px;border:1px solid var(--line)}
+  .chip.pass{color:var(--green);border-color:#1f5d45}.chip.fail{color:var(--red);border-color:#5e2626}
+  .composer{border-top:1px solid var(--line);padding:10px;display:flex;flex-direction:column;gap:8px;background:var(--panel)}
+  .composer .row{display:flex;gap:8px;align-items:center}
+  textarea{flex:1;resize:none;background:var(--panel2);color:var(--text);border:1px solid var(--line);border-radius:10px;padding:10px;font:inherit;min-height:46px;max-height:140px}
+  select,button{background:var(--panel2);color:var(--text);border:1px solid var(--line);border-radius:10px;padding:8px 12px;font:inherit;cursor:pointer}
+  button.primary{background:var(--accent);color:#0b0d12;border:none;font-weight:600}
+  button:disabled{opacity:.5;cursor:not-allowed}
+  .hint{color:var(--dim);font-size:12px}
+  .panel{flex:1;display:flex;flex-direction:column;min-width:0}
+  .tabs{display:flex;gap:4px;padding:8px 10px;border-bottom:1px solid var(--line);background:var(--panel)}
+  .tabs button{padding:6px 12px;border-radius:8px;border:1px solid transparent;background:transparent;color:var(--dim)}
+  .tabs button.active{background:var(--panel2);border-color:var(--line);color:var(--text)}
+  .tabbody{flex:1;overflow:auto;padding:14px}
+  .plist .item{padding:10px 12px;border:1px solid var(--line);border-radius:10px;margin-bottom:8px;cursor:pointer;background:var(--panel)}
+  .plist .item:hover{border-color:var(--accent)}
+  .plist .item b{font-size:14px}.plist .item .meta{color:var(--dim);font-size:12px;margin-top:2px}
+  .files{display:flex;height:100%;gap:10px;min-height:0}
+  .tree{width:230px;overflow:auto;border-right:1px solid var(--line);padding-right:8px}
+  .tree div{font-family:var(--mono);font-size:12.5px;padding:3px 6px;border-radius:6px;cursor:pointer;color:var(--dim)}
+  .tree div:hover{background:var(--panel2)}.tree div.active{background:var(--panel2);color:var(--text)}
+  pre.code{flex:1;overflow:auto;margin:0;background:#0b0c10;border:1px solid var(--line);border-radius:10px;padding:12px;font-family:var(--mono);font-size:12.5px;white-space:pre-wrap}
+  .play{display:flex;flex-direction:column;height:100%;gap:10px}
+  .play iframe{flex:1;width:100%;border:1px solid var(--line);border-radius:10px;background:#000}
+  .empty{color:var(--dim);text-align:center;margin-top:40px}
+</style>
+</head>
+<body>
+<header>
+  <div class="logo">🎮 <span>Play</span>smith</div>
+  <div class="badge" id="cfg">connecting…</div>
+</header>
+<main>
+  <section class="chat">
+    <div class="stream" id="stream">
+      <div class="msg sys">Describe a game and I'll build a real, editable Godot project — and verify it actually runs. Try <i>"a 2D platformer where a cat collects fish and avoids spikes"</i>.</div>
+    </div>
+    <div class="composer">
+      <textarea id="prompt" placeholder="Describe a game to build, or a change to make…"></textarea>
+      <div class="row">
+        <select id="mode" title="Build a new game, or edit the selected project">
+          <option value="new">New game</option>
+          <option value="edit">Edit selected</option>
+        </select>
+        <span class="hint" id="status">idle</span>
+        <button class="primary" id="send" style="margin-left:auto">Build ▸</button>
+      </div>
+    </div>
+  </section>
+  <section class="panel">
+    <div class="tabs">
+      <button data-tab="projects" class="active">Projects</button>
+      <button data-tab="files">Files</button>
+      <button data-tab="play">Play</button>
+      <button data-tab="skills">Skills</button>
+    </div>
+    <div class="tabbody" id="tabbody"></div>
+  </section>
+</main>
+<script>
+const $ = (s)=>document.querySelector(s);
+const stream = $("#stream"), tabbody = $("#tabbody");
+let current = null;        // selected project name
+let activeTab = "projects";
+let busy = false;
+
+function scroll(){ stream.scrollTop = stream.scrollHeight; }
+function add(el){ stream.appendChild(el); scroll(); return el; }
+function elem(cls, html){ const d=document.createElement("div"); d.className=cls; if(html!=null) d.innerHTML=html; return d; }
+function esc(s){ return (s??"").toString().replace(/[&<>]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;"}[c])); }
+function shortArgs(a){ return Object.entries(a||{}).map(([k,v])=>`${k}=${esc((""+v).slice(0,42))}`).join(", "); }
+
+// ---- WebSocket ----
+let ws, turn=null;
+function connect(){
+  ws = new WebSocket((location.protocol==="https:"?"wss":"ws")+"://"+location.host+"/ws");
+  ws.onmessage = (e)=>onEvent(JSON.parse(e.data));
+  ws.onclose = ()=>{ setTimeout(connect, 1200); };
+}
+function onEvent(ev){
+  if(ev.type==="start"){
+    add(elem("msg user", esc(ev.prompt)));
+    turn = add(elem("turn", `<div class="phase">● working…</div>`));
+  } else if(ev.type==="phase"){
+    if(turn) turn.appendChild(elem("phase", "● "+esc(ev.text)));
+  } else if(ev.type==="tool"){
+    if(turn) turn.appendChild(elem("tool", "→ "+esc(ev.name)+"("+shortArgs(ev.args)+")"));
+  } else if(ev.type==="observe"){
+    const first=(ev.text||"").trim().split("\n")[0]||"";
+    if(turn) turn.appendChild(elem("obs", esc(first.slice(0,200))));
+  } else if(ev.type==="error"){
+    if(turn) turn.appendChild(elem("card err", "⚠ "+esc(ev.text)));
+    finish();
+  } else if(ev.type==="done"){
+    const ok = ev.runs_clean;
+    const chips = Object.entries(ev.assertions||{}).map(([k,v])=>`<span class="chip ${v?"pass":"fail"}">${k}</span>`).join("");
+    const card = elem("card "+(ok?"ok":"warn"));
+    card.innerHTML = `<h4>${ok?"✓ The game runs and all checks pass":"⚠ Built with some checks failing"}</h4>`
+      + (ev.summary?`<div class="hint">${esc(ev.summary)}</div>`:"")
+      + `<div class="chips">${chips}</div>`
+      + `<div style="margin-top:8px"><button onclick="openProject('${esc(ev.project)}')">Open in panel ▸</button></div>`;
+    if(turn) turn.appendChild(card);
+    finish(); loadProjects();
+  }
+  scroll();
+}
+function setBusy(b){ busy=b; $("#send").disabled=b; $("#status").textContent = b?"building…":"idle"; }
+function finish(){ setBusy(false); turn=null; }
+
+function send(){
+  const prompt = $("#prompt").value.trim();
+  const action = $("#mode").value;
+  if(!prompt || busy) return;
+  if(action==="edit" && !current){ alert("Select a project in the Projects tab first."); return; }
+  ws.send(JSON.stringify({action, prompt, project: current}));
+  $("#prompt").value=""; setBusy(true);
+}
+$("#send").onclick = send;
+$("#prompt").addEventListener("keydown", e=>{ if(e.key==="Enter" && (e.metaKey||e.ctrlKey)) send(); });
+
+// ---- Panel tabs ----
+document.querySelectorAll(".tabs button").forEach(b=>b.onclick=()=>{
+  document.querySelectorAll(".tabs button").forEach(x=>x.classList.remove("active"));
+  b.classList.add("active"); activeTab=b.dataset.tab; renderTab();
+});
+function renderTab(){
+  if(activeTab==="projects") loadProjects();
+  else if(activeTab==="files") loadFiles();
+  else if(activeTab==="play") renderPlay();
+  else if(activeTab==="skills") loadSkills();
+}
+async function loadProjects(){
+  const list = await (await fetch("/api/projects")).json();
+  if(activeTab!=="projects") return;
+  if(!list.length){ tabbody.innerHTML=`<div class="empty">No games yet. Build one on the left.</div>`; return; }
+  const wrap = elem("plist");
+  list.forEach(p=>{
+    const it = elem("item");
+    it.innerHTML = `<b>${esc(p.name)}</b><div class="meta">${esc(p.skill||"")} ${p.has_build?"· built":""}</div>`;
+    it.onclick=()=>openProject(p.name);
+    wrap.appendChild(it);
+  });
+  tabbody.innerHTML=""; tabbody.appendChild(wrap);
+}
+function openProject(name){ current=name; gotoTab("files"); }
+function gotoTab(t){ document.querySelectorAll(".tabs button").forEach(x=>x.classList.toggle("active", x.dataset.tab===t)); activeTab=t; renderTab(); }
+async function loadFiles(){
+  if(!current){ tabbody.innerHTML=`<div class="empty">Select a project first.</div>`; return; }
+  const data = await (await fetch(`/api/projects/${current}/files`)).json();
+  const box = elem("files");
+  const tree = elem("tree"); const code = document.createElement("pre"); code.className="code"; code.textContent="Select a file…";
+  data.files.forEach(f=>{
+    const row=elem(""); row.textContent=f.path; row.onclick=()=>{
+      tree.querySelectorAll("div").forEach(d=>d.classList.remove("active")); row.classList.add("active");
+      code.textContent = f.text || `(${f.size} bytes — binary or large)`;
+    }; tree.appendChild(row);
+  });
+  box.appendChild(tree); box.appendChild(code);
+  tabbody.innerHTML=`<div class="hint" style="margin-bottom:8px">${esc(current)} — ${data.files.length} files</div>`;
+  tabbody.appendChild(box);
+}
+async function renderPlay(){
+  if(!current){ tabbody.innerHTML=`<div class="empty">Select a project first.</div>`; return; }
+  const box=elem("play");
+  box.innerHTML=`<div class="row" style="display:flex;gap:8px;align-items:center">
+    <button class="primary" id="exp">Export web & play ▸</button>
+    <span class="hint">Builds an HTML5 version and runs it below.</span></div>
+    <div id="frame" class="empty">Click “Export web & play”.</div>`;
+  tabbody.innerHTML=""; tabbody.appendChild(box);
+  $("#exp").onclick=async()=>{
+    $("#frame").innerHTML=`<div class="empty">Exporting…</div>`;
+    const r = await (await fetch(`/api/projects/${current}/export`,{method:"POST"})).json();
+    if(r.ok){ $("#frame").outerHTML=`<iframe id="frame" src="${r.play}" allow="autoplay; fullscreen"></iframe>`; }
+    else { $("#frame").innerHTML=`<pre class="code">Export failed (need HTML5 export templates).\n\n${esc(r.logs||r.error||"")}</pre>`; }
+  };
+}
+async function loadSkills(){
+  const list = await (await fetch("/api/skills")).json();
+  const wrap=elem("plist");
+  list.forEach(s=>{ const it=elem("item"); it.innerHTML=`<b>${esc(s.name)}</b> <span class="hint">${s.trusted?s.source:"untrusted"}</span><div class="meta">${esc((s.description||"").slice(0,120))}</div>`; wrap.appendChild(it); });
+  tabbody.innerHTML=""; tabbody.appendChild(wrap);
+}
+
+(async function init(){
+  try{ const c=await (await fetch("/api/config")).json(); $("#cfg").textContent=`${c.model} · ${c.where}`; }catch(e){ $("#cfg").textContent="config error"; }
+  connect(); loadProjects();
+})();
+</script>
+</body>
+</html>

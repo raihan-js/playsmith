@@ -10,6 +10,7 @@ engine, read the logs/screenshot, and fix until it actually works.
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from dataclasses import dataclass, field
 from typing import Protocol
 
@@ -75,6 +76,7 @@ class AgentLoop:
         system_prompt: str = DEFAULT_SYSTEM_PROMPT,
         console: Console | None = None,
         verbose: bool = True,
+        on_event: Callable[[dict], None] | None = None,
     ) -> None:
         self.gateway = gateway
         self.context = context
@@ -82,6 +84,8 @@ class AgentLoop:
         self.system_prompt = system_prompt
         self.console = console or Console()
         self.verbose = verbose
+        # Optional event sink (e.g. the web UI) — receives {type, ...} dicts as the loop runs.
+        self.on_event = on_event
 
     def run(self, goal: str) -> AgentResult:
         messages: list[Message] = [
@@ -105,8 +109,10 @@ class AgentLoop:
             done_summary: str | None = None
             for call in response.tool_calls:
                 self._announce(call.name, call.arguments)
+                self._event({"type": "tool", "name": call.name, "args": call.arguments})
                 result = execute(call, self.context)
                 self._observe(result)
+                self._event({"type": "observe", "name": call.name, "text": result})
                 messages.append(Message.tool_result(call.id, result, name=call.name))
                 if is_sentinel(call.name):
                     done_summary = result
@@ -145,6 +151,13 @@ class AgentLoop:
             return
         first = result.strip().splitlines()[0] if result.strip() else ""
         self.console.print(f"  [dim]{self._short(first, 160)}[/]")
+
+    def _event(self, payload: dict) -> None:
+        if self.on_event is not None:
+            try:
+                self.on_event(payload)
+            except Exception:  # noqa: BLE001 - a broken sink must never break the agent
+                pass
 
     def _say(self, message: str) -> None:
         if self.verbose:

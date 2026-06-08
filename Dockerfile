@@ -18,12 +18,23 @@ RUN wget -q "https://github.com/godotengine/godot/releases/download/${GODOT_VERS
     && chmod +x /usr/local/bin/godot \
     && rm /tmp/godot.zip
 
+# HTML5 export templates (only the web ones) so the web UI can export + play in the browser.
+# The full .tpz is large but transient — we keep just web_* (~30MB) in the final layer.
+ARG WITH_WEB_TEMPLATES=true
+RUN if [ "$WITH_WEB_TEMPLATES" = "true" ]; then \
+        wget -q "https://github.com/godotengine/godot/releases/download/${GODOT_VERSION}/Godot_v${GODOT_VERSION}_export_templates.tpz" -O /tmp/tpl.tpz \
+        && mkdir -p /root/.local/share/godot/export_templates/4.3.stable \
+        && unzip -q -j /tmp/tpl.tpz "templates/web*" "templates/version.txt" -d /root/.local/share/godot/export_templates/4.3.stable/ \
+        && rm -f /tmp/tpl.tpz ; \
+    fi
+
 WORKDIR /app
 COPY pyproject.toml README.md LICENSE ./
 COPY playsmith ./playsmith
 COPY game-skills ./game-skills
 COPY config ./config
-RUN pip install --no-cache-dir -e .
+RUN pip install --no-cache-dir -e ".[web]"
+EXPOSE 8000
 
 # Generated games and installed community skills live on mounted volumes.
 ENV PLAYSMITH_CONFIG=/app/config/playsmith.docker.yaml \
