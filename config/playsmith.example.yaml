@@ -1,0 +1,35 @@
+# Playsmith configuration — copy to playsmith.yaml and edit.
+# Every model (local or cloud) is reached through the OpenAI-compatible /v1 API.
+
+# Where generated game projects are written (NEVER inside the Playsmith repo).
+workspace_dir: "~/playsmith-games"
+
+# Default LLM provider. Add more under `providers` and let the router pick later.
+llm:
+  provider: "ollama"
+  base_url: "http://localhost:11434/v1"
+  model: "qwen2.5-coder:7b"
+  api_key: ""            # blank for local; set for cloud providers
+  num_ctx: 16384         # IMPORTANT: 16K–32K. The 4K default breaks agentic editing.
+
+  # Optional: per-task overrides for a future model router (Phase 2).
+  # routes:
+  #   reasoning: { provider: "openai", base_url: "https://api.openai.com/v1", model: "...", api_key: "${OPENAI_API_KEY}" }
+
+# Engine settings.
+engine:
+  default: "godot"
+  godot:
+    binary: "godot"      # path to the Godot 4.x executable
+    version: "4"
+
+# Asset generation (optional; Phase 1+). If unavailable, Playsmith uses placeholders.
+assets:
+  enabled: false
+  comfyui_url: "http://localhost:8188"   # 2D image generation
+  # mesh_backend: "hunyuan3d"            # 3D, Phase 2
+
+# Publishing (Phase 1+).
+publish:
+  itch:
+    butler_path: "butler"

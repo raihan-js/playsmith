@@ -1,0 +1,22 @@
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+*.egg-info/
+dist/
+build/
+.pytest_cache/
+.ruff_cache/
+
+# Playsmith
+config/playsmith.yaml        # local config (copy from example)
+/playsmith-games/            # generated games live in workspace_dir, not the repo
+
+# OS / editor
+.DS_Store
+.idea/
+.vscode/
+
+# Claude local
+.claude/settings.local.json
