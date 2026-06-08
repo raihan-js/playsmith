@@ -18,8 +18,23 @@ func _ready() -> void:
 		spike.body_entered.connect(_on_spike)
 	for goal in get_tree().get_nodes_in_group("goal"):
 		goal.body_entered.connect(_on_goal)
+	_randomize_layout()
 	_apply_generated_art()
 	_update_hud()
+
+
+func _randomize_layout() -> void:
+	# Vary platform + coin placement each build so two platformers aren't identical. The floor and
+	# player are untouched, so player_on_floor / player_not_falling stay reliable.
+	var p1 := get_node_or_null("Platform1")
+	if p1 and p1 is Node2D:
+		p1.position = Vector2(randf_range(300.0, 560.0), randf_range(380.0, 500.0))
+	var p2 := get_node_or_null("Platform2")
+	if p2 and p2 is Node2D:
+		p2.position = Vector2(randf_range(680.0, 940.0), randf_range(300.0, 460.0))
+	for coin in get_tree().get_nodes_in_group("coin"):
+		if coin is Node2D:
+			coin.position = Vector2(randf_range(160.0, 1000.0), randf_range(220.0, 520.0))
 
 
 func _apply_generated_art() -> void:
