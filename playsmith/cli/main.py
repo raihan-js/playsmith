@@ -1,14 +1,17 @@
 """Playsmith CLI entrypoint (Typer + Rich).
 
-Commands are added incrementally as capabilities land (see BUILD_PLAN.md):
-  version       — print version                                    [Step 1]
-  config-check  — load and display the resolved configuration      [Step 1]
-  models        — send a test message to the configured model      [Step 2]
-  engine-check  — create + run a trivial Godot project headless    [Step 3]
-  skills        — list installed game-generation skills            [Step 4]
-  new           — prompt -> scaffold + generate + run-verify        [Step 6]
-  run           — run the latest generated project in a window      [Step 7]
-  export        — headless HTML5 export of the generated game       [Step 7]
+Command surface:
+  version       — print version
+  config-check  — show the resolved configuration (providers, routes, fallback)
+  models        — show the route table + round-trip the default model
+  engine-check  — create + run a trivial Godot project headless
+  skills        — list installed game-generation skills
+  new           — prompt -> scaffold -> generate -> assertion-verify
+  edit          — apply a natural-language change to the latest project, then re-verify
+  assets        — import <file> | generate "<prompt>" — game art (optional)
+  run           — run the latest generated project in a window
+  export        — headless HTML5 export of the generated game
+  publish       — publish to itch.io via butler (with a compliance reminder)
 """
 
 from __future__ import annotations

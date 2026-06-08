@@ -38,20 +38,29 @@ HTML5**. (See `CLAUDE.md` §7 for the exact checklist.)
 natural language, and ships to itch.io. **Depth before breadth** (`WHY.md` rule #3) — breadth is capped
 at two genres total this phase. Full step-by-step: `docs/BUILD_PLAN_PHASE1.md`.
 
-- [ ] **Provider hardening + model router**: any local model *or* any API key (OpenAI/Anthropic/
-      OpenRouter/Gemini); lean on a stronger model for hard steps, warning the user on every local→cloud crossing.
-- [ ] **Assertion-based reality loop**: in-engine `PLAYSMITH_ASSERT` checks (headless) so "good" is measurable, not just "no parse errors."
-- [ ] **Bring-your-own-art**: `playsmith assets import` + the agent prefers dropped-in images over placeholders.
-- [ ] **2D asset pipeline (ComfyUI)**: SDXL/Pixel-Art sprites; graceful placeholder fallback (never required).
-- [ ] **`playsmith edit "<change>"`**: natural-language iteration on an existing project (the CLI seed of the chat UX).
-- [ ] **Publish v1**: `playsmith publish --itch u/g` via butler; web export.
-- [ ] **One** extra genre skill — a **visual-novel/story** skill — plus the SKILL.md spec + contributor guide.
+> **Status:** all Phase 1 items are **code-complete and tested** (95 tests, `ruff` + `pytest`
+> green in CI). The remaining gap to the live demo is local: install Godot 4.x + a model (and,
+> optionally, ComfyUI for AI art and butler for publishing). See `docs/QUICKSTART.md`.
+
+- [x] **Provider hardening + model router**: any local model *or* any API key (OpenAI/Anthropic/
+      OpenRouter/Gemini); native Anthropic `/v1/messages`; cloud fallback warns on every local→cloud crossing.
+- [x] **Assertion-based reality loop**: in-engine `PLAYSMITH_ASSERT` checks (headless) so "good" is measurable, not just "no parse errors."
+- [x] **Bring-your-own-art**: `playsmith assets import` + the agent prefers dropped-in images over placeholders.
+- [x] **2D asset pipeline (ComfyUI)**: SDXL/Pixel-Art sprites; graceful placeholder fallback (never required).
+- [x] **`playsmith edit "<change>"`**: natural-language iteration on an existing project (the CLI seed of the chat UX).
+- [x] **Publish v1**: `playsmith publish --itch u/g` via butler; web export; compliance reminder.
+- [x] **One** extra genre skill — a **visual-novel/story** skill — plus `docs/SKILL_SPEC.md` + `docs/CONTRIBUTING_SKILLS.md`.
 
 **Definition of Done:** a non-coder produces a *good-looking*, art-bearing 2D game (platformer **or** a
 short story/dialogue game), iterates on it by natural language, and publishes it to itch.io — using a
 local **or** cloud model, with the cloud route an optional fallback, not a requirement.
 
 **Demo + launch trigger:** this is the version worth a public launch — see `docs/LAUNCH.md`.
+
+**Next 3 (highest-leverage Phase 2 kickoff, per `docs/BUILD_PLAN_PHASE2.md`):**
+1. **Godot 3D in the adapter + a `3d-platformer` skill** — prove the engine abstraction holds in 3D.
+2. **Skill marketplace v1 with security** — discover/install community skills safely (the compounding moat).
+3. **Asset-cleanup tooling** — close the AI-asset "70% gap" (the #1 churn risk), starting with 2D consistency.
 
 ---
 
