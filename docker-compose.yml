@@ -1,0 +1,26 @@
+# Playsmith — run the whole pipeline in a container with Godot + your OpenAI key.
+#
+#   1. cp .env.example .env   and put your OpenAI key in it
+#   2. docker compose build
+#   3. docker compose run --rm playsmith engine-check          # proves Godot works (real, headless)
+#   4. docker compose run --rm playsmith models                # proves your OpenAI key works
+#   5. docker compose run --rm playsmith new "a 2D platformer where a cat collects fish" --yes
+#   -> the generated project appears in ./playsmith-games/ on your host (open it in Godot).
+
+services:
+  playsmith:
+    build:
+      context: .
+      args:
+        GODOT_VERSION: "4.3-stable"
+    image: playsmith:latest
+    env_file:
+      - .env
+    volumes:
+      - ./playsmith-games:/workspace                 # generated games land here on the host
+      - playsmith-skills:/root/.playsmith/skills      # installed community skills persist
+    stdin_open: true
+    tty: true
+
+volumes:
+  playsmith-skills:

@@ -20,3 +20,6 @@ config/playsmith.yaml        # local config (copy from example)
 
 # Claude local
 .claude/settings.local.json
+
+# Docker secrets
+.env
