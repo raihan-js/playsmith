@@ -36,6 +36,7 @@ from playsmith.engines import (
 )
 from playsmith.engines.godot import templates as godot_templates
 from playsmith.llm import LLMError, LLMGateway, Message
+from playsmith.llm.eval import evaluate_targets
 from playsmith.publish import PublishError, publish_itch
 from playsmith.skills import SkillLoader, SkillRegistry, SkillRegistryError
 from playsmith.studio import edit_game, latest_project, new_game
@@ -92,11 +93,15 @@ def models(
     no_test: bool = typer.Option(
         False, "--no-test", help="Show the route table only; no round-trip."
     ),
+    do_eval: bool = typer.Option(
+        False, "--eval", help="Measure tool-call reliability per provider/route (router maturity)."
+    ),
 ) -> None:
     """Show the configured providers/routes and round-trip a message to the default model.
 
     Proves the whole 'any model' foundation works: with Ollama running you get a real reply,
     and the table shows which provider each task type resolves to (router + cloud fallback).
+    With --eval, measures how reliably each provider produces tool calls and recommends fallback.
     """
     try:
         cfg = load_config(config)
@@ -119,6 +124,28 @@ def models(
     if cfg.llm_fallback is not None:
         _row("fallback", cfg.llm_fallback)
     console.print(table)
+
+    if do_eval:
+        gateway = LLMGateway.from_config(cfg, console=console)
+        targets = [("default", cfg.llm)]
+        targets += [(f"route:{t}", lc) for t, lc in cfg.llm_routes.items()]
+        if cfg.llm_fallback is not None:
+            targets.append(("fallback", cfg.llm_fallback))
+        etable = Table(title="Tool-call reliability (router maturity)", header_style="bold")
+        for col in ("Target", "Model", "Reliability", "Meets 80%", "Recommendation"):
+            etable.add_column(col)
+        console.print("Running eval fixtures against each provider ...")
+        for label, res in evaluate_targets(gateway, targets):
+            etable.add_row(
+                label,
+                res.model,
+                f"{res.reliability:.0%} ({res.successes}/{res.trials})",
+                "[green]yes[/]" if res.meets_threshold else "[yellow]no[/]",
+                res.recommendation,
+            )
+        console.print(etable)
+        return
+
     if no_test:
         return
 
