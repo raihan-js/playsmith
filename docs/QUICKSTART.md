@@ -150,6 +150,26 @@ playsmith unreal check                         # editor + Remote Control availab
 > instructions drive the agent. Playsmith verifies a checksum, refuses untrusted skills unless you
 > opt in, never executes anything on install, and shows you every file diff. Prefer the curated index.
 
+## 9. Ship to the big stores (Phase 3): desktop, Steam, mobile
+
+All publishing is **guided and manual** — Playsmith builds + discloses; you do the final submit.
+Never mass-submit near-identical games (stores reject it).
+
+```bash
+# Desktop builds:
+playsmith export --target windows    # or mac | linux  (code-sign/notarize before distributing)
+
+# Steam (needs steamcmd + a Steamworks account; one-time `steamcmd +login <account>`):
+playsmith publish --steam <appid>    # uploads to a BETA branch; you promote to live in Steamworks
+
+# Mobile (guided):
+playsmith export --target android    # AAB/APK + signing help + Google repetitive-content rule
+playsmith export --target ios        # requires macOS + Xcode; produces an Xcode project
+
+# Compliance + age rating, before you submit anywhere:
+playsmith publish --check --for all  # disclosures, store rules, AI-asset copyright, IARC draft rating
+```
+
 ## Troubleshooting
 
 - **Model is flaky / gives up mid-build.** Raise `num_ctx` (16K → 32K), use a stronger model

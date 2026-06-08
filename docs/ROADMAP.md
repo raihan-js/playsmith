@@ -92,15 +92,20 @@ track, and anyone installs a third-party skill with one command — safely. (Cod
 
 ## Phase 3 — Mobile/Steam publishing + compliance
 
-**Goal:** ship to the big stores, responsibly.
+**Goal:** ship to the big stores, responsibly. Full plan: `docs/BUILD_PLAN_PHASE3.md`.
 
-- [ ] Android + iOS export pipelines.
-- [ ] Steam publishing (Steamworks/SteamPipe) + **AI-disclosure helper**.
-- [ ] Compliance guardrails surfaced: Apple 4.2.6 / 4.3, Google repetitive-content, copyright caveat.
-- [ ] Age-rating questionnaire helper.
+> **Status:** code-complete and tested (143 tests, `ruff` + `pytest` green). Live store uploads
+> need the respective tooling (Godot export templates, steamcmd + a Steamworks account, Android
+> SDK/keystore, macOS/Xcode) and a human doing the final submission — by design.
 
-**Definition of Done:** a user can produce a store-ready mobile/Steam build with the right
-disclosures generated, guided through manual submission (not auto-spamming).
+- [x] Desktop (Windows/macOS/Linux) + Android + iOS export paths (iOS requires macOS; guided).
+- [x] Steam publishing (SteamPipe/steamcmd) → non-default branch + **AI-disclosure helper**.
+- [x] Compliance guardrails surfaced: Apple 4.2.6/4.3, Google repetitive-content, AI-asset copyright caveat, Unreal royalty.
+- [x] Age-rating (IARC) questionnaire helper. Consolidated in `playsmith publish --check`.
+
+**Definition of Done:** a user produces a store-ready Steam/mobile build with the right
+disclosures generated, **guided through manual submission** (never auto-spamming). ✅ met in code —
+the no-mass-submission rule is enforced (Steam refuses the live branch; mobile is guided-only).
 
 ---
 

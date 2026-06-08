@@ -10,8 +10,8 @@ Command surface:
   edit          — apply a natural-language change to the latest project, then re-verify
   assets        — import <file> | generate "<prompt>" — 2D sprites or 3D meshes (optional)
   run           — run the latest generated project in a window
-  export        — headless HTML5 export of the generated game
-  publish       — publish to itch.io via butler (with a compliance reminder)
+  export        — headless export: web | windows | mac | linux | android | ios (guided)
+  publish       — itch.io (butler) | Steam (steamcmd) | --check compliance + age rating
   unreal        — EXPERIMENTAL Unreal track (royalty calculator, availability check)
 """
 

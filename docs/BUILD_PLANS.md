@@ -10,8 +10,13 @@ step-by-step, paste-a-prompt build plan.
 | **1** | Can a local model make **one** 2D genre that's genuinely *good* and shippable? | [`docs/BUILD_PLAN_PHASE1.md`](BUILD_PLAN_PHASE1.md) | ✅ code-complete (live demo pending installs) |
 | **launch** | Is it worth showing the world? | [`docs/LAUNCH.md`](LAUNCH.md) | after the live Phase 1 demo |
 | **2** | Can we add breadth (3D, a 2nd engine, a marketplace) without breaking the discipline? | [`docs/BUILD_PLAN_PHASE2.md`](BUILD_PLAN_PHASE2.md) | ✅ code-complete (GUI deferred) |
-| **3** | Can a user ship to the big stores **responsibly**? | [`docs/BUILD_PLAN_PHASE3.md`](BUILD_PLAN_PHASE3.md) | ▶ next |
-| **beyond** | How does it *last*? | tail of [`BUILD_PLAN_PHASE3.md`](BUILD_PLAN_PHASE3.md) | community + curation + quality |
+| **3** | Can a user ship to the big stores **responsibly**? | [`docs/BUILD_PLAN_PHASE3.md`](BUILD_PLAN_PHASE3.md) | ✅ code-complete |
+| **beyond** | How does it *last*? | tail of [`BUILD_PLAN_PHASE3.md`](BUILD_PLAN_PHASE3.md) | community + curation + quality (ongoing) |
+
+> **All planned phases (0–3) are code-complete and tested** (143 tests, `ruff` + `pytest` green in
+> CI). What remains is *not more core* — it's the live validation runs (real Godot/UE/stores) and
+> the "beyond" work: growing the community skill library, deepening genres, and closing the
+> AI-asset quality gap. That's the compounding moat, not a feature sprint.
 
 ## The through-line
 
