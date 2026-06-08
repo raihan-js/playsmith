@@ -10,7 +10,7 @@ import pytest
 from typer.testing import CliRunner
 
 from playsmith.cli.main import app
-from playsmith.engines.base import EngineAdapter, EngineError, EngineNotFoundError
+from playsmith.engines.base import EngineAdapter, EngineError, EngineNotFoundError, RunResult
 from playsmith.engines.unreal import RemoteControlClient, UnrealAdapter, royalty_estimate
 
 
@@ -62,14 +62,56 @@ def test_unreal_adapter_satisfies_engine_protocol(tmp_path) -> None:
     assert isinstance(adapter, EngineAdapter)  # same interface as Godot
 
 
-def test_create_project_writes_uproject(tmp_path) -> None:
+def test_create_project_writes_blueprint_uproject_and_boot_config(tmp_path) -> None:
     adapter = UnrealAdapter(tmp_path / "proj")
     adapter.create_project("MyGame", main_scene="/Game/Maps/Main")
     files = list((tmp_path / "proj").glob("*.uproject"))
     assert files, "a .uproject should be written"
     data = json.loads(files[0].read_text())
     assert data["Description"] == "MyGame"
-    assert data["DefaultMap"] == "/Game/Maps/Main"
+    assert data["Modules"] == []  # Blueprint-only: nothing to compile
+    assert any(p["Name"] == "PythonScriptPlugin" and p["Enabled"] for p in data["Plugins"])
+    ini = (tmp_path / "proj" / "Config" / "DefaultEngine.ini").read_text()
+    assert "GameDefaultMap=/Game/Maps/Main" in ini
+
+
+def test_scaffold_runs_the_pythonscript_commandlet(tmp_path, monkeypatch) -> None:
+    adapter = UnrealAdapter(tmp_path / "proj")
+    adapter.create_project("G")
+    captured: dict = {}
+
+    def fake_invoke(args, *, timeout_s, env=None):
+        captured["args"] = args
+        return RunResult(command=["ue"], returncode=0)
+
+    monkeypatch.setattr(adapter, "_invoke", fake_invoke)
+    adapter.scaffold()
+    assert any("-run=pythonscript" in str(a) for a in captured["args"])
+    written = (tmp_path / "proj" / "Saved" / "playsmith_run.py").read_text()
+    assert "spawn_actor_from_class" in written and "PlayerStart" in written
+
+
+def test_verify_parses_file_based_assertions(tmp_path, monkeypatch) -> None:
+    adapter = UnrealAdapter(tmp_path / "proj")
+    adapter.create_project("G")
+
+    def fake_run_python(script_text, *, timeout_s, out_file=None):
+        if out_file is not None:  # emulate the UE Python harness writing its result file
+            out_file.parent.mkdir(parents=True, exist_ok=True)
+            out_file.write_text(
+                "PLAYSMITH_ASSERT level_loads=true\n"
+                "PLAYSMITH_ASSERT player_start_exists=true\n"
+                "PLAYSMITH_ASSERT floor_exists=true\n"
+                "PLAYSMITH_ASSERT player_exists=true\n"
+            )
+        return RunResult(command=["ue"], returncode=0, stdout="ok")
+
+    monkeypatch.setattr(adapter, "_run_python", fake_run_python)
+    result = adapter.verify(
+        checks=["level_loads", "player_start_exists", "floor_exists", "player_exists"]
+    )
+    assert result.assertions["player_exists"] is True
+    assert result.ok
 
 
 def test_write_scene_refused_binary(tmp_path) -> None:

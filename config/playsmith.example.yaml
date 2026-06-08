@@ -41,6 +41,10 @@ engine:
   godot:
     binary: "godot"      # path to the Godot 4.x executable
     version: "4"
+  unreal:
+    # Path to UnrealEditor-Cmd (the headless editor). Auto-discovered from ~/UnrealEngine if blank.
+    # Used by `playsmith unreal new "<name>"` (UE runs on the host, not in Docker).
+    editor_cmd: "UnrealEditor-Cmd"
 
 # Asset generation (optional). If unavailable, Playsmith uses placeholders and still ships.
 assets:

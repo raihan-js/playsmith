@@ -15,6 +15,8 @@ from __future__ import annotations
 
 import json
 import os
+import re
+import shutil
 import subprocess
 from pathlib import Path
 
@@ -29,6 +31,7 @@ from playsmith.engines.base import (
     VerifyResult,
     parse_assert_lines,
 )
+from playsmith.engines.unreal import templates
 
 # Epic's Unreal EULA royalty terms (surfaced so users see the cost Godot never has).
 _ROYALTY_THRESHOLD = 1_000_000.0
@@ -101,8 +104,28 @@ class RemoteControlClient:
         return httpx.request(method, url, timeout=self._timeout, **kwargs)
 
 
+# Common install locations to auto-find UnrealEditor-Cmd when the config value isn't a real path.
+_COMMON_UE_CMDS = (
+    "~/UnrealEngine/Engine/Binaries/Linux/UnrealEditor-Cmd",
+    "/opt/UnrealEngine/Engine/Binaries/Linux/UnrealEditor-Cmd",
+    "~/UnrealEngine/Engine/Binaries/Mac/UnrealEditor-Cmd",
+)
+
+
+def _resolve_editor(editor_cmd: str) -> str:
+    """Return a usable UnrealEditor-Cmd: the given path/name if real, else a known install."""
+    given = Path(editor_cmd).expanduser()
+    if given.exists() or shutil.which(editor_cmd):
+        return str(given) if given.exists() else editor_cmd
+    for candidate in _COMMON_UE_CMDS:
+        path = Path(candidate).expanduser()
+        if path.exists():
+            return str(path)
+    return editor_cmd  # leave as-is; _invoke raises a clear EngineNotFoundError if missing
+
+
 class UnrealAdapter:
-    """An EXPERIMENTAL :class:`EngineAdapter` for Unreal 5.x. Advanced track; Godot is default."""
+    """A :class:`EngineAdapter` for Unreal 5.x: drives UnrealEditor-Cmd headless via UE Python."""
 
     def __init__(
         self,
@@ -113,7 +136,7 @@ class UnrealAdapter:
         client: httpx.Client | None = None,
     ) -> None:
         self.project_dir = Path(project_dir).expanduser().resolve()
-        self.editor_cmd = editor_cmd
+        self.editor_cmd = _resolve_editor(editor_cmd)
         self.remote = RemoteControlClient(remote_host, client=client)
 
     # -- project authoring -----------------------------------------------------
@@ -124,19 +147,23 @@ class UnrealAdapter:
         return self.project_dir / (self.project_dir.name + ".uproject")
 
     def create_project(self, name: str, main_scene: str | None = None) -> None:
-        """Write a minimal ``.uproject`` (text JSON). Content modules need the editor/templates."""
+        """Write a Blueprint-only ``.uproject`` (Python enabled) + boot config for the level.
+
+        No C++ modules, so there's nothing to compile — the editor opens it directly. The actual
+        playable level is built by :meth:`scaffold` via the UE Python API.
+        """
         self.project_dir.mkdir(parents=True, exist_ok=True)
-        uproject = {
-            "FileVersion": 3,
-            "EngineAssociation": "5.4",
-            "Category": "",
-            "Description": name,
-            "Modules": [],
-            "Plugins": [{"Name": "RemoteControl", "Enabled": True}],
-        }
-        if main_scene:
-            uproject["DefaultMap"] = main_scene
-        (self.project_dir / (name + ".uproject")).write_text(json.dumps(uproject, indent=2))
+        proj_name = re.sub(r"[^A-Za-z0-9]", "", name) or "Game"
+        (self.project_dir / (proj_name + ".uproject")).write_text(templates.uproject(name))
+        config_dir = self.project_dir / "Config"
+        config_dir.mkdir(parents=True, exist_ok=True)
+        (config_dir / "DefaultEngine.ini").write_text(
+            templates.default_engine_ini(main_scene or templates.MAP)
+        )
+
+    def scaffold(self) -> RunResult:
+        """Build the deterministic playable level (floor + PlayerStart + pawn) via UE Python."""
+        return self._run_python(templates.scaffold_level_script(), timeout_s=600)
 
     def set_main_scene(self, res_path: str) -> None:
         path = self._uproject_path()
@@ -170,10 +197,15 @@ class UnrealAdapter:
         return target
 
     # -- process driving -------------------------------------------------------
-    def _invoke(self, args: list[str], *, timeout_s: int) -> RunResult:
+    def _invoke(
+        self, args: list[str], *, timeout_s: int, env: dict[str, str] | None = None
+    ) -> RunResult:
         cmd = [self.editor_cmd, *args]
+        run_env = {**os.environ, **(env or {})}
         try:
-            proc = subprocess.run(cmd, capture_output=True, text=True, timeout=timeout_s)
+            proc = subprocess.run(
+                cmd, capture_output=True, text=True, timeout=timeout_s, env=run_env
+            )
         except FileNotFoundError as exc:
             raise EngineNotFoundError(
                 f"Unreal editor '{self.editor_cmd}' not found. Install UE 5.x and set the path. "
@@ -193,6 +225,33 @@ class UnrealAdapter:
             stdout=proc.stdout or "",
             stderr=proc.stderr or "",
         )
+
+    def _run_python(
+        self, script_text: str, *, timeout_s: int, out_file: Path | None = None
+    ) -> RunResult:
+        """Run a UE Python script headless via the ``pythonscript`` commandlet.
+
+        Results come back through ``out_file`` (exposed to the script as ``$PLAYSMITH_UE_OUT``),
+        because the commandlet does not reliably surface ``print()`` on stdout.
+        """
+        saved = self.project_dir / "Saved"
+        saved.mkdir(parents=True, exist_ok=True)
+        script_path = saved / "playsmith_run.py"
+        script_path.write_text(script_text)
+        args = [
+            str(self._uproject_path()),
+            "-run=pythonscript",
+            f"-script={script_path}",
+            "-unattended",
+            "-nullrhi",
+            "-nosound",
+            "-nosplash",
+            "-nopause",
+            "-stdout",
+            "-NoLogTimes",
+        ]
+        env = {"PLAYSMITH_UE_OUT": str(out_file)} if out_file is not None else None
+        return self._invoke(args, timeout_s=timeout_s, env=env)
 
     def version(self) -> str:
         result = self._invoke(["-version"], timeout_s=30)
@@ -243,15 +302,21 @@ class UnrealAdapter:
         return self._invoke(args, timeout_s=600)
 
     def verify(self, checks: list[str] | None = None, *, scene: str | None = None) -> VerifyResult:
-        """Limited verification: run headless and derive ``no_errors`` from the logs.
+        """Run the UE Python verify harness headless; parse ``PLAYSMITH_ASSERT`` from the file.
 
-        Unreal has no PLAYSMITH_ASSERT harness (that is a Godot text-scene technique); gameplay
-        assertions on the Unreal track would go through the Remote Control API / automation tests.
+        Structural, headless checks (level loads, a PlayerStart/floor/pawn exist) — the Unreal
+        analog of Godot's in-engine assertion harness. ``no_errors`` is only evaluated if asked
+        for (UE startup logs are noisy); the structural assertions are the load-bearing signal.
         """
-        result = self.run(headless=True, timeout_s=60, scene=scene)
-        assertions = parse_assert_lines(result.logs)
-        if checks is None or "no_errors" in checks:
-            assertions["no_errors"] = not result.error_lines()
-        return VerifyResult(
-            run=result, assertions=assertions or {"no_errors": not result.error_lines()}
+        out_file = self.project_dir / "Saved" / "playsmith_assert.txt"
+        if out_file.exists():
+            out_file.unlink()
+        result = self._run_python(
+            templates.verify_script(scene or templates.MAP), timeout_s=600, out_file=out_file
         )
+        assertions: dict[str, bool] = {}
+        if out_file.exists():
+            assertions = parse_assert_lines(out_file.read_text())
+        if checks is not None and "no_errors" in checks:
+            assertions["no_errors"] = not result.error_lines()
+        return VerifyResult(run=result, assertions=assertions)

@@ -771,6 +771,49 @@ def unreal_check(
     console.print("[dim]The Unreal track is experimental; Godot is the default, tested engine.[/]")
 
 
+@unreal_app.command("new")
+def unreal_new(
+    name: str = typer.Argument(..., help="A name for the game/project."),
+    config: str = typer.Option(None, "--config", "-c", help="Path to a config YAML."),
+) -> None:
+    """Scaffold + verify a real, playable Unreal 5.x project (floor + PlayerStart + pawn).
+
+    Drives your local UnrealEditor-Cmd headless via the UE Python API, builds a deterministic
+    playable level, and verifies it in-engine (the Unreal analog of Godot's assertion loop).
+    Set engine.unreal.editor_cmd in your config to your UnrealEditor-Cmd path.
+    """
+    cfg = load_config(config)
+    slug = re.sub(r"[^a-z0-9]+", "-", name.lower()).strip("-") or "unreal-game"
+    project_dir = cfg.workspace_dir.expanduser() / slug
+    adapter = UnrealAdapter(project_dir, editor_cmd=cfg.engine.unreal.editor_cmd)
+    console.print(f"Creating Unreal project at [dim]{project_dir}[/] ...")
+    adapter.create_project(name)
+    console.print("Scaffolding a playable level (floor + PlayerStart + pawn) — UE headless ...")
+    try:
+        adapter.scaffold()
+        console.print("Verifying the level in-engine ...")
+        result = adapter.verify(
+            checks=["level_loads", "player_start_exists", "floor_exists", "player_exists"]
+        )
+    except EngineNotFoundError as exc:
+        console.print(f"[bold red]{exc}[/]")
+        console.print(
+            "[dim]Set engine.unreal.editor_cmd to your full UnrealEditor-Cmd path in the config.[/]"
+        )
+        raise typer.Exit(code=1) from exc
+    table = Table(title="Unreal verify", show_header=False)
+    for key, value in result.assertions.items():
+        table.add_row(key, "[green]PASS[/]" if value else "[red]FAIL[/]")
+    console.print(table)
+    if result.ok:
+        uproj = next(project_dir.glob("*.uproject"), None)
+        console.print(f"[bold green]✓ Real, verified Unreal project[/] at [dim]{project_dir}[/]")
+        console.print(f"[dim]Open it in the editor: UnrealEditor {uproj}[/]")
+    else:
+        console.print("[yellow]Some checks failed — see the table above.[/]")
+        raise typer.Exit(code=1)
+
+
 @app.command()
 def web(
     host: str = typer.Option("0.0.0.0", "--host", help="Bind host."),

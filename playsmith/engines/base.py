@@ -127,6 +127,10 @@ KNOWN_ASSERTIONS = frozenset(
         "has_dialogue_ui",
         "enemy_spawns",
         "obstacle_spawns",
+        # Unreal (structural, via the UE Python verify harness)
+        "level_loads",
+        "player_start_exists",
+        "floor_exists",
     }
 )
 

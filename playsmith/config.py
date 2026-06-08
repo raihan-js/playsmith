@@ -128,15 +128,27 @@ class GodotConfig:
 
 
 @dataclass
+class UnrealConfig:
+    # Path to UnrealEditor-Cmd (the headless editor binary). Full path or on $PATH.
+    editor_cmd: str = "UnrealEditor-Cmd"
+
+    @classmethod
+    def from_dict(cls, data: dict) -> UnrealConfig:
+        return cls(editor_cmd=_expand(data.get("editor_cmd", "UnrealEditor-Cmd")))
+
+
+@dataclass
 class EngineConfig:
     default: str = "godot"
     godot: GodotConfig = field(default_factory=GodotConfig)
+    unreal: UnrealConfig = field(default_factory=UnrealConfig)
 
     @classmethod
     def from_dict(cls, data: dict) -> EngineConfig:
         return cls(
             default=data.get("default", "godot"),
             godot=GodotConfig.from_dict(data.get("godot", {}) or {}),
+            unreal=UnrealConfig.from_dict(data.get("unreal", {}) or {}),
         )
 
 
