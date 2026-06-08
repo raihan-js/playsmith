@@ -143,6 +143,14 @@ def verify_harness_script() -> str:
         "\tif _frames >= 90:\n"
         "\t\t_emit()\n"
         "\n"
+        "func _has_ui(node: Node) -> bool:\n"
+        "\tif node is Label or node is RichTextLabel or node is Button:\n"
+        "\t\treturn true\n"
+        "\tfor child in node.get_children():\n"
+        "\t\tif _has_ui(child):\n"
+        "\t\t\treturn true\n"
+        "\treturn false\n"
+        "\n"
         "func _emit() -> void:\n"
         '\tvar wanted := OS.get_environment("PLAYSMITH_CHECKS").split(",", false)\n'
         "\tvar on_floor := false\n"
@@ -153,6 +161,8 @@ def verify_harness_script() -> str:
         '\t\t"player_exists": _player != null,\n'
         '\t\t"player_on_floor": on_floor,\n'
         '\t\t"player_not_falling": not fell,\n'
+        '\t\t"scene_loads": get_child_count() > 0,\n'
+        '\t\t"has_dialogue_ui": _has_ui(self),\n'
         "\t}\n"
         "\tfor key in results.keys():\n"
         "\t\tif wanted.is_empty() or wanted.has(key):\n"

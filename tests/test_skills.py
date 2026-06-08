@@ -29,7 +29,7 @@ def test_parse_frontmatter_splits_meta_and_body() -> None:
 
 
 def test_loads_real_2d_platformer_fixture() -> None:
-    # The repo ships exactly one skill; metadata is parsed eagerly.
+    # Metadata is parsed eagerly for every skill the repo ships.
     skills = SkillLoader([DEFAULT_SKILLS_ROOT]).discover()
     names = {s.name for s in skills}
     assert "2d-platformer" in names
@@ -41,6 +41,13 @@ def test_loads_real_2d_platformer_fixture() -> None:
     assert "CharacterBody2D" in skill.read_script("player.gd")
     # Skill-declared assertions feed the assertion-based reality loop.
     assert "player_on_floor" in skill.assertions
+
+
+def test_routes_between_the_two_repo_skills() -> None:
+    # Two real skills now ship; routing must distinguish them (keyword fallback, no gateway).
+    router = SkillRouter(SkillLoader([DEFAULT_SKILLS_ROOT]))
+    assert router.route("a jump-and-run platformer with a fox").name == "2d-platformer"
+    assert router.route("a branching detective story with dialogue choices").name == "visual-novel"
 
 
 def test_loader_skips_dirs_without_name(tmp_path) -> None:

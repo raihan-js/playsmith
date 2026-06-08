@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from playsmith.agent import AutoApprover
 from playsmith.config import Config
+from playsmith.skills import SkillLoader, SkillRouter
 from playsmith.studio import build_goal, latest_project, new_game, slugify
 from tests.conftest import FakeAdapter, FakeGateway, tool_response
 
@@ -39,6 +40,9 @@ def test_new_game_routes_scaffolds_generates_and_verifies(tmp_path) -> None:
         config=Config(),
         gateway=gateway,
         adapter=adapter,
+        # Gateway-less router so the repo's two skills route by keyword, not by consuming
+        # the scripted agent-loop responses above.
+        router=SkillRouter(SkillLoader()),
         approver=AutoApprover(),
         verbose=False,
     )
