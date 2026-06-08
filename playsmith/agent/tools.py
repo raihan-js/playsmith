@@ -165,6 +165,34 @@ def _verify_game(args: dict, ctx: ToolContext) -> str:
     return header + ("\n" + "\n".join(lines) if lines else "")
 
 
+_ASSET_EXTS = frozenset(
+    {".png", ".jpg", ".jpeg", ".webp", ".svg", ".bmp", ".tga", ".ogg", ".wav", ".mp3"}
+)
+
+
+def scan_assets(root: Path) -> list[str]:
+    """List image/audio asset files in a project as ``res://`` paths (skips our harnesses)."""
+    out: list[str] = []
+    for path in sorted(root.rglob("*")):
+        if (
+            path.is_file()
+            and path.suffix.lower() in _ASSET_EXTS
+            and not path.name.startswith("_playsmith")
+        ):
+            out.append("res://" + path.relative_to(root).as_posix())
+    return out
+
+
+def _list_assets(args: dict, ctx: ToolContext) -> str:
+    found = scan_assets(ctx.workspace)
+    if not found:
+        return (
+            "No imported art found. Use colored placeholders (ColorRect / a Sprite2D with a "
+            "PlaceholderTexture2D). The user can add real art with `playsmith assets import`."
+        )
+    return "Imported art available — reference these instead of placeholders:\n" + "\n".join(found)
+
+
 def _generate_asset(args: dict, ctx: ToolContext) -> str:
     # Asset pipeline is Phase 1. For now: degrade gracefully to placeholders (CLAUDE.md §5).
     return (
@@ -241,6 +269,14 @@ _TOOL_DEFS: list[_ToolDef] = [
             _obj({"checks": {"type": "array", "items": _STR}, "scene": _STR}, []),
         ),
         _verify_game,
+    ),
+    _ToolDef(
+        Tool(
+            "list_assets",
+            "List image/audio art already imported into the project (use these over placeholders).",
+            _obj({}, []),
+        ),
+        _list_assets,
     ),
     _ToolDef(
         Tool(

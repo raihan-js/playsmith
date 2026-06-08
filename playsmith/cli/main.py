@@ -184,6 +184,39 @@ def skills() -> None:
     console.print(table)
 
 
+assets_app = typer.Typer(help="Import or generate game art.", no_args_is_help=True)
+app.add_typer(assets_app, name="assets")
+
+
+@assets_app.command("import")
+def assets_import(
+    file: str = typer.Argument(..., help="Path to an image/audio file to import."),
+    as_path: str = typer.Option(
+        None, "--as", help="Destination res:// path (default assets/<name>)."
+    ),
+    project: str = typer.Option(None, "--project", "-p", help="Project dir (default: latest)."),
+    config: str = typer.Option(None, "--config", "-c", help="Path to a config YAML."),
+) -> None:
+    """Copy an image/audio file into a generated project so the agent (and you) can use it."""
+    cfg = load_config(config)
+    src = Path(file).expanduser()
+    if not src.is_file():
+        console.print(f"[bold red]No such file:[/] {src}")
+        raise typer.Exit(code=1)
+    project_dir = _resolve_project(cfg, project)
+    adapter = GodotAdapter(project_dir, binary=cfg.engine.godot.binary)
+    dest = (as_path or f"assets/{src.name}").replace("res://", "")
+    try:
+        adapter.add_asset(str(src), dest)
+    except (EngineError, OSError) as exc:
+        console.print(f"[bold red]Import failed:[/] {exc}")
+        raise typer.Exit(code=1) from exc
+    console.print(
+        f"[bold green]Imported[/] {src.name} → res://{dest} in [bold]{project_dir.name}[/]"
+    )
+    console.print('Use it via a Sprite2D texture, or `playsmith edit "use the imported art"`.')
+
+
 def _resolve_project(cfg: Config, project: str | None) -> Path:
     """Resolve an explicit project path, or fall back to the most recent generated game."""
     if project:

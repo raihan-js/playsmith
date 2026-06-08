@@ -19,6 +19,7 @@ from rich.console import Console
 
 from playsmith.agent import AgentLoop, AgentResult, AutoApprover, InteractiveApprover, ToolContext
 from playsmith.agent.approval import Approver
+from playsmith.agent.tools import scan_assets
 from playsmith.config import Config, load_config
 from playsmith.engines import EngineError, GodotAdapter
 from playsmith.engines.base import EngineAdapter, RunResult, VerifyResult
@@ -77,6 +78,12 @@ def build_goal(prompt: str, skill: Skill | None, project_dir: Path) -> str:
             )
         except Exception:  # noqa: BLE001 - template is a nicety, not required
             pass
+    imported = scan_assets(project_dir)
+    if imported:
+        parts.append(
+            "\nIMPORTED ART — use these textures/sounds instead of placeholders:\n"
+            + "\n".join(imported)
+        )
     if skill is not None and skill.assertions:
         parts.append(
             "\nVERIFY before finishing: call verify_game and ensure these assertions PASS — "
