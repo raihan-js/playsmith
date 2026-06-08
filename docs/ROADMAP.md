@@ -32,21 +32,26 @@ HTML5**. (See `CLAUDE.md` §7 for the exact checklist.)
 
 ---
 
-## Phase 1 — Assets + more genres + publish
+## Phase 1 — Make ONE genre genuinely good: any-model + real art + iterate + publish
 
-**Goal:** make games that look like games, in several genres, and ship them in one click.
+**Goal:** the one 2D genre looks like a real game, runs on any model (local *or* cloud), iterates by
+natural language, and ships to itch.io. **Depth before breadth** (`WHY.md` rule #3) — breadth is capped
+at two genres total this phase. Full step-by-step: `docs/BUILD_PLAN_PHASE1.md`.
 
-- [ ] **Asset pipeline (2D)**: ComfyUI client; Flux/Pixel-Art-XL sprites; graceful placeholder fallback.
-- [ ] `playsmith assets "<prompt>"` and in-loop asset generation during `new`.
-- [ ] **3–4 more genre skills**: top-down RPG, match-3, tower defense, visual novel.
-- [ ] **Skills format finalized**: documented SKILL.md spec for game-gen skills + contributor guide.
-- [ ] **Publish v1**: `playsmith publish --itch u/g` via butler; export targets desktop + web.
-- [ ] `playsmith edit "<change>"` natural-language iteration on an existing project.
+- [ ] **Provider hardening + model router**: any local model *or* any API key (OpenAI/Anthropic/
+      OpenRouter/Gemini); lean on a stronger model for hard steps, warning the user on every local→cloud crossing.
+- [ ] **Assertion-based reality loop**: in-engine `PLAYSMITH_ASSERT` checks (headless) so "good" is measurable, not just "no parse errors."
+- [ ] **Bring-your-own-art**: `playsmith assets import` + the agent prefers dropped-in images over placeholders.
+- [ ] **2D asset pipeline (ComfyUI)**: SDXL/Pixel-Art sprites; graceful placeholder fallback (never required).
+- [ ] **`playsmith edit "<change>"`**: natural-language iteration on an existing project (the CLI seed of the chat UX).
+- [ ] **Publish v1**: `playsmith publish --itch u/g` via butler; web export.
+- [ ] **One** extra genre skill — a **visual-novel/story** skill — plus the SKILL.md spec + contributor guide.
 
-**Definition of Done:** a non-coder produces a *good-looking* 2D game in any of ~5 genres and
-publishes it to itch.io in under ~30 minutes on a single GPU.
+**Definition of Done:** a non-coder produces a *good-looking*, art-bearing 2D game (platformer **or** a
+short story/dialogue game), iterates on it by natural language, and publishes it to itch.io — using a
+local **or** cloud model, with the cloud route an optional fallback, not a requirement.
 
-**Demo + launch trigger:** this is the version worth a public launch (see `docs/LAUNCH.md` when written).
+**Demo + launch trigger:** this is the version worth a public launch — see `docs/LAUNCH.md`.
 
 ---
 
