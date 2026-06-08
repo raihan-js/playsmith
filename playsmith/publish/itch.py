@@ -8,31 +8,11 @@ if it's missing we fail with a clear install hint, never a traceback.
 from __future__ import annotations
 
 import subprocess
-from dataclasses import dataclass
 from pathlib import Path
 
 from playsmith.engines import ExportTarget, GodotAdapter
 from playsmith.engines.base import EngineAdapter
-
-
-class PublishError(Exception):
-    """A recoverable publishing failure (missing butler, failed export/push, bad target)."""
-
-
-@dataclass
-class PublishResult:
-    command: list[str]
-    returncode: int | None
-    stdout: str = ""
-    stderr: str = ""
-
-    @property
-    def ok(self) -> bool:
-        return self.returncode == 0
-
-    @property
-    def logs(self) -> str:
-        return "\n".join(p for p in (self.stdout, self.stderr) if p)
+from playsmith.publish.base import PublishError, PublishResult
 
 
 def itch_compliance_note() -> str:

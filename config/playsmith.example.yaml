@@ -51,10 +51,13 @@ assets:
   mesh_backend: "hunyuan3d"               # hunyuan3d (Apache-2.0) | trellis (MIT)
   blender_path: "blender"                 # optional headless mesh cleanup; skipped if not installed
 
-# Publishing (Phase 1+).
+# Publishing (Phase 1+). itch.io (butler) and Steam (steamcmd) — both optional.
 publish:
   itch:
     butler_path: "butler"
+  steam:
+    steamcmd_path: "steamcmd"           # SteamPipe; run `steamcmd +login <account>` once (Steam Guard)
+    account: ""                         # your Steamworks account; uploads go to a non-default branch
 
 # Community skill marketplace (Phase 2). Installs are integrity-checked and never auto-executed;
 # untrusted skills require `--allow-untrusted`. See docs/SKILL_SPEC.md + CONTRIBUTING_SKILLS.md.

@@ -39,7 +39,7 @@ from playsmith.engines.godot import templates as godot_templates
 from playsmith.engines.unreal import UnrealAdapter, royalty_estimate
 from playsmith.llm import LLMError, LLMGateway, Message
 from playsmith.llm.eval import evaluate_targets
-from playsmith.publish import PublishError, publish_itch
+from playsmith.publish import PublishError, publish_itch, publish_steam
 from playsmith.skills import SkillLoader, SkillRegistry, SkillRegistryError
 from playsmith.studio import edit_game, latest_project, new_game
 
@@ -600,16 +600,45 @@ def export(
 @app.command()
 def publish(
     itch: str = typer.Option(None, "--itch", help="Publish to itch.io; target as user/game."),
-    channel: str = typer.Option("web", "--channel", help="butler channel (default web)."),
+    steam: str = typer.Option(None, "--steam", help="Publish to Steam; the app ID."),
+    channel: str = typer.Option("web", "--channel", help="itch butler channel (default web)."),
+    branch: str = typer.Option("beta", "--branch", help="Steam branch (default beta; never live)."),
     project: str = typer.Option(None, "--project", "-p", help="Project dir (default: latest)."),
     config: str = typer.Option(None, "--config", "-c", help="Path to a config YAML."),
 ) -> None:
-    """Publish a generated game (itch.io HTML5 via butler), with a compliance reminder."""
+    """Publish to itch.io (butler) or Steam (steamcmd), with compliance reminders."""
     cfg = load_config(config)
-    if not itch:
-        console.print("Specify a target, e.g. `playsmith publish --itch you/your-game`.")
+    if not itch and not steam:
+        console.print(
+            "Specify a target, e.g. `playsmith publish --itch you/game` or `--steam <appid>`."
+        )
         raise typer.Exit(code=1)
     project_dir = _resolve_project(cfg, project)
+
+    if steam:
+        console.print(
+            f"Publishing [bold]{project_dir.name}[/] → Steam app [cyan]{steam}[/] branch "
+            f"[cyan]{branch}[/] (not live) ..."
+        )
+        try:
+            publish_steam(
+                project_dir,
+                steam,
+                branch=branch,
+                steamcmd_path=cfg.publish.steamcmd_path,
+                account=cfg.publish.steam_account,
+                godot_binary=cfg.engine.godot.binary,
+                console=console,
+            )
+        except (PublishError, EngineNotFoundError) as exc:
+            console.print(f"[bold red]Publish failed:[/] {exc}")
+            raise typer.Exit(code=1) from exc
+        console.print(
+            f"[bold green]Uploaded[/] to Steam app {steam} branch '{branch}'. "
+            "Promote to the default branch manually in Steamworks when ready."
+        )
+        return
+
     console.print(f"Publishing [bold]{project_dir.name}[/] → itch.io [cyan]{itch}:{channel}[/] ...")
     try:
         publish_itch(

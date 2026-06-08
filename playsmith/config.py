@@ -150,11 +150,18 @@ class AssetsConfig:
 @dataclass
 class PublishConfig:
     butler_path: str = "butler"
+    steamcmd_path: str = "steamcmd"
+    steam_account: str = ""
 
     @classmethod
     def from_dict(cls, data: dict) -> PublishConfig:
         itch = data.get("itch", {}) or {}
-        return cls(butler_path=_expand(itch.get("butler_path", "butler")))
+        steam = data.get("steam", {}) or {}
+        return cls(
+            butler_path=_expand(itch.get("butler_path", "butler")),
+            steamcmd_path=_expand(steam.get("steamcmd_path", "steamcmd")),
+            steam_account=steam.get("account", "") or "",
+        )
 
 
 @dataclass
