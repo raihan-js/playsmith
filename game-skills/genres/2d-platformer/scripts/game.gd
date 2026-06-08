@@ -1,7 +1,7 @@
-# game.gd — Godot 4.x platformer game controller (wires coins/spikes/goal + a score HUD).
-# Attach to the Main (Node2D). It finds nodes in the "coin", "spike", and "goal" groups and
-# connects their Area2D.body_entered signals — so adding more gameplay is just adding nodes to
-# those groups (no scene re-wiring needed). Godot 4 only.
+# game.gd — Godot 4.x platformer game controller (gameplay + applies generated art).
+# Attach to the Main (Node2D). Wires coins/spikes/goal by group and, at runtime, applies any
+# generated art at res://assets/background.png and res://assets/player.png (so graphics are
+# reliable without editing scene files). Godot 4 only.
 
 extends Node2D
 
@@ -18,7 +18,42 @@ func _ready() -> void:
 		spike.body_entered.connect(_on_spike)
 	for goal in get_tree().get_nodes_in_group("goal"):
 		goal.body_entered.connect(_on_goal)
+	_apply_generated_art()
 	_update_hud()
+
+
+func _apply_generated_art() -> void:
+	# Background (covers the camera view).
+	var bg_path := "res://assets/background.png"
+	var bg := get_node_or_null("Background")
+	if bg and ResourceLoader.exists(bg_path):
+		var tex: Texture2D = load(bg_path)
+		if tex:
+			bg.texture = tex
+			var w := float(tex.get_width())
+			var h := float(tex.get_height())
+			if w > 0.0 and h > 0.0:
+				bg.scale = Vector2(1152.0 / w, 648.0 / h)
+			print("PLAYSMITH_BG_APPLIED")
+	# Player sprite (optional).
+	var p_path := "res://assets/player.png"
+	if ResourceLoader.exists(p_path):
+		var ptex: Texture2D = load(p_path)
+		var player := _find_player(self)
+		if ptex and player:
+			var spr := player.get_node_or_null("Sprite2D")
+			if spr and spr is Sprite2D:
+				spr.texture = ptex
+
+
+func _find_player(node: Node) -> Node:
+	if node is CharacterBody2D:
+		return node
+	for child in node.get_children():
+		var found := _find_player(child)
+		if found:
+			return found
+	return null
 
 
 func _on_coin(body: Node, coin: Node) -> void:

@@ -108,3 +108,6 @@ class FakeAdapter:
         out.parent.mkdir(parents=True, exist_ok=True)
         out.write_text("<html>game</html>")  # pretend HTML5 export
         return RunResult(command=["godot"], returncode=0, stdout="exported")
+
+    def import_assets(self) -> RunResult:
+        return RunResult(command=["godot"], returncode=0, stdout="imported")

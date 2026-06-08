@@ -111,11 +111,10 @@ def build_goal(
             "a coin/platform by copying an existing node block in Main.tscn.\n"
             "- To add BEHAVIOR, edit the GDScript (scripts/game.gd, scripts/player.gd), never the "
             "scene text.\n"
-            "- GRAPHICS: if generate_asset works, generate a themed background "
-            "(generate_asset kind=background) and add it as a Sprite2D named 'Background' as the "
-            "FIRST child of Main (so it's behind everything), centered on the camera, with its "
-            "texture set to the generated res:// path. That one addition makes it look like a real "
-            "game. Optionally give the player a generated sprite too. Verify after each change.\n"
+            "- GRAPHICS: a themed background is already generated and applied for you. You MAY "
+            "generate a player sprite with generate_asset(kind=sprite) and save it to "
+            "res://assets/player.png — it is auto-applied at runtime, so do NOT edit scene files "
+            "for art. Verify after any change.\n"
             "- After EVERY change call run_engine + verify_game. If a change makes verification "
             "FAIL, UNDO it immediately and try something smaller.\n"
             "- If you can't improve it safely, just call task_complete — the base game is good."
@@ -220,12 +219,28 @@ def new_game(
             {"type": "phase", "text": f"Scaffolded a working base ({len(scaffolded)} files)"},
         )
 
+    # Reliable graphics: generate a themed background + import it. game.gd applies it at runtime
+    # from res://assets/background.png, so every game looks real — no brittle scene edits.
+    asset_gen = get_asset_generator(cfg)
+    if asset_gen is not None and scaffolded:
+        try:
+            if asset_gen.available():
+                asset_gen.image(
+                    prompt, "background", str(adapter.project_dir / "assets" / "background.png")
+                )
+                adapter.import_assets()
+                if verbose:
+                    console.print("Generated a themed background.")
+                _emit(on_event, {"type": "phase", "text": "Generated a themed background"})
+        except Exception:  # noqa: BLE001 - art is optional; never block a build
+            pass
+
     if approver is None:
         approver = AutoApprover() if auto_approve else InteractiveApprover(console)
     ctx = ToolContext(
         adapter=adapter,
         approver=approver,
-        asset_generator=get_asset_generator(cfg),
+        asset_generator=asset_gen,
         mesh_generator=get_mesh_generator(cfg),
     )
     loop = AgentLoop(

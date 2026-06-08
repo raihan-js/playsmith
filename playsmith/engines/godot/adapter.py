@@ -193,6 +193,16 @@ class GodotAdapter:
         ]
         return self._invoke(args, timeout_s=600)
 
+    def import_assets(self) -> RunResult:
+        """Import project resources so newly-added files (e.g. generated PNGs) are usable.
+
+        Game-mode runs (``--headless``) don't import; ``load("res://assets/foo.png")`` only works
+        after the resource is imported. Run this after writing new assets into the project.
+        """
+        return self._invoke(
+            ["--headless", "--import", "--path", str(self.project_dir)], timeout_s=180
+        )
+
     def verify(self, checks: list[str] | None = None, *, scene: str | None = None) -> VerifyResult:
         """Run the assertion harness headless and report per-check pass/fail.
 

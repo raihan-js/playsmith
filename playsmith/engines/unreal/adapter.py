@@ -225,6 +225,10 @@ class UnrealAdapter:
             return RunResult(command=["remote", "HighResShot"], returncode=1, stderr=str(exc))
         return RunResult(command=["remote", "HighResShot"], returncode=0, stdout=str(out))
 
+    def import_assets(self) -> RunResult:
+        """Unreal imports assets through the editor/Interchange pipeline, not a CLI flag."""
+        return RunResult(command=["unreal", "import"], returncode=0)
+
     def export(self, target: ExportTarget, out_path: str, *, debug: bool = False) -> RunResult:
         """EXPERIMENTAL: headless cook. Full packaging uses RunUAT BuildCookRun (see UE docs)."""
         out = Path(out_path).expanduser()
