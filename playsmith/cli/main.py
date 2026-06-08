@@ -18,6 +18,8 @@ from rich.table import Table
 
 from playsmith import __version__
 from playsmith.config import Config, ConfigError, load_config
+from playsmith.engines import EngineError, EngineNotFoundError, GodotAdapter, SceneSpec
+from playsmith.engines.godot import templates as godot_templates
 from playsmith.llm import LLMError, LLMGateway, Message
 
 app = typer.Typer(
@@ -88,6 +90,47 @@ def models(
         raise typer.Exit(code=1) from exc
 
     console.print(f"[bold green]{cfg.llm.model}[/]: {resp.content or '<no content>'}")
+
+
+@app.command(name="engine-check")
+def engine_check(
+    config: str = typer.Option(None, "--config", "-c", help="Path to a config YAML."),
+) -> None:
+    """Create a trivial Godot project in the workspace and run it headless.
+
+    Proves Godot is wired up. The project it makes can be opened in the Godot editor.
+    """
+    try:
+        cfg = load_config(config)
+    except ConfigError as exc:
+        console.print(f"[bold red]Config error:[/] {exc}")
+        raise typer.Exit(code=1) from exc
+
+    project_dir = cfg.workspace_dir.expanduser() / "_playsmith_engine_check"
+    adapter = GodotAdapter(project_dir, binary=cfg.engine.godot.binary)
+
+    try:
+        ver = adapter.version()
+    except (EngineNotFoundError, EngineError) as exc:
+        console.print(f"[bold red]Engine error:[/] {exc}")
+        raise typer.Exit(code=1) from exc
+    console.print(f"Found Godot: [bold cyan]{ver}[/]")
+
+    adapter.create_project("Playsmith Engine Check", main_scene="res://Main.tscn")
+    adapter.write_scene(SceneSpec("Main.tscn", godot_templates.trivial_main_scene()))
+    console.print(f"Created trivial project at [dim]{project_dir}[/]")
+
+    result = adapter.run(headless=True, timeout_s=30)
+    if result.logs:
+        console.print("[dim]--- engine logs ---[/]")
+        console.print(result.logs)
+    if result.ok:
+        console.print("[bold green]engine-check passed[/] — Godot ran the project cleanly.")
+    else:
+        console.print("[bold red]engine-check failed[/] — see logs above.")
+        for line in result.error_lines():
+            console.print(f"  [red]{line}[/]")
+        raise typer.Exit(code=1)
 
 
 def main() -> None:
