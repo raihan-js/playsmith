@@ -13,7 +13,7 @@ from playsmith.skills import SkillLoader
 
 def test_builtin_genres_present() -> None:
     names = {s.name for s in SkillLoader().discover()}
-    assert {"2d-platformer", "space-shooter"} <= names
+    assert {"2d-platformer", "space-shooter", "endless-runner"} <= names
 
 
 def test_every_genre_assertion_is_known() -> None:
@@ -31,3 +31,10 @@ def test_space_shooter_is_distinct_from_platformer() -> None:
     assert "enemy_spawns" in shooter.assertions
     assert "player_on_floor" not in shooter.assertions
     assert slots_for("space-shooter") == ["background", "player", "enemy", "bullet"]
+
+
+def test_endless_runner_is_distinct() -> None:
+    runner = SkillLoader().get("endless-runner")
+    assert runner is not None
+    assert "obstacle_spawns" in runner.assertions
+    assert slots_for("endless-runner") == ["background", "player", "obstacle"]
