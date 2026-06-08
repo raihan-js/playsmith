@@ -55,6 +55,10 @@ def test_new_game_routes_scaffolds_generates_and_verifies(tmp_path) -> None:
     # The agent ran the engine, and studio ran the final verify() with the skill's assertions.
     assert adapter.runs >= 1
     assert adapter.verifies >= 1
+    # A manifest was written so `playsmith edit` can verify this project later.
+    from playsmith.studio import read_manifest
+
+    assert read_manifest(adapter.project_dir)["skill"] == "2d-platformer"
 
 
 def test_build_goal_includes_skill_body_and_player_template(tmp_path) -> None:

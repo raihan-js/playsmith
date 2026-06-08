@@ -33,7 +33,7 @@ from playsmith.engines import (
 from playsmith.engines.godot import templates as godot_templates
 from playsmith.llm import LLMError, LLMGateway, Message
 from playsmith.skills import SkillLoader
-from playsmith.studio import latest_project, new_game
+from playsmith.studio import edit_game, latest_project, new_game
 
 app = typer.Typer(
     name="playsmith",
@@ -269,6 +269,30 @@ def _resolve_project(cfg: Config, project: str | None) -> Path:
     return found
 
 
+def _print_build_outcome(outcome) -> None:
+    """Shared result reporting for `new` and `edit`."""
+    console.print()
+    if outcome.runs_clean:
+        console.print("[bold green]✓ The game runs and all gameplay checks pass.[/]")
+    elif outcome.final_verify is not None:
+        console.print("[bold yellow]⚠ The game still has issues on final verification:[/]")
+        for check in outcome.final_verify.failures():
+            console.print(f"  [red]assertion failed: {check}[/]")
+        for line in outcome.final_verify.run.error_lines()[:8]:
+            console.print(f"  [red]{line}[/]")
+    else:
+        console.print("[yellow]Could not run a final verification (is Godot installed?).[/]")
+
+    console.print(f"\nProject: [bold]{outcome.project_dir}[/]")
+    console.print(f"Open it in Godot: [dim]godot --editor --path {outcome.project_dir}[/]")
+    console.print(
+        'Next: [cyan]playsmith run[/], [cyan]playsmith edit "..."[/], '
+        "or [cyan]playsmith export --target web[/]."
+    )
+    if not outcome.agent_result.done:
+        console.print(f"[dim](agent stopped: {outcome.agent_result.reason})[/]")
+
+
 @app.command()
 def new(
     prompt: str = typer.Argument(..., help="What game to build, e.g. 'a 2D platformer...'."),
@@ -295,25 +319,43 @@ def new(
         console.print("[dim]Is your model running? Check `playsmith models`.[/]")
         raise typer.Exit(code=1) from exc
 
-    console.print()
-    if outcome.runs_clean:
-        console.print("[bold green]✓ The game runs and all gameplay checks pass.[/]")
-    elif outcome.final_verify is not None:
-        console.print("[bold yellow]⚠ The game still has issues on final verification:[/]")
-        for check in outcome.final_verify.failures():
-            console.print(f"  [red]assertion failed: {check}[/]")
-        for line in outcome.final_verify.run.error_lines()[:8]:
-            console.print(f"  [red]{line}[/]")
-    else:
-        console.print("[yellow]Could not run a final verification (is Godot installed?).[/]")
+    _print_build_outcome(outcome)
 
-    console.print(f"\nProject: [bold]{outcome.project_dir}[/]")
-    console.print(f"Open it in Godot: [dim]godot --editor --path {outcome.project_dir}[/]")
-    console.print(
-        "Next: [cyan]playsmith run[/] to play it, [cyan]playsmith export --target web[/]."
-    )
-    if not outcome.agent_result.done:
-        console.print(f"[dim](agent stopped: {outcome.agent_result.reason})[/]")
+
+@app.command()
+def edit(
+    change: str = typer.Argument(..., help='The change, e.g. "make the player jump higher".'),
+    project: str = typer.Option(None, "--project", "-p", help="Project dir (default: latest)."),
+    yes: bool = typer.Option(False, "--yes", "-y", help="Auto-approve all file writes."),
+    config: str = typer.Option(None, "--config", "-c", help="Path to a config YAML."),
+    max_iterations: int = typer.Option(24, "--max-iterations", help="Agent step cap."),
+) -> None:
+    """Iterate on an existing generated project in natural language (re-runs + re-verifies)."""
+    try:
+        cfg = load_config(config)
+    except ConfigError as exc:
+        console.print(f"[bold red]Config error:[/] {exc}")
+        raise typer.Exit(code=1) from exc
+
+    project_dir = _resolve_project(cfg, project)
+    try:
+        outcome = edit_game(
+            change,
+            config=cfg,
+            project_dir=str(project_dir),
+            auto_approve=yes,
+            console=console,
+            max_iterations=max_iterations,
+        )
+    except EngineNotFoundError as exc:
+        console.print(f"[bold red]Engine error:[/] {exc}")
+        raise typer.Exit(code=1) from exc
+    except LLMError as exc:
+        console.print(f"[bold red]LLM error:[/] {exc}")
+        console.print("[dim]Is your model running? Check `playsmith models`.[/]")
+        raise typer.Exit(code=1) from exc
+
+    _print_build_outcome(outcome)
 
 
 @app.command()

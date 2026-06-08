@@ -11,6 +11,7 @@ Keep this layer thin: it wires modules together and owns no engine/model specifi
 
 from __future__ import annotations
 
+import json
 import re
 from dataclasses import dataclass
 from pathlib import Path
@@ -28,6 +29,30 @@ from playsmith.llm import LLMGateway
 from playsmith.skills import Skill, SkillLoader, SkillRouter
 
 _ENGINE_CHECK_DIR = "_playsmith_engine_check"
+# Per-project metadata (which skill made it, its assertions) — lets `edit` verify correctly.
+# Godot ignores dot-directories, so this never interferes with the game project.
+_MANIFEST_PATH = ".playsmith/manifest.json"
+
+
+def write_manifest(
+    project_dir: Path, *, skill: str | None, prompt: str, assertions: list[str]
+) -> None:
+    path = Path(project_dir) / _MANIFEST_PATH
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(
+        json.dumps({"skill": skill, "prompt": prompt, "assertions": assertions}, indent=2)
+    )
+
+
+def read_manifest(project_dir: Path) -> dict | None:
+    path = Path(project_dir) / _MANIFEST_PATH
+    if not path.exists():
+        return None
+    try:
+        data = json.loads(path.read_text())
+        return data if isinstance(data, dict) else None
+    except (json.JSONDecodeError, OSError):
+        return None
 
 
 @dataclass
@@ -136,6 +161,17 @@ def new_game(
     loop = AgentLoop(gateway, ctx, max_iterations=max_iterations, console=console, verbose=verbose)
     agent_result = loop.run(build_goal(prompt, skill, adapter.project_dir))
 
+    # Record what made this project so `playsmith edit` can verify it correctly later.
+    try:
+        write_manifest(
+            adapter.project_dir,
+            skill=skill.name if skill else None,
+            prompt=prompt,
+            assertions=skill.assertions if skill else [],
+        )
+    except OSError:
+        pass
+
     # Final authoritative verification (assertion-based), independent of the agent's claim.
     checks = skill.assertions if (skill and skill.assertions) else None
     final_verify: VerifyResult | None = None
@@ -148,6 +184,85 @@ def new_game(
     return BuildOutcome(
         project_dir=Path(adapter.project_dir),
         skill_name=skill.name if skill else None,
+        agent_result=agent_result,
+        final_verify=final_verify,
+    )
+
+
+def build_edit_goal(change: str, project_dir: Path, assertions: list[str] | None) -> str:
+    """The goal for iterating on an existing project in natural language."""
+    parts = [
+        f"Here is an EXISTING Godot 4 project at: {project_dir}",
+        "First use list_dir and read_file to understand its scenes and scripts. Then make this "
+        "change with apply_patch/write_file:",
+        f"\nCHANGE REQUESTED:\n{change}",
+        "\nAfter editing, call run_engine and verify_game, and fix until it runs with no errors.",
+    ]
+    imported = scan_assets(project_dir)
+    if imported:
+        parts.append(
+            "\nIMPORTED ART available — prefer these over placeholders:\n" + "\n".join(imported)
+        )
+    if assertions:
+        parts.append("\nKeep these assertions PASSING: " + ", ".join(assertions))
+    parts.append(
+        "\nWhen verify_game passes, call task_complete with a short summary of what changed."
+    )
+    return "\n".join(parts)
+
+
+def edit_game(
+    change: str,
+    *,
+    config: Config | None = None,
+    gateway: LLMGateway | None = None,
+    adapter: EngineAdapter | None = None,
+    project_dir: str | Path | None = None,
+    approver: Approver | None = None,
+    auto_approve: bool = False,
+    console: Console | None = None,
+    max_iterations: int = 24,
+    verbose: bool = True,
+) -> BuildOutcome:
+    """Apply a natural-language change to an existing project, then verify it still works."""
+    cfg = config or load_config()
+    console = console or Console()
+    gateway = gateway or LLMGateway.from_config(cfg, console=console)
+
+    if adapter is None:
+        target = (
+            Path(project_dir).expanduser()
+            if project_dir is not None
+            else latest_project(cfg.workspace_dir)
+        )
+        if target is None:
+            raise EngineError(
+                'No project to edit. Run `playsmith new "..."` first, or pass --project.'
+            )
+        adapter = GodotAdapter(target, binary=cfg.engine.godot.binary)
+
+    manifest = read_manifest(adapter.project_dir) or {}
+    checks = manifest.get("assertions") or None
+    skill_name = manifest.get("skill")
+    if verbose:
+        console.print(f"Editing: [dim]{adapter.project_dir}[/]")
+
+    if approver is None:
+        approver = AutoApprover() if auto_approve else InteractiveApprover(console)
+    ctx = ToolContext(adapter=adapter, approver=approver, asset_generator=get_asset_generator(cfg))
+    loop = AgentLoop(gateway, ctx, max_iterations=max_iterations, console=console, verbose=verbose)
+    agent_result = loop.run(build_edit_goal(change, adapter.project_dir, checks))
+
+    final_verify: VerifyResult | None = None
+    try:
+        final_verify = adapter.verify(checks=checks)
+    except EngineError as exc:
+        if verbose:
+            console.print(f"[yellow]Final verification could not run:[/] {exc}")
+
+    return BuildOutcome(
+        project_dir=Path(adapter.project_dir),
+        skill_name=skill_name,
         agent_result=agent_result,
         final_verify=final_verify,
     )
