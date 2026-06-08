@@ -9,6 +9,7 @@ from playsmith.publish.compliance import (
     steam_ai_disclosure,
 )
 from playsmith.publish.itch import ItchPublisher, itch_compliance_note, publish_itch
+from playsmith.publish.mobile import ensure_android_keystore, is_macos
 from playsmith.publish.steam import SteamPublisher, build_app_vdf, publish_steam
 
 __all__ = [
@@ -21,6 +22,8 @@ __all__ = [
     "PublishResult",
     "SteamPublisher",
     "build_app_vdf",
+    "ensure_android_keystore",
+    "is_macos",
     "itch_compliance_note",
     "publish_itch",
     "publish_steam",

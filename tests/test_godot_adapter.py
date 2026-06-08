@@ -228,6 +228,16 @@ def test_export_appends_second_preset_without_clobbering(tmp_path, monkeypatch) 
     assert "[preset.0]" in presets and "[preset.1]" in presets
 
 
+def test_export_android_writes_android_preset(tmp_path, monkeypatch) -> None:
+    monkeypatch.setattr(
+        subprocess, "run", lambda cmd, **k: subprocess.CompletedProcess(cmd, 0, stdout="ok")
+    )
+    a = _adapter(tmp_path)
+    a.create_project("G", main_scene="res://Main.tscn")
+    a.export(ExportTarget.ANDROID, str(tmp_path / "b" / "game.aab"))
+    assert 'name="Android"' in (a.project_dir / "export_presets.cfg").read_text()
+
+
 def test_screenshot_injects_harness_and_passes_env(tmp_path, monkeypatch) -> None:
     captured = {}
 

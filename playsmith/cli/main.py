@@ -39,7 +39,16 @@ from playsmith.engines.godot import templates as godot_templates
 from playsmith.engines.unreal import UnrealAdapter, royalty_estimate
 from playsmith.llm import LLMError, LLMGateway, Message
 from playsmith.llm.eval import evaluate_targets
-from playsmith.publish import PublishError, publish_itch, publish_steam
+from playsmith.publish import (
+    APPLE_4_2_6,
+    APPLE_4_3,
+    GOOGLE_REPETITIVE,
+    PublishError,
+    ensure_android_keystore,
+    is_macos,
+    publish_itch,
+    publish_steam,
+)
 from playsmith.skills import SkillLoader, SkillRegistry, SkillRegistryError
 from playsmith.studio import edit_game, latest_project, new_game
 
@@ -538,37 +547,68 @@ _EXPORT_TARGETS = {
     "mac": ExportTarget.MACOS,
     "macos": ExportTarget.MACOS,
     "linux": ExportTarget.LINUX,
+    "android": ExportTarget.ANDROID,
+    "ios": ExportTarget.IOS,
 }
 _EXPORT_OUT_NAMES = {
     ExportTarget.WEB: "index.html",
     ExportTarget.WINDOWS: "game.exe",
     ExportTarget.MACOS: "game.zip",
     ExportTarget.LINUX: "game.x86_64",
+    ExportTarget.ANDROID: "game.aab",
+    ExportTarget.IOS: "ios-xcode",
 }
+
+
+def _mobile_guardrails(tgt: ExportTarget, cfg: Config) -> None:
+    """Surface the store rules / requirements before a mobile export (guided, manual)."""
+    if tgt is ExportTarget.ANDROID:
+        console.print(f"[yellow]{GOOGLE_REPETITIVE}[/]")
+        keystore = Path(cfg.skills.dir).expanduser().parent / "debug.keystore"
+        if ensure_android_keystore(keystore):
+            console.print(
+                f"[dim]Using debug keystore {keystore} (ship with your own release key).[/]"
+            )
+        else:
+            console.print(
+                "[dim]Install the JDK `keytool` and configure a keystore to sign the APK/AAB.[/]"
+            )
+    elif tgt is ExportTarget.IOS:
+        if not is_macos():
+            console.print(
+                "[bold red]iOS export requires macOS + Xcode[/] (Apple's tooling is macOS-only)."
+            )
+            console.print(f"[yellow]{APPLE_4_2_6}[/]")
+            raise typer.Exit(code=1)
+        console.print(f"[yellow]{APPLE_4_2_6}[/]\n[yellow]{APPLE_4_3}[/]")
+        console.print(
+            "[dim]Export produces an Xcode project; finish signing + submission in Xcode.[/]"
+        )
 
 
 @app.command()
 def export(
-    target: str = typer.Option("web", "--target", "-t", help="web | windows | mac | linux."),
+    target: str = typer.Option(
+        "web", "--target", "-t", help="web | windows | mac | linux | android | ios."
+    ),
     project: str = typer.Option(None, "--project", "-p", help="Project dir (default: latest)."),
     out: str = typer.Option(
         None, "--out", "-o", help="Output path (default: <project>/build/...)."
     ),
     config: str = typer.Option(None, "--config", "-c", help="Path to a config YAML."),
 ) -> None:
-    """Headless export of the generated game (web HTML5 or a desktop build)."""
+    """Headless export of the generated game (web, desktop, or guided mobile build)."""
     cfg = load_config(config)
     key = target.lower()
     if key not in _EXPORT_TARGETS:
         console.print(
             f"[bold red]Unsupported target:[/] {target}. Try: {', '.join(sorted(_EXPORT_TARGETS))}."
         )
-        console.print(
-            "[dim](Android/iOS use `playsmith publish` — they need signing + store steps.)[/]"
-        )
         raise typer.Exit(code=1)
     tgt = _EXPORT_TARGETS[key]
     project_dir = _resolve_project(cfg, project)
+    if tgt in (ExportTarget.ANDROID, ExportTarget.IOS):
+        _mobile_guardrails(tgt, cfg)
     out_path = Path(out).expanduser() if out else project_dir / "build" / _EXPORT_OUT_NAMES[tgt]
     adapter = GodotAdapter(project_dir, binary=cfg.engine.godot.binary)
     console.print(
