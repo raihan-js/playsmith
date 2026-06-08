@@ -129,8 +129,12 @@ class EngineConfig:
 @dataclass
 class AssetsConfig:
     enabled: bool = False
+    image_backend: str = "comfyui"  # "comfyui" (local GPU) | "openai" (uses an OpenAI key)
     comfyui_url: str = "http://localhost:8188"
     model: str = "sd_xl_base_1.0.safetensors"
+    openai_api_key: str = ""  # for image_backend="openai"; falls back to the LLM key if blank
+    image_model: str = "gpt-image-1"
+    image_base_url: str = "https://api.openai.com/v1"
     mesh_url: str = ""  # 3D mesh backend (Hunyuan3D/TRELLIS); empty => primitives only
     mesh_backend: str = "hunyuan3d"
     blender_path: str = "blender"
@@ -139,8 +143,12 @@ class AssetsConfig:
     def from_dict(cls, data: dict) -> AssetsConfig:
         return cls(
             enabled=bool(data.get("enabled", False)),
+            image_backend=data.get("image_backend", "comfyui"),
             comfyui_url=data.get("comfyui_url", "http://localhost:8188"),
             model=data.get("model", "sd_xl_base_1.0.safetensors"),
+            openai_api_key=_expand(data.get("openai_api_key", "") or ""),
+            image_model=data.get("image_model", "gpt-image-1"),
+            image_base_url=data.get("image_base_url", "https://api.openai.com/v1"),
             mesh_url=data.get("mesh_url", "") or "",
             mesh_backend=data.get("mesh_backend", "hunyuan3d"),
             blender_path=_expand(data.get("blender_path", "blender")),

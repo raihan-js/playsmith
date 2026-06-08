@@ -44,7 +44,10 @@ engine:
 
 # Asset generation (optional). If unavailable, Playsmith uses placeholders and still ships.
 assets:
-  enabled: false                          # true -> agent generates sprites in-loop during `new`
+  enabled: false                          # true -> agent generates art in-loop during `new`
+  image_backend: "comfyui"                # "comfyui" (local GPU) or "openai" (uses an OpenAI key)
+  openai_api_key: ""                      # for image_backend=openai; blank => falls back to llm.api_key
+  image_model: "gpt-image-1"              # OpenAI image model (or "dall-e-3")
   comfyui_url: "http://localhost:8188"    # 2D image generation (ComfyUI)
   model: "sd_xl_base_1.0.safetensors"     # the checkpoint ComfyUI loads (must exist in ComfyUI)
   mesh_url: ""                            # 3D mesh backend (Hunyuan3D/TRELLIS); empty => primitives only

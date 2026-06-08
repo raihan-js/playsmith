@@ -17,7 +17,10 @@ engine:
     version: "4"
 
 assets:
-  enabled: false                     # set true + run a ComfyUI service to generate sprites
+  enabled: true                      # generate real art (sprites/backgrounds) for games
+  image_backend: "openai"            # uses your OpenAI key — no GPU/ComfyUI needed
+  openai_api_key: "${OPENAI_API_KEY}"
+  image_model: "gpt-image-1"         # or "dall-e-3"
 
 publish:
   itch:

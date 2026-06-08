@@ -26,7 +26,7 @@ from rich.console import Console
 from rich.table import Table
 
 from playsmith import __version__
-from playsmith.assets import AssetError, ComfyUIClient, MeshClient
+from playsmith.assets import AssetError, ComfyUIClient, MeshClient, OpenAIImageClient
 from playsmith.assets.mesh import MESH_CAVEAT
 from playsmith.config import Config, ConfigError, load_config
 from playsmith.engines import (
@@ -396,17 +396,30 @@ def assets_generate(
         console.print(f"[yellow]{MESH_CAVEAT}[/]")
         return
 
-    client = ComfyUIClient(cfg.assets.comfyui_url, model=cfg.assets.model)
-    if not client.available():
-        console.print(
-            f"[yellow]ComfyUI not reachable at {cfg.assets.comfyui_url}.[/] "
-            "Games still ship with placeholders."
+    if cfg.assets.image_backend == "openai":
+        key = cfg.assets.openai_api_key or (cfg.llm.api_key if cfg.llm.provider == "openai" else "")
+        if not key:
+            console.print(
+                "[yellow]No OpenAI key for images.[/] Set OPENAI_API_KEY or assets.openai_api_key."
+            )
+            raise typer.Exit(code=1)
+        client = OpenAIImageClient(
+            key, base_url=cfg.assets.image_base_url, model=cfg.assets.image_model
         )
-        console.print("[dim]Start ComfyUI and set assets.comfyui_url to generate real sprites.[/]")
-        raise typer.Exit(code=1)
+        backend_name = cfg.assets.image_model
+    else:
+        client = ComfyUIClient(cfg.assets.comfyui_url, model=cfg.assets.model)
+        if not client.available():
+            console.print(
+                f"[yellow]ComfyUI not reachable at {cfg.assets.comfyui_url}.[/] "
+                "Games still ship with placeholders."
+            )
+            console.print("[dim]Start ComfyUI or set assets.image_backend: openai.[/]")
+            raise typer.Exit(code=1)
+        backend_name = "ComfyUI"
     project_dir = _resolve_project(cfg, project)
     dest = Path(out).expanduser() if out else project_dir / "assets" / f"{safe}.png"
-    console.print(f"Generating [bold]{kind}[/] for '{prompt}' via ComfyUI ...")
+    console.print(f"Generating [bold]{kind}[/] for '{prompt}' via {backend_name} ...")
     try:
         with console.status("rendering..."):
             client.image(prompt, kind, str(dest))
