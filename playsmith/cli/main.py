@@ -18,6 +18,7 @@ from rich.table import Table
 
 from playsmith import __version__
 from playsmith.config import Config, ConfigError, load_config
+from playsmith.llm import LLMError, LLMGateway, Message
 
 app = typer.Typer(
     name="playsmith",
@@ -59,6 +60,34 @@ def config_check(
     table.add_row("engine.godot.binary", cfg.engine.godot.binary)
     table.add_row("assets.enabled", str(cfg.assets.enabled))
     console.print(table)
+
+
+@app.command()
+def models(
+    config: str = typer.Option(None, "--config", "-c", help="Path to a config YAML."),
+    prompt: str = typer.Option("Say hi in five words.", "--prompt", "-p", help="Message to send."),
+) -> None:
+    """Send a one-line message to the configured model to confirm it responds.
+
+    This is the proof that the whole 'any local model' foundation works: with Ollama
+    running, you should get a real reply from your local model.
+    """
+    try:
+        cfg = load_config(config)
+    except ConfigError as exc:
+        console.print(f"[bold red]Config error:[/] {exc}")
+        raise typer.Exit(code=1) from exc
+
+    gateway = LLMGateway(cfg.llm)
+    console.print(f"Asking [bold cyan]{cfg.llm.model}[/] at [dim]{cfg.llm.base_url}[/] ...")
+    try:
+        with console.status("waiting for the model..."):
+            resp = gateway.chat([Message.user(prompt)])
+    except LLMError as exc:
+        console.print(f"[bold red]LLM error:[/] {exc}")
+        raise typer.Exit(code=1) from exc
+
+    console.print(f"[bold green]{cfg.llm.model}[/]: {resp.content or '<no content>'}")
 
 
 def main() -> None:
