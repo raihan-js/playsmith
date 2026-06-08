@@ -203,6 +203,35 @@ def verify_harness_scene() -> str:
     )
 
 
+def export_preset(index: int, name: str, platform: str, *, web: bool = False) -> str:
+    """A single ``[preset.N]`` block for any platform (desktop/web/mobile)."""
+    lines = [
+        f"[preset.{index}]",
+        "",
+        f'name="{name}"',
+        f'platform="{platform}"',
+        "runnable=true",
+        "advanced_options=false",
+        "dedicated_server=false",
+        'custom_features=""',
+        'export_filter="all_resources"',
+        'include_filter=""',
+        'exclude_filter=""',
+        'export_path=""',
+        "",
+        f"[preset.{index}.options]",
+        "",
+    ]
+    if web:
+        lines += [
+            "variant/extensions_support=false",
+            "html/export_icon=true",
+            "html/canvas_resize_policy=2",
+            "progressive_web_app/enabled=false",
+        ]
+    return "\n".join(lines) + "\n"
+
+
 def web_export_preset() -> str:
     """A minimal ``export_presets.cfg`` defining a single HTML5 "Web" preset."""
     return (

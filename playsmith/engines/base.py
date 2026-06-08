@@ -43,6 +43,8 @@ class ExportTarget(StrEnum):
     LINUX = "Linux/X11"
     WINDOWS = "Windows Desktop"
     MACOS = "macOS"
+    ANDROID = "Android"
+    IOS = "iOS"
 
 
 @dataclass

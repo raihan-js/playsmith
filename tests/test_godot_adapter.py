@@ -199,6 +199,35 @@ def test_verify_no_errors_false_when_logs_have_script_error(tmp_path, monkeypatc
     assert not vr.ok
 
 
+def test_export_desktop_target_writes_matching_preset(tmp_path, monkeypatch) -> None:
+    captured = {}
+
+    def fake_run(cmd, **kwargs):
+        captured["cmd"] = cmd
+        return subprocess.CompletedProcess(cmd, 0, stdout="exported")
+
+    monkeypatch.setattr(subprocess, "run", fake_run)
+    a = _adapter(tmp_path)
+    a.create_project("G", main_scene="res://Main.tscn")
+    a.export(ExportTarget.WINDOWS, str(tmp_path / "build" / "game.exe"))
+    presets = (a.project_dir / "export_presets.cfg").read_text()
+    assert 'name="Windows Desktop"' in presets
+    assert "Windows Desktop" in captured["cmd"]
+
+
+def test_export_appends_second_preset_without_clobbering(tmp_path, monkeypatch) -> None:
+    monkeypatch.setattr(
+        subprocess, "run", lambda cmd, **k: subprocess.CompletedProcess(cmd, 0, stdout="ok")
+    )
+    a = _adapter(tmp_path)
+    a.create_project("G", main_scene="res://Main.tscn")
+    a.export(ExportTarget.WEB, str(tmp_path / "b" / "index.html"))
+    a.export(ExportTarget.LINUX, str(tmp_path / "b" / "game.x86_64"))
+    presets = (a.project_dir / "export_presets.cfg").read_text()
+    assert 'name="Web"' in presets and 'name="Linux/X11"' in presets
+    assert "[preset.0]" in presets and "[preset.1]" in presets
+
+
 def test_screenshot_injects_harness_and_passes_env(tmp_path, monkeypatch) -> None:
     captured = {}
 

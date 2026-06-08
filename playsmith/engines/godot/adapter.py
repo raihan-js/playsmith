@@ -25,6 +25,16 @@ from playsmith.engines.godot import templates
 
 _MAIN_SCENE_RE = re.compile(r"^run/main_scene=.*$", re.MULTILINE)
 
+# ExportTarget -> the platform string Godot expects in export_presets.cfg.
+_EXPORT_PLATFORMS = {
+    ExportTarget.WEB: "Web",
+    ExportTarget.LINUX: "Linux/X11",
+    ExportTarget.WINDOWS: "Windows Desktop",
+    ExportTarget.MACOS: "macOS",
+    ExportTarget.ANDROID: "Android",
+    ExportTarget.IOS: "iOS",
+}
+
 
 class GodotAdapter:
     """An :class:`~playsmith.engines.base.EngineAdapter` for Godot 4.x.
@@ -168,9 +178,8 @@ class GodotAdapter:
         return self._invoke(args, timeout_s=30, env=env)
 
     def export(self, target: ExportTarget, out_path: str, *, debug: bool = False) -> RunResult:
-        """Headless export to a build artifact (e.g. HTML5 ``index.html``)."""
-        if target is ExportTarget.WEB:
-            self._ensure_web_preset()
+        """Headless export to a build artifact (web HTML5, desktop, or mobile package)."""
+        self._ensure_preset(target)
         out = Path(out_path).expanduser().resolve()
         out.parent.mkdir(parents=True, exist_ok=True)
         flag = "--export-debug" if debug else "--export-release"
@@ -182,7 +191,7 @@ class GodotAdapter:
             str(target.value),
             str(out),
         ]
-        return self._invoke(args, timeout_s=180)
+        return self._invoke(args, timeout_s=600)
 
     def verify(self, checks: list[str] | None = None, *, scene: str | None = None) -> VerifyResult:
         """Run the assertion harness headless and report per-check pass/fail.
@@ -223,7 +232,15 @@ class GodotAdapter:
             return None
         return match.group(0).split("=", 1)[1].strip().strip('"')
 
-    def _ensure_web_preset(self) -> None:
+    def _ensure_preset(self, target: ExportTarget) -> None:
+        """Append an export preset for ``target`` if the project doesn't already have one."""
         presets = self.project_dir / "export_presets.cfg"
-        if not presets.exists():
-            presets.write_text(templates.web_export_preset())
+        text = presets.read_text() if presets.exists() else ""
+        if f'name="{target.value}"' in text:
+            return
+        indices = [int(m) for m in re.findall(r"\[preset\.(\d+)\]", text)]
+        idx = (max(indices) + 1) if indices else 0
+        block = templates.export_preset(
+            idx, target.value, _EXPORT_PLATFORMS[target], web=(target is ExportTarget.WEB)
+        )
+        presets.write_text((text.rstrip() + "\n\n" + block) if text.strip() else block)

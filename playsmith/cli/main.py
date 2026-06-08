@@ -531,38 +531,68 @@ def run(
             console.print(f"  [red]{line}[/]")
 
 
+_EXPORT_TARGETS = {
+    "web": ExportTarget.WEB,
+    "windows": ExportTarget.WINDOWS,
+    "win": ExportTarget.WINDOWS,
+    "mac": ExportTarget.MACOS,
+    "macos": ExportTarget.MACOS,
+    "linux": ExportTarget.LINUX,
+}
+_EXPORT_OUT_NAMES = {
+    ExportTarget.WEB: "index.html",
+    ExportTarget.WINDOWS: "game.exe",
+    ExportTarget.MACOS: "game.zip",
+    ExportTarget.LINUX: "game.x86_64",
+}
+
+
 @app.command()
 def export(
-    target: str = typer.Option("web", "--target", "-t", help="Export target (web)."),
+    target: str = typer.Option("web", "--target", "-t", help="web | windows | mac | linux."),
     project: str = typer.Option(None, "--project", "-p", help="Project dir (default: latest)."),
     out: str = typer.Option(
         None, "--out", "-o", help="Output path (default: <project>/build/...)."
     ),
     config: str = typer.Option(None, "--config", "-c", help="Path to a config YAML."),
 ) -> None:
-    """Headless export of the generated game (Web/HTML5 at MVP)."""
+    """Headless export of the generated game (web HTML5 or a desktop build)."""
     cfg = load_config(config)
-    if target.lower() != "web":
-        console.print(f"[bold red]Unsupported target:[/] {target}. Only 'web' is supported at MVP.")
+    key = target.lower()
+    if key not in _EXPORT_TARGETS:
+        console.print(
+            f"[bold red]Unsupported target:[/] {target}. Try: {', '.join(sorted(_EXPORT_TARGETS))}."
+        )
+        console.print(
+            "[dim](Android/iOS use `playsmith publish` — they need signing + store steps.)[/]"
+        )
         raise typer.Exit(code=1)
+    tgt = _EXPORT_TARGETS[key]
     project_dir = _resolve_project(cfg, project)
-    out_path = Path(out).expanduser() if out else project_dir / "build" / "index.html"
+    out_path = Path(out).expanduser() if out else project_dir / "build" / _EXPORT_OUT_NAMES[tgt]
     adapter = GodotAdapter(project_dir, binary=cfg.engine.godot.binary)
-    console.print(f"Exporting [bold]{project_dir}[/] → [dim]{out_path}[/] ...")
+    console.print(
+        f"Exporting [bold]{project_dir}[/] ([cyan]{tgt.value}[/]) → [dim]{out_path}[/] ..."
+    )
     try:
-        result = adapter.export(ExportTarget.WEB, str(out_path))
+        result = adapter.export(tgt, str(out_path))
     except (EngineError, EngineNotFoundError) as exc:
         console.print(f"[bold red]Engine error:[/] {exc}")
         raise typer.Exit(code=1) from exc
     if out_path.exists() and result.returncode == 0:
         console.print(f"[bold green]✓ Exported[/] to {out_path}")
-        console.print(f"Serve it: [dim]python -m http.server -d {out_path.parent}[/]")
+        if tgt is ExportTarget.WEB:
+            console.print(f"Serve it: [dim]python -m http.server -d {out_path.parent}[/]")
+        else:
+            console.print(
+                "[dim]Code-sign / notarize the build before distributing (see the store's docs).[/]"
+            )
     else:
         console.print("[bold red]Export failed.[/] Logs:")
         console.print(result.logs or "(no output)")
         console.print(
-            "[dim]Tip: install Godot export templates "
-            "(Editor → Manage Export Templates) for HTML5.[/]"
+            f"[dim]Tip: install Godot export templates for {tgt.value} "
+            "(Editor → Manage Export Templates).[/]"
         )
         raise typer.Exit(code=1)
 
