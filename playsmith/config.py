@@ -158,6 +158,25 @@ class PublishConfig:
 
 
 @dataclass
+class SkillsConfig:
+    # The curated community skill index (Phase 2). Local install dir for downloaded skills.
+    registry_url: str = (
+        "https://raw.githubusercontent.com/raihan-js/playsmith-skills/main/index.json"
+    )
+    dir: str = "~/.playsmith/skills"
+
+    @classmethod
+    def from_dict(cls, data: dict) -> SkillsConfig:
+        return cls(
+            registry_url=data.get(
+                "registry_url",
+                "https://raw.githubusercontent.com/raihan-js/playsmith-skills/main/index.json",
+            ),
+            dir=_expand(data.get("dir", "~/.playsmith/skills")),
+        )
+
+
+@dataclass
 class Config:
     """The fully-resolved Playsmith configuration."""
 
@@ -169,6 +188,7 @@ class Config:
     engine: EngineConfig = field(default_factory=EngineConfig)
     assets: AssetsConfig = field(default_factory=AssetsConfig)
     publish: PublishConfig = field(default_factory=PublishConfig)
+    skills: SkillsConfig = field(default_factory=SkillsConfig)
     source_path: Path | None = None
 
     @classmethod
@@ -189,6 +209,7 @@ class Config:
             engine=EngineConfig.from_dict(data.get("engine", {}) or {}),
             assets=AssetsConfig.from_dict(data.get("assets", {}) or {}),
             publish=PublishConfig.from_dict(data.get("publish", {}) or {}),
+            skills=SkillsConfig.from_dict(data.get("skills", {}) or {}),
             source_path=source_path,
         )
 

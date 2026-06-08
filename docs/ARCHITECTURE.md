@@ -185,7 +185,23 @@ Dec 18, 2025; interoperable with Claude Code/Codex/Cursor). A skill is a folder:
 field is the trigger). The selected skill's body becomes the agent's plan; its `scripts/`
 provide deterministic scaffolding; `references/` are read as needed.
 
-**Sources:** local `game-skills/` dir at MVP; a remote community registry/marketplace in Phase 2.
+**Sources:** first-party `game-skills/` + the user's installed-skills dir (`~/.playsmith/skills`).
+The marketplace (`playsmith/skills/registry.py`) fetches a curated index and installs skills.
+
+**Marketplace threat model (the moat must ship safe).** A community skill is *code and prompt the
+user is trusting*: its bundled `scripts/` become GDScript written into the user's game (and run
+when they play it), and its `SKILL.md` body is injected into the agent's prompt (a prompt-injection
+vector). So the registry enforces, by construction:
+1. **Integrity** — the fetched skillpack's SHA-256 must match the curated index entry, or install is refused.
+2. **Trust-by-default** — untrusted/third-party skills require an explicit `--allow-untrusted` opt-in.
+3. **No auto-execution** — installing only writes files; there are no post-install hooks, ever. Script
+   filenames are reduced to their basename (no path traversal out of the skill dir).
+4. **Provenance** — source/author/checksum/trusted are recorded next to the skill; the loader flags
+   untrusted skills and the studio warns before such a skill's code reaches a game. Diff-approval
+   shows every script before it is written into a project.
+
+Validation is against `docs/SKILL_SPEC.md` (frontmatter + the assertion vocabulary in
+`engines.base.KNOWN_ASSERTIONS`).
 
 ---
 

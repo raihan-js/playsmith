@@ -145,6 +145,11 @@ def new_game(
     skill = router.route(prompt)
     if verbose:
         console.print(f"Skill: [bold cyan]{skill.name if skill else '(none — generic build)'}[/]")
+    if skill is not None and not skill.trusted:
+        console.print(
+            f"[yellow]⚠ '{skill.name}' is a community skill from {skill.source}. Its instructions "
+            "drive the agent and its scripts will be written into your game — review the diffs.[/]"
+        )
 
     name = project_name or slugify(prompt)
     project_dir = cfg.workspace_dir.expanduser() / name

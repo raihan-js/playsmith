@@ -93,6 +93,19 @@ class RunResult:
 ASSERT_PREFIX = "PLAYSMITH_ASSERT "
 _TRUTHY = frozenset({"true", "1", "yes", "ok", "pass"})
 
+# The assertion keys the verify harness can evaluate. Skills must declare checks from this set;
+# the marketplace validates installed skills against it (see playsmith/skills/registry.py).
+KNOWN_ASSERTIONS = frozenset(
+    {
+        "scene_loads",
+        "no_errors",
+        "player_exists",
+        "player_on_floor",
+        "player_not_falling",
+        "has_dialogue_ui",
+    }
+)
+
 
 def parse_assert_lines(logs: str) -> dict[str, bool]:
     """Parse ``PLAYSMITH_ASSERT key=value`` lines emitted by the verify harness."""

@@ -37,7 +37,7 @@ from playsmith.engines import (
 from playsmith.engines.godot import templates as godot_templates
 from playsmith.llm import LLMError, LLMGateway, Message
 from playsmith.publish import PublishError, publish_itch
-from playsmith.skills import SkillLoader
+from playsmith.skills import SkillLoader, SkillRegistry, SkillRegistryError
 from playsmith.studio import edit_game, latest_project, new_game
 
 app = typer.Typer(
@@ -175,20 +175,110 @@ def engine_check(
         raise typer.Exit(code=1)
 
 
-@app.command()
-def skills() -> None:
-    """List the installed game-generation skills."""
+skills_app = typer.Typer(
+    help="List / search / install / remove game-generation skills.", no_args_is_help=False
+)
+app.add_typer(skills_app, name="skills")
+
+
+def _list_skills() -> None:
     found = SkillLoader().discover()
     if not found:
-        console.print("[yellow]No skills found under game-skills/.[/]")
+        console.print("[yellow]No skills found.[/]")
         return
     table = Table(title="Installed skills", show_header=True, header_style="bold")
     table.add_column("Name", style="cyan", no_wrap=True)
+    table.add_column("Source")
     table.add_column("Description", style="white")
     for skill in found:
+        if skill.source == "builtin":
+            src = "builtin"
+        elif skill.trusted:
+            src = skill.source
+        else:
+            src = "[yellow]untrusted[/]"
         desc = skill.description
-        table.add_row(skill.name, desc if len(desc) <= 90 else desc[:87] + "...")
+        table.add_row(skill.name, src, desc if len(desc) <= 70 else desc[:67] + "...")
     console.print(table)
+
+
+def _registry(cfg: Config) -> SkillRegistry:
+    return SkillRegistry(cfg.skills.registry_url, Path(cfg.skills.dir).expanduser())
+
+
+@skills_app.callback(invoke_without_command=True)
+def skills_main(ctx: typer.Context) -> None:
+    """List installed skills when run with no subcommand."""
+    if ctx.invoked_subcommand is None:
+        _list_skills()
+
+
+@skills_app.command("list")
+def skills_list() -> None:
+    """List installed game-generation skills (built-in + community)."""
+    _list_skills()
+
+
+@skills_app.command("search")
+def skills_search(
+    query: str = typer.Argument("", help="Search terms (blank = list all)."),
+    config: str = typer.Option(None, "--config", "-c", help="Path to a config YAML."),
+) -> None:
+    """Search the community skill registry."""
+    cfg = load_config(config)
+    try:
+        results = _registry(cfg).search(query)
+    except SkillRegistryError as exc:
+        console.print(f"[bold red]Registry error:[/] {exc}")
+        raise typer.Exit(code=1) from exc
+    if not results:
+        console.print("[yellow]No matching skills in the registry.[/]")
+        return
+    table = Table(title="Registry skills", show_header=True, header_style="bold")
+    for col in ("Name", "Version", "Author", "Trust", "Description"):
+        table.add_column(col)
+    for entry in results:
+        trust = "trusted" if entry.trusted else "[yellow]untrusted[/]"
+        table.add_row(entry.name, entry.version, entry.author, trust, entry.description[:55])
+    console.print(table)
+
+
+@skills_app.command("install")
+def skills_install(
+    name: str = typer.Argument(..., help="Skill name from the registry."),
+    allow_untrusted: bool = typer.Option(
+        False, "--allow-untrusted", help="Install even if the skill is from an untrusted source."
+    ),
+    config: str = typer.Option(None, "--config", "-c", help="Path to a config YAML."),
+) -> None:
+    """Install a community skill (verifies integrity; never runs its code)."""
+    cfg = load_config(config)
+    try:
+        skill = _registry(cfg).install(name, allow_untrusted=allow_untrusted)
+    except SkillRegistryError as exc:
+        console.print(f"[bold red]Install refused:[/] {exc}")
+        raise typer.Exit(code=1) from exc
+    if skill.trusted:
+        console.print(f"[bold green]Installed[/] {skill.name} (trusted) from {skill.source}")
+    else:
+        console.print(
+            f"[bold yellow]Installed[/] {skill.name} [yellow](UNTRUSTED)[/] from {skill.source}. "
+            "Review its scripts/diffs before playing games it makes."
+        )
+
+
+@skills_app.command("remove")
+def skills_remove(
+    name: str = typer.Argument(..., help="Installed community skill to remove."),
+    config: str = typer.Option(None, "--config", "-c", help="Path to a config YAML."),
+) -> None:
+    """Remove an installed community skill (never touches built-in skills)."""
+    cfg = load_config(config)
+    if _registry(cfg).remove(name):
+        console.print(f"[bold green]Removed[/] {name}")
+    else:
+        console.print(f"[yellow]Not an installed community skill:[/] {name}")
+        raise typer.Exit(code=1)
 
 
 assets_app = typer.Typer(help="Import or generate game art.", no_args_is_help=True)

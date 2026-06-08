@@ -55,3 +55,9 @@ assets:
 publish:
   itch:
     butler_path: "butler"
+
+# Community skill marketplace (Phase 2). Installs are integrity-checked and never auto-executed;
+# untrusted skills require `--allow-untrusted`. See docs/SKILL_SPEC.md + CONTRIBUTING_SKILLS.md.
+skills:
+  registry_url: "https://raw.githubusercontent.com/raihan-js/playsmith-skills/main/index.json"
+  dir: "~/.playsmith/skills"            # where installed community skills live
