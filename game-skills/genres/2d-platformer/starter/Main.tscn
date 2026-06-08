@@ -1,11 +1,25 @@
-[gd_scene load_steps=3 format=3 uid="uid://playsmith_main"]
+[gd_scene load_steps=9 format=3 uid="uid://playsmith_main"]
 
 [ext_resource type="PackedScene" path="res://Player.tscn" id="1"]
+[ext_resource type="Script" path="res://scripts/game.gd" id="2"]
 
 [sub_resource type="RectangleShape2D" id="floor"]
 size = Vector2(2400, 48)
 
+[sub_resource type="RectangleShape2D" id="plat"]
+size = Vector2(160, 32)
+
+[sub_resource type="CircleShape2D" id="coin"]
+radius = 16.0
+
+[sub_resource type="RectangleShape2D" id="spike"]
+size = Vector2(48, 32)
+
+[sub_resource type="RectangleShape2D" id="goal"]
+size = Vector2(48, 96)
+
 [node name="Main" type="Node2D"]
+script = ExtResource("2")
 
 [node name="Camera2D" type="Camera2D" parent="."]
 position = Vector2(576, 324)
@@ -20,5 +34,72 @@ shape = SubResource("floor")
 color = Color(0.25, 0.5, 0.3, 1)
 polygon = PackedVector2Array(-1200, -24, 1200, -24, 1200, 24, -1200, 24)
 
+[node name="Platform1" type="StaticBody2D" parent="."]
+position = Vector2(450, 460)
+
+[node name="P1Shape" type="CollisionShape2D" parent="Platform1"]
+shape = SubResource("plat")
+
+[node name="P1Visual" type="Polygon2D" parent="Platform1"]
+color = Color(0.4, 0.4, 0.5, 1)
+polygon = PackedVector2Array(-80, -16, 80, -16, 80, 16, -80, 16)
+
+[node name="Platform2" type="StaticBody2D" parent="."]
+position = Vector2(760, 360)
+
+[node name="P2Shape" type="CollisionShape2D" parent="Platform2"]
+shape = SubResource("plat")
+
+[node name="P2Visual" type="Polygon2D" parent="Platform2"]
+color = Color(0.4, 0.4, 0.5, 1)
+polygon = PackedVector2Array(-80, -16, 80, -16, 80, 16, -80, 16)
+
 [node name="Player" parent="." instance=ExtResource("1")]
-position = Vector2(300, 400)
+position = Vector2(200, 400)
+
+[node name="Coin1" type="Area2D" parent="." groups=["coin"]]
+position = Vector2(450, 420)
+
+[node name="C1Shape" type="CollisionShape2D" parent="Coin1"]
+shape = SubResource("coin")
+
+[node name="C1Visual" type="Polygon2D" parent="Coin1"]
+color = Color(0.95, 0.8, 0.2, 1)
+polygon = PackedVector2Array(-14, 0, 0, -14, 14, 0, 0, 14)
+
+[node name="Coin2" type="Area2D" parent="." groups=["coin"]]
+position = Vector2(760, 320)
+
+[node name="C2Shape" type="CollisionShape2D" parent="Coin2"]
+shape = SubResource("coin")
+
+[node name="C2Visual" type="Polygon2D" parent="Coin2"]
+color = Color(0.95, 0.8, 0.2, 1)
+polygon = PackedVector2Array(-14, 0, 0, -14, 14, 0, 0, 14)
+
+[node name="Spike1" type="Area2D" parent="." groups=["spike"]]
+position = Vector2(600, 562)
+
+[node name="S1Shape" type="CollisionShape2D" parent="Spike1"]
+shape = SubResource("spike")
+
+[node name="S1Visual" type="Polygon2D" parent="Spike1"]
+color = Color(0.85, 0.2, 0.2, 1)
+polygon = PackedVector2Array(-24, 16, 0, -16, 24, 16)
+
+[node name="Goal" type="Area2D" parent="." groups=["goal"]]
+position = Vector2(980, 528)
+
+[node name="GoalShape" type="CollisionShape2D" parent="Goal"]
+shape = SubResource("goal")
+
+[node name="GoalVisual" type="Polygon2D" parent="Goal"]
+color = Color(0.3, 0.7, 0.9, 1)
+polygon = PackedVector2Array(-24, -48, 24, -48, 24, 48, -24, 48)
+
+[node name="HUD" type="CanvasLayer" parent="."]
+
+[node name="Score" type="Label" parent="HUD"]
+offset_left = 20.0
+offset_top = 16.0
+text = "Coins: 0"

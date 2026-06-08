@@ -100,14 +100,20 @@ def build_goal(
     scaffolded = scaffolded or []
     if scaffolded:
         opening = (
-            f"Improve the game in the Godot 4 project at: {project_dir}\n"
-            "A WORKING BASE GAME ALREADY EXISTS (project.godot, main scene res://Main.tscn, a "
-            "player that stands on a floor) and it RUNS. Do NOT rewrite these existing files: "
+            f"Personalize the game in the Godot 4 project at: {project_dir}\n"
+            "A COMPLETE, ALREADY-PLAYABLE game exists here (main scene res://Main.tscn with a "
+            "player, floor, platforms, coins, spikes, a goal, and a score HUD); it RUNS and PASSES "
+            "verification. Your ONLY job is to personalize it with SMALL, SAFE edits.\n"
+            "STRICT RULES:\n"
+            "- Do NOT create new .tscn files by hand, and do NOT rewrite these files: "
             + ", ".join(scaffolded)
-            + ".\nFirst call run_engine and verify_game to confirm the base already passes. Then "
-            "ADD to the game to satisfy the request — NEW scenes/nodes for collectibles, hazards, "
-            "a goal, a score HUD, theming — keeping verify_game passing. Prefer apply_patch for "
-            "small edits; do not hand-rewrite whole .tscn files."
+            + ".\n- Make small edits with apply_patch only: tweak colors/positions/counts, or add "
+            "a coin/platform by copying an existing node block in Main.tscn.\n"
+            "- To add BEHAVIOR, edit the GDScript (scripts/game.gd, scripts/player.gd), never the "
+            "scene text.\n"
+            "- After EVERY change call run_engine + verify_game. If a change makes verification "
+            "FAIL, UNDO it immediately and try something smaller.\n"
+            "- If you can't improve it safely, just call task_complete — the base game is good."
         )
     else:
         opening = (
@@ -187,13 +193,18 @@ def new_game(
     # base game already RUNS. The agent then embellishes instead of hand-writing brittle .tscn —
     # the single biggest reliability lever (WHY.md "lean on deterministic scaffolding").
     scaffolded: list[str] = []
+    scaffold_contents: dict[str, str] = {}  # kept so we can restore the base if the agent breaks it
     if skill is not None:
         for script_name in skill.scripts():
-            adapter.write_script(f"scripts/{script_name}", skill.read_script(script_name))
+            content = skill.read_script(script_name)
+            adapter.write_script(f"scripts/{script_name}", content)
             scaffolded.append(f"scripts/{script_name}")
+            scaffold_contents[f"scripts/{script_name}"] = content
         for rel, path in skill.starter_files().items():
-            adapter.write_script(rel, path.read_text())
+            content = path.read_text()
+            adapter.write_script(rel, content)
             scaffolded.append(rel)
+            scaffold_contents[rel] = content
     if verbose:
         console.print(f"Project: [dim]{adapter.project_dir}[/]")
         if scaffolded:
@@ -241,6 +252,26 @@ def new_game(
     except EngineError as exc:
         if verbose:
             console.print(f"[yellow]Final verification could not run:[/] {exc}")
+
+    # Safety net: if the agent broke the playable base, restore the scaffolded files so a working
+    # game still ships (the agent's additions are reverted, but the base is a complete game).
+    if final_verify is not None and not final_verify.ok and scaffold_contents:
+        for rel, content in scaffold_contents.items():
+            adapter.write_script(rel, content)
+        try:
+            restored = adapter.verify(checks=checks)
+        except EngineError:
+            restored = None
+        if restored is not None and restored.ok:
+            final_verify = restored
+            if verbose:
+                console.print(
+                    "[yellow]Agent changes failed verification — restored the working base game.[/]"
+                )
+            _emit(
+                on_event,
+                {"type": "phase", "text": "Agent changes failed — restored the working base game."},
+            )
 
     outcome = BuildOutcome(
         project_dir=Path(adapter.project_dir),
