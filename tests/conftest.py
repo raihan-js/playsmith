@@ -102,3 +102,9 @@ class FakeAdapter:
         return VerifyResult(
             run=RunResult(command=["godot"], returncode=0, stdout="ok"), assertions=passed
         )
+
+    def export(self, target, out_path: str, *, debug: bool = False) -> RunResult:
+        out = Path(out_path)
+        out.parent.mkdir(parents=True, exist_ok=True)
+        out.write_text("<html>game</html>")  # pretend HTML5 export
+        return RunResult(command=["godot"], returncode=0, stdout="exported")

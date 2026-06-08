@@ -32,6 +32,7 @@ from playsmith.engines import (
 )
 from playsmith.engines.godot import templates as godot_templates
 from playsmith.llm import LLMError, LLMGateway, Message
+from playsmith.publish import PublishError, publish_itch
 from playsmith.skills import SkillLoader
 from playsmith.studio import edit_game, latest_project, new_game
 
@@ -413,6 +414,36 @@ def export(
             "(Editor → Manage Export Templates) for HTML5.[/]"
         )
         raise typer.Exit(code=1)
+
+
+@app.command()
+def publish(
+    itch: str = typer.Option(None, "--itch", help="Publish to itch.io; target as user/game."),
+    channel: str = typer.Option("web", "--channel", help="butler channel (default web)."),
+    project: str = typer.Option(None, "--project", "-p", help="Project dir (default: latest)."),
+    config: str = typer.Option(None, "--config", "-c", help="Path to a config YAML."),
+) -> None:
+    """Publish a generated game (itch.io HTML5 via butler), with a compliance reminder."""
+    cfg = load_config(config)
+    if not itch:
+        console.print("Specify a target, e.g. `playsmith publish --itch you/your-game`.")
+        raise typer.Exit(code=1)
+    project_dir = _resolve_project(cfg, project)
+    console.print(f"Publishing [bold]{project_dir.name}[/] → itch.io [cyan]{itch}:{channel}[/] ...")
+    try:
+        publish_itch(
+            project_dir,
+            itch,
+            channel=channel,
+            butler_path=cfg.publish.butler_path,
+            godot_binary=cfg.engine.godot.binary,
+            console=console,
+        )
+    except (PublishError, EngineNotFoundError) as exc:
+        console.print(f"[bold red]Publish failed:[/] {exc}")
+        raise typer.Exit(code=1) from exc
+    user, game = itch.split("/", 1)
+    console.print(f"[bold green]Published[/] → https://{user}.itch.io/{game}")
 
 
 def main() -> None:
