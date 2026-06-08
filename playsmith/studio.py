@@ -97,7 +97,7 @@ def new_game(
     """Route, scaffold, run the agent, then do a final authoritative reality check."""
     cfg = config or load_config()
     console = console or Console()
-    gateway = gateway or LLMGateway(cfg.llm)
+    gateway = gateway or LLMGateway.from_config(cfg, console=console)
     router = router or SkillRouter(SkillLoader(), gateway)
 
     skill = router.route(prompt)

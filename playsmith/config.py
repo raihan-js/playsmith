@@ -11,6 +11,7 @@ import os
 import re
 from dataclasses import dataclass, field
 from pathlib import Path
+from urllib.parse import urlparse
 
 import yaml
 
@@ -20,6 +21,35 @@ DEFAULT_CONFIG = REPO_ROOT / "config" / "playsmith.yaml"
 EXAMPLE_CONFIG = REPO_ROOT / "config" / "playsmith.example.yaml"
 
 _ENV_PATTERN = re.compile(r"\$\{([^}]+)\}")
+
+# Provider names / hosts treated as "local" — used to decide when a router crossing
+# to a cloud provider must warn the user (CLAUDE.md §5).
+_LOCAL_PROVIDERS = frozenset(
+    {
+        "ollama",
+        "lmstudio",
+        "lm-studio",
+        "lm_studio",
+        "vllm",
+        "localai",
+        "local-ai",
+        "llamacpp",
+        "llama.cpp",
+        "llama-cpp",
+        "koboldcpp",
+        "text-generation-webui",
+    }
+)
+_LOCAL_HOSTS = frozenset({"localhost", "127.0.0.1", "0.0.0.0", "::1"})
+
+
+def _is_local_endpoint(base_url: str, provider: str) -> bool:
+    host = (urlparse(base_url).hostname or "").lower()
+    if host in _LOCAL_HOSTS:
+        return True
+    if host.startswith(("192.168.", "10.")):  # private LAN ranges
+        return True
+    return provider.lower() in _LOCAL_PROVIDERS
 
 
 class ConfigError(Exception):
@@ -39,13 +69,24 @@ def _expand(value: str) -> str:
 
 @dataclass
 class LLMConfig:
-    """A single LLM provider, reached via the OpenAI-compatible /v1 API."""
+    """A single LLM provider.
+
+    Reached via the OpenAI-compatible ``/v1/chat/completions`` (``kind="openai"``, the default —
+    covers Ollama, LM Studio, vLLM, OpenAI, OpenRouter, Gemini-compat) or Anthropic's native
+    ``/v1/messages`` (``kind="anthropic"``).
+    """
 
     provider: str = "ollama"
     base_url: str = "http://localhost:11434/v1"
     model: str = "qwen2.5-coder:7b"
     api_key: str = ""
     num_ctx: int = 16384
+    kind: str = "openai"
+
+    @property
+    def is_local(self) -> bool:
+        """True if this endpoint is a local/self-hosted model (no cloud-crossing warning needed)."""
+        return _is_local_endpoint(self.base_url, self.provider)
 
     @classmethod
     def from_dict(cls, data: dict) -> LLMConfig:
@@ -55,6 +96,7 @@ class LLMConfig:
             model=data.get("model", "qwen2.5-coder:7b"),
             api_key=_expand(data.get("api_key", "") or ""),
             num_ctx=int(data.get("num_ctx", 16384)),
+            kind=str(data.get("kind", "openai")).lower(),
         )
 
 
@@ -113,6 +155,9 @@ class Config:
 
     workspace_dir: Path = field(default_factory=lambda: Path.home() / "playsmith-games")
     llm: LLMConfig = field(default_factory=LLMConfig)
+    # Optional model router (Phase 1): per-task provider overrides + a cloud fallback.
+    llm_routes: dict[str, LLMConfig] = field(default_factory=dict)
+    llm_fallback: LLMConfig | None = None
     engine: EngineConfig = field(default_factory=EngineConfig)
     assets: AssetsConfig = field(default_factory=AssetsConfig)
     publish: PublishConfig = field(default_factory=PublishConfig)
@@ -121,9 +166,18 @@ class Config:
     @classmethod
     def from_dict(cls, data: dict, source_path: Path | None = None) -> Config:
         workspace = _expand(data.get("workspace_dir", "~/playsmith-games"))
+        llm_raw = data.get("llm", {}) or {}
+        routes = {
+            str(name): LLMConfig.from_dict(spec or {})
+            for name, spec in (llm_raw.get("routes") or {}).items()
+        }
+        fallback_raw = llm_raw.get("fallback")
+        fallback = LLMConfig.from_dict(fallback_raw) if fallback_raw else None
         return cls(
             workspace_dir=Path(workspace),
-            llm=LLMConfig.from_dict(data.get("llm", {}) or {}),
+            llm=LLMConfig.from_dict(llm_raw),
+            llm_routes=routes,
+            llm_fallback=fallback,
             engine=EngineConfig.from_dict(data.get("engine", {}) or {}),
             assets=AssetsConfig.from_dict(data.get("assets", {}) or {}),
             publish=PublishConfig.from_dict(data.get("publish", {}) or {}),

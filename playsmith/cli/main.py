@@ -68,7 +68,10 @@ def config_check(
     table.add_row("llm.base_url", cfg.llm.base_url)
     table.add_row("llm.model", cfg.llm.model)
     table.add_row("llm.num_ctx", str(cfg.llm.num_ctx))
+    table.add_row("llm.kind", cfg.llm.kind)
     table.add_row("llm.api_key", "<set>" if cfg.llm.api_key else "<empty>")
+    table.add_row("llm.routes", f"{len(cfg.llm_routes)} configured")
+    table.add_row("llm.fallback", cfg.llm_fallback.model if cfg.llm_fallback else "<none>")
     table.add_row("engine.default", cfg.engine.default)
     table.add_row("engine.godot.binary", cfg.engine.godot.binary)
     table.add_row("assets.enabled", str(cfg.assets.enabled))
@@ -79,11 +82,14 @@ def config_check(
 def models(
     config: str = typer.Option(None, "--config", "-c", help="Path to a config YAML."),
     prompt: str = typer.Option("Say hi in five words.", "--prompt", "-p", help="Message to send."),
+    no_test: bool = typer.Option(
+        False, "--no-test", help="Show the route table only; no round-trip."
+    ),
 ) -> None:
-    """Send a one-line message to the configured model to confirm it responds.
+    """Show the configured providers/routes and round-trip a message to the default model.
 
-    This is the proof that the whole 'any local model' foundation works: with Ollama
-    running, you should get a real reply from your local model.
+    Proves the whole 'any model' foundation works: with Ollama running you get a real reply,
+    and the table shows which provider each task type resolves to (router + cloud fallback).
     """
     try:
         cfg = load_config(config)
@@ -91,8 +97,26 @@ def models(
         console.print(f"[bold red]Config error:[/] {exc}")
         raise typer.Exit(code=1) from exc
 
-    gateway = LLMGateway(cfg.llm)
-    console.print(f"Asking [bold cyan]{cfg.llm.model}[/] at [dim]{cfg.llm.base_url}[/] ...")
+    table = Table(title="Configured models / routes", show_header=True, header_style="bold")
+    for col in ("Route", "Provider", "Model", "Kind", "Endpoint", "Where"):
+        table.add_column(col, style="cyan" if col == "Route" else None)
+
+    def _row(label: str, lc) -> None:
+        table.add_row(
+            label, lc.provider, lc.model, lc.kind, lc.base_url, "local" if lc.is_local else "cloud"
+        )
+
+    _row("default", cfg.llm)
+    for task, lc in cfg.llm_routes.items():
+        _row(f"route:{task}", lc)
+    if cfg.llm_fallback is not None:
+        _row("fallback", cfg.llm_fallback)
+    console.print(table)
+    if no_test:
+        return
+
+    gateway = LLMGateway.from_config(cfg, console=console)
+    console.print(f"\nAsking [bold cyan]{cfg.llm.model}[/] at [dim]{cfg.llm.base_url}[/] ...")
     try:
         with console.status("waiting for the model..."):
             resp = gateway.chat([Message.user(prompt)])

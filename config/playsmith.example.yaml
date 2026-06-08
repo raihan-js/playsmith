@@ -4,17 +4,36 @@
 # Where generated game projects are written (NEVER inside the Playsmith repo).
 workspace_dir: "~/playsmith-games"
 
-# Default LLM provider. Add more under `providers` and let the router pick later.
+# Default LLM provider. Reached via OpenAI-compatible /v1 (kind: openai) or Anthropic
+# /v1/messages (kind: anthropic). Per-task overrides and a cloud fallback are optional.
 llm:
   provider: "ollama"
   base_url: "http://localhost:11434/v1"
   model: "qwen2.5-coder:7b"
   api_key: ""            # blank for local; set for cloud providers
   num_ctx: 16384         # IMPORTANT: 16K–32K. The 4K default breaks agentic editing.
+  kind: "openai"         # "openai" (Ollama/LM Studio/vLLM/OpenAI/OpenRouter/Gemini) or "anthropic"
 
-  # Optional: per-task overrides for a future model router (Phase 2).
+  # Optional model router (Phase 1): per-task provider overrides. TaskTypes: general,
+  # coding, reasoning, routing. Unset tasks use the default provider above.
   # routes:
-  #   reasoning: { provider: "openai", base_url: "https://api.openai.com/v1", model: "...", api_key: "${OPENAI_API_KEY}" }
+  #   coding:
+  #     provider: "openrouter"
+  #     base_url: "https://openrouter.ai/api/v1"
+  #     model: "qwen/qwen-2.5-coder-32b-instruct"
+  #     api_key: "${OPENROUTER_API_KEY}"
+  #     kind: "openai"
+
+  # Optional cloud fallback for hard CODING/REASONING steps when the local model fails or
+  # returns no tool call. Crossing local -> cloud ALWAYS warns the user (CLAUDE.md §5).
+  # For Anthropic use kind: "anthropic" (native /v1/messages). Its OpenAI-compat endpoint
+  # drops strict tool schemas + prompt caching, which is unreliable for the tool loop.
+  # fallback:
+  #   provider: "anthropic"
+  #   base_url: "https://api.anthropic.com/v1"
+  #   model: "claude-sonnet-4-6"
+  #   api_key: "${ANTHROPIC_API_KEY}"
+  #   kind: "anthropic"
 
 # Engine settings.
 engine:
