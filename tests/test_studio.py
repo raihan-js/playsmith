@@ -69,8 +69,8 @@ def test_new_game_routes_scaffolds_generates_and_verifies(tmp_path) -> None:
 
 def test_build_goal_with_scaffold_tells_agent_to_embellish(tmp_path) -> None:
     goal = build_goal("a cat platformer", None, tmp_path, ["Main.tscn", "scripts/player.gd"])
-    assert "ALREADY EXISTS" in goal
-    assert "do NOT rewrite" in goal.lower() or "do not rewrite" in goal.lower()
+    assert "playable" in goal.lower()  # the base is already a complete playable game
+    assert "do not rewrite" in goal.lower()
     assert "Main.tscn" in goal
 
 
