@@ -21,7 +21,7 @@ from rich.console import Console
 from playsmith.agent import AgentLoop, AgentResult, AutoApprover, InteractiveApprover, ToolContext
 from playsmith.agent.approval import Approver
 from playsmith.agent.tools import scan_assets
-from playsmith.assets import get_asset_generator
+from playsmith.assets import get_asset_generator, get_mesh_generator
 from playsmith.config import Config, load_config
 from playsmith.engines import EngineError, GodotAdapter
 from playsmith.engines.base import EngineAdapter, RunResult, VerifyResult
@@ -157,7 +157,12 @@ def new_game(
 
     if approver is None:
         approver = AutoApprover() if auto_approve else InteractiveApprover(console)
-    ctx = ToolContext(adapter=adapter, approver=approver, asset_generator=get_asset_generator(cfg))
+    ctx = ToolContext(
+        adapter=adapter,
+        approver=approver,
+        asset_generator=get_asset_generator(cfg),
+        mesh_generator=get_mesh_generator(cfg),
+    )
     loop = AgentLoop(gateway, ctx, max_iterations=max_iterations, console=console, verbose=verbose)
     agent_result = loop.run(build_goal(prompt, skill, adapter.project_dir))
 
@@ -249,7 +254,12 @@ def edit_game(
 
     if approver is None:
         approver = AutoApprover() if auto_approve else InteractiveApprover(console)
-    ctx = ToolContext(adapter=adapter, approver=approver, asset_generator=get_asset_generator(cfg))
+    ctx = ToolContext(
+        adapter=adapter,
+        approver=approver,
+        asset_generator=get_asset_generator(cfg),
+        mesh_generator=get_mesh_generator(cfg),
+    )
     loop = AgentLoop(gateway, ctx, max_iterations=max_iterations, console=console, verbose=verbose)
     agent_result = loop.run(build_edit_goal(change, adapter.project_dir, checks))
 

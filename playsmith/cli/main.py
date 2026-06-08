@@ -24,7 +24,8 @@ from rich.console import Console
 from rich.table import Table
 
 from playsmith import __version__
-from playsmith.assets import AssetError, ComfyUIClient
+from playsmith.assets import AssetError, ComfyUIClient, MeshClient
+from playsmith.assets.mesh import MESH_CAVEAT
 from playsmith.config import Config, ConfigError, load_config
 from playsmith.engines import (
     EngineError,
@@ -226,15 +227,44 @@ def assets_import(
 @assets_app.command("generate")
 def assets_generate(
     prompt: str = typer.Argument(..., help="What art to generate, e.g. 'a pixel-art cat'."),
-    kind: str = typer.Option("sprite", "--kind", "-k", help="sprite|portrait|background|tileset."),
+    kind: str = typer.Option("sprite", "--kind", "-k", help="sprite|portrait|background|mesh."),
     project: str = typer.Option(None, "--project", "-p", help="Project dir (default: latest)."),
     out: str = typer.Option(
         None, "--out", "-o", help="Output path (default <project>/assets/...)."
     ),
     config: str = typer.Option(None, "--config", "-c", help="Path to a config YAML."),
 ) -> None:
-    """Generate a 2D asset via ComfyUI into a project (graceful if ComfyUI isn't running)."""
+    """Generate a 2D sprite (ComfyUI) or a 3D mesh into a project (graceful if no backend)."""
     cfg = load_config(config)
+    safe = re.sub(r"[^a-z0-9]+", "_", prompt.lower()).strip("_")[:40] or "asset"
+
+    if kind.lower() in ("mesh", "3d", "model"):
+        client = MeshClient(
+            cfg.assets.mesh_url,
+            backend=cfg.assets.mesh_backend,
+            blender_path=cfg.assets.blender_path,
+        )
+        if not cfg.assets.mesh_url or not client.available():
+            console.print(
+                "[yellow]No 3D mesh backend reachable.[/] Games still ship with primitive meshes."
+            )
+            console.print(
+                "[dim]Set assets.mesh_url to a Hunyuan3D/TRELLIS server to generate meshes.[/]"
+            )
+            raise typer.Exit(code=1)
+        project_dir = _resolve_project(cfg, project)
+        dest = Path(out).expanduser() if out else project_dir / "assets" / f"{safe}.glb"
+        console.print(f"Generating a mesh for '{prompt}' via {cfg.assets.mesh_backend} ...")
+        try:
+            with console.status("rendering..."):
+                client.mesh(prompt, str(dest))
+        except (AssetError, OSError) as exc:
+            console.print(f"[bold red]Generation failed:[/] {exc}")
+            raise typer.Exit(code=1) from exc
+        console.print(f"[bold green]Generated[/] {dest}")
+        console.print(f"[yellow]{MESH_CAVEAT}[/]")
+        return
+
     client = ComfyUIClient(cfg.assets.comfyui_url, model=cfg.assets.model)
     if not client.available():
         console.print(
@@ -244,7 +274,6 @@ def assets_generate(
         console.print("[dim]Start ComfyUI and set assets.comfyui_url to generate real sprites.[/]")
         raise typer.Exit(code=1)
     project_dir = _resolve_project(cfg, project)
-    safe = re.sub(r"[^a-z0-9]+", "_", prompt.lower()).strip("_")[:40] or "asset"
     dest = Path(out).expanduser() if out else project_dir / "assets" / f"{safe}.png"
     console.print(f"Generating [bold]{kind}[/] for '{prompt}' via ComfyUI ...")
     try:

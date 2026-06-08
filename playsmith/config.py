@@ -131,6 +131,9 @@ class AssetsConfig:
     enabled: bool = False
     comfyui_url: str = "http://localhost:8188"
     model: str = "sd_xl_base_1.0.safetensors"
+    mesh_url: str = ""  # 3D mesh backend (Hunyuan3D/TRELLIS); empty => primitives only
+    mesh_backend: str = "hunyuan3d"
+    blender_path: str = "blender"
 
     @classmethod
     def from_dict(cls, data: dict) -> AssetsConfig:
@@ -138,6 +141,9 @@ class AssetsConfig:
             enabled=bool(data.get("enabled", False)),
             comfyui_url=data.get("comfyui_url", "http://localhost:8188"),
             model=data.get("model", "sd_xl_base_1.0.safetensors"),
+            mesh_url=data.get("mesh_url", "") or "",
+            mesh_backend=data.get("mesh_backend", "hunyuan3d"),
+            blender_path=_expand(data.get("blender_path", "blender")),
         )
 
 

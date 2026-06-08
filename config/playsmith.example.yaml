@@ -47,7 +47,9 @@ assets:
   enabled: false                          # true -> agent generates sprites in-loop during `new`
   comfyui_url: "http://localhost:8188"    # 2D image generation (ComfyUI)
   model: "sd_xl_base_1.0.safetensors"     # the checkpoint ComfyUI loads (must exist in ComfyUI)
-  # mesh_backend: "hunyuan3d"             # 3D, Phase 2
+  mesh_url: ""                            # 3D mesh backend (Hunyuan3D/TRELLIS); empty => primitives only
+  mesh_backend: "hunyuan3d"               # hunyuan3d (Apache-2.0) | trellis (MIT)
+  blender_path: "blender"                 # optional headless mesh cleanup; skipped if not installed
 
 # Publishing (Phase 1+).
 publish:

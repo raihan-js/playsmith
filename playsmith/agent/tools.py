@@ -14,7 +14,8 @@ from dataclasses import dataclass, field
 from pathlib import Path
 
 from playsmith.agent.approval import Approver, make_diff
-from playsmith.assets.base import AssetError, AssetGenerator
+from playsmith.assets.base import AssetError, AssetGenerator, MeshGenerator
+from playsmith.assets.mesh import MESH_CAVEAT
 from playsmith.engines.base import EngineAdapter, EngineError, RunResult, VerifyResult
 from playsmith.llm import Tool, ToolCall
 
@@ -38,6 +39,7 @@ class ToolContext:
     adapter: EngineAdapter
     approver: Approver
     asset_generator: AssetGenerator | None = None
+    mesh_generator: MeshGenerator | None = None
     last_run: RunResult | None = None
     last_verify: VerifyResult | None = None
     last_screenshot: Path | None = None
@@ -203,15 +205,35 @@ _PLACEHOLDER_MSG = (
 )
 
 
+_MESH_KINDS = frozenset({"mesh", "3d", "model"})
+_MESH_PLACEHOLDER_MSG = (
+    "3D mesh generation is unavailable. Use a primitive mesh (BoxMesh / CapsuleMesh / SphereMesh "
+    "on a MeshInstance3D). A runnable game with primitives beats one that doesn't run."
+)
+
+
 def _generate_asset(args: dict, ctx: ToolContext) -> str:
-    gen = ctx.asset_generator
     prompt = (args.get("prompt") or "").strip()
-    kind = args.get("kind") or "sprite"
+    kind = (args.get("kind") or "sprite").lower()
     if not prompt:
         return "Provide a 'prompt' describing the art to generate."
+    safe = re.sub(r"[^a-z0-9]+", "_", prompt.lower()).strip("_")[:40] or "asset"
+
+    if kind in _MESH_KINDS:
+        gen = ctx.mesh_generator
+        if gen is None or not gen.available():
+            return _MESH_PLACEHOLDER_MSG
+        dest = ctx.workspace / "assets" / f"{safe}.glb"
+        try:
+            gen.mesh(prompt, str(dest))
+        except (AssetError, NotImplementedError, OSError) as exc:
+            return f"Mesh generation failed ({exc}). Use a primitive mesh instead."
+        rel = dest.relative_to(ctx.workspace).as_posix()
+        return f"Generated res://{rel} (load on a MeshInstance3D). {MESH_CAVEAT}"
+
+    gen = ctx.asset_generator
     if gen is None or not gen.available():
         return _PLACEHOLDER_MSG
-    safe = re.sub(r"[^a-z0-9]+", "_", prompt.lower()).strip("_")[:40] or "asset"
     dest = ctx.workspace / "assets" / f"{safe}.png"
     try:
         gen.image(prompt, kind, str(dest))
@@ -300,7 +322,8 @@ _TOOL_DEFS: list[_ToolDef] = [
     _ToolDef(
         Tool(
             "generate_asset",
-            "Generate a game asset from a text prompt (optional; may be unavailable).",
+            "Generate a game asset from a text prompt. kind: sprite|portrait|background|mesh "
+            "(optional; falls back to placeholders/primitives if no backend is available).",
             _obj({"prompt": _STR, "kind": _STR}, ["prompt"]),
         ),
         _generate_asset,

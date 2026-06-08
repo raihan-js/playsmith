@@ -27,8 +27,15 @@ class AssetKind(StrEnum):
 
 @runtime_checkable
 class AssetGenerator(Protocol):
-    """Generates game art locally. ``available()`` gates use; failures raise ``AssetError``."""
+    """Generates 2D game art locally. ``available()`` gates use; failures raise ``AssetError``."""
 
     def available(self) -> bool: ...
     def image(self, prompt: str, kind: AssetKind | str, out_path: str) -> None: ...
+
+
+@runtime_checkable
+class MeshGenerator(Protocol):
+    """Generates 3D meshes locally (Phase 2). Output usually needs cleanup to be game-ready."""
+
+    def available(self) -> bool: ...
     def mesh(self, prompt_or_image: str, out_path: str) -> None: ...
