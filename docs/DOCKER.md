@@ -63,3 +63,12 @@ docker compose run --rm playsmith export --target web              # needs HTML5
   real screenshot, run on a desktop or add `xvfb`.
 - **Open the game on your host:** `godot --editor --path ./playsmith-games/<game>` (host Godot), or
   just open the folder in the Godot editor.
+- **File ownership:** the container runs as root, so generated games under `./playsmith-games/` are
+  root-owned on the host. To edit them as your user: `sudo chown -R $USER:$USER playsmith-games`.
+
+## Validated
+
+Built and confirmed in-container (no mocks): Godot 4.3 runs headless (`engine-check` passes), the
+assertion reality loop emits real `PLAYSMITH_ASSERT` results in Godot (player lands on the floor),
+and `skills install` fetches + SHA-256-verifies from the live registry. Only the LLM steps
+(`models`/`new`/`edit`) need your OpenAI key.
