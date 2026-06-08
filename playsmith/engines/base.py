@@ -123,7 +123,10 @@ KNOWN_ASSERTIONS = frozenset(
         "player_exists",
         "player_on_floor",
         "player_not_falling",
+        "player_alive",
         "has_dialogue_ui",
+        "enemy_spawns",
+        "obstacle_spawns",
     }
 )
 

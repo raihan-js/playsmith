@@ -183,8 +183,11 @@ def verify_harness_script() -> str:
         '\t\t"player_exists": _player != null,\n'
         '\t\t"player_on_floor": on_floor,\n'
         '\t\t"player_not_falling": not fell,\n'
+        '\t\t"player_alive": _player != null and is_instance_valid(_player),\n'
         '\t\t"scene_loads": get_child_count() > 0,\n'
         '\t\t"has_dialogue_ui": _has_ui(self),\n'
+        '\t\t"enemy_spawns": get_tree().get_nodes_in_group("enemy").size() > 0,\n'
+        '\t\t"obstacle_spawns": get_tree().get_nodes_in_group("obstacle").size() > 0,\n'
         "\t}\n"
         "\tfor key in results.keys():\n"
         "\t\tif wanted.is_empty() or wanted.has(key):\n"

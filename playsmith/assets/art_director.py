@@ -19,8 +19,22 @@ from pathlib import Path
 
 from playsmith.llm import LLMGateway, Message
 
-# Slots a skill's game.gd knows how to apply at runtime. Background + player are universal.
-PLATFORMER_SLOTS = ["background", "player", "coin", "spike", "goal"]
+# Art slots each genre's game.gd knows how to apply at runtime (res://assets/<slot>.png).
+# Background + player are universal; the rest are genre-specific game elements.
+GENRE_SLOTS = {
+    "2d-platformer": ["background", "player", "coin", "spike", "goal"],
+    "3d-platformer": ["background", "player"],
+    "space-shooter": ["background", "player", "enemy", "bullet"],
+    "endless-runner": ["background", "player", "obstacle"],
+    "visual-novel": ["background"],
+}
+DEFAULT_SLOTS = ["background", "player"]
+PLATFORMER_SLOTS = GENRE_SLOTS["2d-platformer"]  # back-compat alias
+
+
+def slots_for(genre: str) -> list[str]:
+    """The art slots a genre can apply at runtime (falls back to background + player)."""
+    return GENRE_SLOTS.get(genre, DEFAULT_SLOTS)
 
 _SYSTEM = "You are a game art director. Reply with STRICT JSON only — no prose, no code fences."
 
@@ -78,7 +92,7 @@ def plan_art(
     max_assets: int = 4,
 ) -> dict:
     """Ask the LLM for a contextual art plan; fall back to a generic one on any failure."""
-    slots = slots or PLATFORMER_SLOTS
+    slots = slots or slots_for(genre)
     spec: dict | None = None
     try:
         resp = gateway.chat(
