@@ -1,8 +1,8 @@
 # Run Playsmith in Docker (with Godot + OpenAI)
 
-This is the fastest way to actually run the full pipeline — **prompt → real Godot game → verified
-→ ready to edit** — without installing Godot on your machine. The image bakes in Godot 4.x; you
-bring an OpenAI API key (or any OpenAI-compatible endpoint).
+The fastest way to run the full pipeline — **prompt → real Godot game → verified → playable** —
+without installing Godot on your machine. The image bakes in Godot 4.x + HTML5 export templates;
+you bring an OpenAI API key (or any OpenAI-compatible endpoint).
 
 ## 1. Configure your key
 
@@ -14,8 +14,20 @@ cp .env.example .env
 ## 2. Build the image
 
 ```bash
-docker compose build          # downloads Godot 4.3 + installs Playsmith (a few minutes, once)
+docker compose build          # Godot 4.3 + web export templates + Playsmith (one-time, a few min)
 ```
+
+## 🖥️ Web UI (chat + interactive panel) — the easy way
+
+```bash
+docker compose up web         # then open http://localhost:8000
+```
+
+Left pane is a **chat**: type *"a 2D platformer where a cat collects fish"* and watch the agent
+build + verify it live. Right pane is the **panel**: Projects, Files (browse the generated code),
+**Play** (Export web & play the game in your browser), and Skills. Use the *Edit selected* mode to
+iterate on a project in natural language. This is the "start and play without touching a terminal"
+path. The CLI below does the same things.
 
 ## 3. Prove the two halves work
 

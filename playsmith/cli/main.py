@@ -13,6 +13,7 @@ Command surface:
   export        — headless export: web | windows | mac | linux | android | ios (guided)
   publish       — itch.io (butler) | Steam (steamcmd) | --check compliance + age rating
   unreal        — EXPERIMENTAL Unreal track (royalty calculator, availability check)
+  web           — launch the web UI (chat + interactive panel) — needs the `web` extra
 """
 
 from __future__ import annotations
