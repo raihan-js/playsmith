@@ -7,10 +7,13 @@ Commands are added incrementally as capabilities land (see BUILD_PLAN.md):
   engine-check  — create + run a trivial Godot project headless    [Step 3]
   skills        — list installed game-generation skills            [Step 4]
   new           — prompt -> scaffold + generate + run-verify        [Step 6]
-  run / export  — run or export the generated game                 [Step 7]
+  run           — run the latest generated project in a window      [Step 7]
+  export        — headless HTML5 export of the generated game       [Step 7]
 """
 
 from __future__ import annotations
+
+from pathlib import Path
 
 import typer
 from rich.console import Console
@@ -18,10 +21,17 @@ from rich.table import Table
 
 from playsmith import __version__
 from playsmith.config import Config, ConfigError, load_config
-from playsmith.engines import EngineError, EngineNotFoundError, GodotAdapter, SceneSpec
+from playsmith.engines import (
+    EngineError,
+    EngineNotFoundError,
+    ExportTarget,
+    GodotAdapter,
+    SceneSpec,
+)
 from playsmith.engines.godot import templates as godot_templates
 from playsmith.llm import LLMError, LLMGateway, Message
 from playsmith.skills import SkillLoader
+from playsmith.studio import latest_project, new_game
 
 app = typer.Typer(
     name="playsmith",
@@ -148,6 +158,125 @@ def skills() -> None:
         desc = skill.description
         table.add_row(skill.name, desc if len(desc) <= 90 else desc[:87] + "...")
     console.print(table)
+
+
+def _resolve_project(cfg: Config, project: str | None) -> Path:
+    """Resolve an explicit project path, or fall back to the most recent generated game."""
+    if project:
+        path = Path(project).expanduser()
+        if not (path / "project.godot").exists():
+            console.print(f"[bold red]No Godot project at[/] {path}")
+            raise typer.Exit(code=1)
+        return path
+    found = latest_project(cfg.workspace_dir)
+    if found is None:
+        console.print(
+            '[yellow]No generated project found.[/] Run `playsmith new "<prompt>"` first.'
+        )
+        raise typer.Exit(code=1)
+    return found
+
+
+@app.command()
+def new(
+    prompt: str = typer.Argument(..., help="What game to build, e.g. 'a 2D platformer...'."),
+    yes: bool = typer.Option(False, "--yes", "-y", help="Auto-approve all file writes."),
+    config: str = typer.Option(None, "--config", "-c", help="Path to a config YAML."),
+    max_iterations: int = typer.Option(24, "--max-iterations", help="Agent step cap."),
+) -> None:
+    """Turn a prompt into a real, runnable Godot 4 project (route -> generate -> verify)."""
+    try:
+        cfg = load_config(config)
+    except ConfigError as exc:
+        console.print(f"[bold red]Config error:[/] {exc}")
+        raise typer.Exit(code=1) from exc
+
+    try:
+        outcome = new_game(
+            prompt, config=cfg, auto_approve=yes, console=console, max_iterations=max_iterations
+        )
+    except EngineNotFoundError as exc:
+        console.print(f"[bold red]Engine error:[/] {exc}")
+        raise typer.Exit(code=1) from exc
+    except LLMError as exc:
+        console.print(f"[bold red]LLM error:[/] {exc}")
+        console.print("[dim]Is your model running? Check `playsmith models`.[/]")
+        raise typer.Exit(code=1) from exc
+
+    console.print()
+    if outcome.runs_clean:
+        console.print("[bold green]✓ The game runs cleanly.[/]")
+    elif outcome.final_run is not None:
+        console.print("[bold yellow]⚠ The game still has issues on the final run:[/]")
+        for line in outcome.final_run.error_lines()[:10]:
+            console.print(f"  [red]{line}[/]")
+    else:
+        console.print("[yellow]Could not run a final verification (is Godot installed?).[/]")
+
+    console.print(f"\nProject: [bold]{outcome.project_dir}[/]")
+    console.print(f"Open it in Godot: [dim]godot --editor --path {outcome.project_dir}[/]")
+    console.print(
+        "Next: [cyan]playsmith run[/] to play it, [cyan]playsmith export --target web[/]."
+    )
+    if not outcome.agent_result.done:
+        console.print(f"[dim](agent stopped: {outcome.agent_result.reason})[/]")
+
+
+@app.command()
+def run(
+    project: str = typer.Option(None, "--project", "-p", help="Project dir (default: latest)."),
+    config: str = typer.Option(None, "--config", "-c", help="Path to a config YAML."),
+) -> None:
+    """Run the most recent (or a given) generated project in a window so you can play it."""
+    cfg = load_config(config)
+    project_dir = _resolve_project(cfg, project)
+    adapter = GodotAdapter(project_dir, binary=cfg.engine.godot.binary)
+    console.print(f"Running [bold]{project_dir}[/] ...")
+    try:
+        result = adapter.run(headless=False, timeout_s=600)
+    except (EngineError, EngineNotFoundError) as exc:
+        console.print(f"[bold red]Engine error:[/] {exc}")
+        raise typer.Exit(code=1) from exc
+    if result.error_lines():
+        console.print("[yellow]Engine reported errors:[/]")
+        for line in result.error_lines()[:10]:
+            console.print(f"  [red]{line}[/]")
+
+
+@app.command()
+def export(
+    target: str = typer.Option("web", "--target", "-t", help="Export target (web)."),
+    project: str = typer.Option(None, "--project", "-p", help="Project dir (default: latest)."),
+    out: str = typer.Option(
+        None, "--out", "-o", help="Output path (default: <project>/build/...)."
+    ),
+    config: str = typer.Option(None, "--config", "-c", help="Path to a config YAML."),
+) -> None:
+    """Headless export of the generated game (Web/HTML5 at MVP)."""
+    cfg = load_config(config)
+    if target.lower() != "web":
+        console.print(f"[bold red]Unsupported target:[/] {target}. Only 'web' is supported at MVP.")
+        raise typer.Exit(code=1)
+    project_dir = _resolve_project(cfg, project)
+    out_path = Path(out).expanduser() if out else project_dir / "build" / "index.html"
+    adapter = GodotAdapter(project_dir, binary=cfg.engine.godot.binary)
+    console.print(f"Exporting [bold]{project_dir}[/] → [dim]{out_path}[/] ...")
+    try:
+        result = adapter.export(ExportTarget.WEB, str(out_path))
+    except (EngineError, EngineNotFoundError) as exc:
+        console.print(f"[bold red]Engine error:[/] {exc}")
+        raise typer.Exit(code=1) from exc
+    if out_path.exists() and result.returncode == 0:
+        console.print(f"[bold green]✓ Exported[/] to {out_path}")
+        console.print(f"Serve it: [dim]python -m http.server -d {out_path.parent}[/]")
+    else:
+        console.print("[bold red]Export failed.[/] Logs:")
+        console.print(result.logs or "(no output)")
+        console.print(
+            "[dim]Tip: install Godot export templates "
+            "(Editor → Manage Export Templates) for HTML5.[/]"
+        )
+        raise typer.Exit(code=1)
 
 
 def main() -> None:
