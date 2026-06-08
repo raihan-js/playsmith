@@ -1,0 +1,24 @@
+[gd_scene load_steps=3 format=3 uid="uid://playsmith_main"]
+
+[ext_resource type="PackedScene" path="res://Player.tscn" id="1"]
+
+[sub_resource type="RectangleShape2D" id="floor"]
+size = Vector2(2400, 48)
+
+[node name="Main" type="Node2D"]
+
+[node name="Camera2D" type="Camera2D" parent="."]
+position = Vector2(576, 324)
+
+[node name="Floor" type="StaticBody2D" parent="."]
+position = Vector2(576, 600)
+
+[node name="FloorShape" type="CollisionShape2D" parent="Floor"]
+shape = SubResource("floor")
+
+[node name="FloorVisual" type="Polygon2D" parent="Floor"]
+color = Color(0.25, 0.5, 0.3, 1)
+polygon = PackedVector2Array(-1200, -24, 1200, -24, 1200, 24, -1200, 24)
+
+[node name="Player" parent="." instance=ExtResource("1")]
+position = Vector2(300, 400)

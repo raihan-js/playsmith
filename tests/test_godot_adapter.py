@@ -86,6 +86,22 @@ def test_run_builds_headless_command_and_parses_result(tmp_path, monkeypatch) ->
     assert "--quit-after" in captured["cmd"]
 
 
+def test_run_result_ignores_benign_shutdown_noise() -> None:
+    benign = RunResult(
+        command=["g"],
+        returncode=0,
+        stderr=(
+            "ERROR: 1 RID allocations of type 'P11GodotBody2D' were leaked at exit.\n"
+            "ERROR: 1 resources still in use at exit (run with --verbose for details).\n"
+        ),
+    )
+    assert benign.error_lines() == []  # benign shutdown leaks are not real errors
+    assert benign.ok
+    real = RunResult(command=["g"], returncode=0, stderr="SCRIPT ERROR: Parse Error: nope")
+    assert real.error_lines()
+    assert not real.ok
+
+
 def test_run_detects_script_errors_in_logs(tmp_path, monkeypatch) -> None:
     def fake_run(cmd, **kwargs):
         return subprocess.CompletedProcess(

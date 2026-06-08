@@ -27,6 +27,22 @@ _ERROR_MARKERS = (
     'Condition "',
 )
 
+# Benign Godot messages that match a marker above but are NOT game bugs: harmless shutdown
+# leaks (common when get_tree().quit() runs with physics bodies alive) and headless/display
+# warnings. These must not fail the `no_errors` check (a real-world false-positive we hit).
+_BENIGN_MARKERS = (
+    "leaked at exit",
+    "resources still in use at exit",
+    "RID allocations",
+    "ObjectDB instances leaked",
+    "StringName",
+    "X11 Display is not available",
+    "Could not initialize the display server",
+    "Couldn't initialize display server",
+    "Vulkan",  # headless RHI/driver chatter, not a game bug
+    "OpenGL",
+)
+
 
 class EngineError(Exception):
     """Base class for engine-adapter failures."""
@@ -81,11 +97,14 @@ class RunResult:
         return not self.timed_out and self.returncode == 0 and not self.error_lines()
 
     def error_lines(self) -> list[str]:
-        """Lines in the logs that look like Godot parse/runtime errors."""
+        """Real Godot parse/runtime error lines (excluding benign shutdown/headless noise)."""
         out: list[str] = []
         for line in self.logs.splitlines():
-            if any(marker in line for marker in _ERROR_MARKERS):
-                out.append(line.strip())
+            if not any(marker in line for marker in _ERROR_MARKERS):
+                continue
+            if any(benign in line for benign in _BENIGN_MARKERS):
+                continue
+            out.append(line.strip())
         return out
 
 

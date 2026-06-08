@@ -84,26 +84,40 @@ def _title(text: str) -> str:
     return " ".join(words[:6]).title() or "Playsmith Game"
 
 
-def build_goal(prompt: str, skill: Skill | None, project_dir: Path) -> str:
-    """Assemble the goal handed to the agent: skill body + movement template + the ask."""
-    parts = [
-        f"Build a game in the Godot 4 project at: {project_dir}",
-        "project.godot already exists and its main scene is res://Main.tscn. "
-        "Create that Main.tscn plus the scenes/scripts the game needs, then RUN it and fix "
-        "until it works with no errors.",
-        "",
-        f"USER REQUEST:\n{prompt}",
-    ]
+def build_goal(
+    prompt: str, skill: Skill | None, project_dir: Path, scaffolded: list[str] | None = None
+) -> str:
+    """Assemble the goal handed to the agent: scaffolding note + skill body + the ask."""
+    scaffolded = scaffolded or []
+    if scaffolded:
+        opening = (
+            f"Improve the game in the Godot 4 project at: {project_dir}\n"
+            "A WORKING BASE GAME ALREADY EXISTS (project.godot, main scene res://Main.tscn, a "
+            "player that stands on a floor) and it RUNS. Do NOT rewrite these existing files: "
+            + ", ".join(scaffolded)
+            + ".\nFirst call run_engine and verify_game to confirm the base already passes. Then "
+            "ADD to the game to satisfy the request — NEW scenes/nodes for collectibles, hazards, "
+            "a goal, a score HUD, theming — keeping verify_game passing. Prefer apply_patch for "
+            "small edits; do not hand-rewrite whole .tscn files."
+        )
+    else:
+        opening = (
+            f"Build a game in the Godot 4 project at: {project_dir}\n"
+            "project.godot exists; main scene is res://Main.tscn. Create that Main.tscn plus the "
+            "scenes/scripts the game needs, then run_engine + verify_game and fix until it passes."
+        )
+    parts = [opening, "", f"USER REQUEST:\n{prompt}"]
     if skill is not None:
         parts.append(f"\nFOLLOW THIS SKILL — {skill.name}:\n{skill.body()}")
-        try:
-            template = skill.read_script("player.gd")
-            parts.append(
-                "\nMOVEMENT TEMPLATE — write this as scripts/player.gd (tune the constants):\n"
-                "```gdscript\n" + template + "\n```"
-            )
-        except Exception:  # noqa: BLE001 - template is a nicety, not required
-            pass
+        if "scripts/player.gd" not in scaffolded:
+            try:
+                template = skill.read_script("player.gd")
+                parts.append(
+                    "\nMOVEMENT TEMPLATE — write this as scripts/player.gd (tune the constants):\n"
+                    "```gdscript\n" + template + "\n```"
+                )
+            except Exception:  # noqa: BLE001 - template is a nicety, not required
+                pass
     imported = scan_assets(project_dir)
     if imported:
         parts.append(
@@ -112,7 +126,7 @@ def build_goal(prompt: str, skill: Skill | None, project_dir: Path) -> str:
         )
     if skill is not None and skill.assertions:
         parts.append(
-            "\nVERIFY before finishing: call verify_game and ensure these assertions PASS — "
+            "\nThese assertions must PASS (call verify_game): "
             + ", ".join(skill.assertions)
             + ". If any fails, fix it and verify again."
         )
@@ -155,10 +169,22 @@ def new_game(
     project_dir = cfg.workspace_dir.expanduser() / name
     if adapter is None:
         adapter = GodotAdapter(project_dir, binary=cfg.engine.godot.binary)
-    # Deterministic scaffold: the engine config (not game code) is created for the agent.
     adapter.create_project(_title(prompt), main_scene="res://Main.tscn")
+    # Deterministic scaffolding: write the skill's bundled scripts + starter scenes verbatim so the
+    # base game already RUNS. The agent then embellishes instead of hand-writing brittle .tscn —
+    # the single biggest reliability lever (WHY.md "lean on deterministic scaffolding").
+    scaffolded: list[str] = []
+    if skill is not None:
+        for script_name in skill.scripts():
+            adapter.write_script(f"scripts/{script_name}", skill.read_script(script_name))
+            scaffolded.append(f"scripts/{script_name}")
+        for rel, path in skill.starter_files().items():
+            adapter.write_script(rel, path.read_text())
+            scaffolded.append(rel)
     if verbose:
         console.print(f"Project: [dim]{adapter.project_dir}[/]")
+        if scaffolded:
+            console.print(f"Scaffolded a working base: [dim]{', '.join(scaffolded)}[/]")
 
     if approver is None:
         approver = AutoApprover() if auto_approve else InteractiveApprover(console)
@@ -169,7 +195,7 @@ def new_game(
         mesh_generator=get_mesh_generator(cfg),
     )
     loop = AgentLoop(gateway, ctx, max_iterations=max_iterations, console=console, verbose=verbose)
-    agent_result = loop.run(build_goal(prompt, skill, adapter.project_dir))
+    agent_result = loop.run(build_goal(prompt, skill, adapter.project_dir, scaffolded))
 
     # Record what made this project so `playsmith edit` can verify it correctly later.
     try:

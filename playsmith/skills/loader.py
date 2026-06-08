@@ -85,6 +85,21 @@ class Skill:
             return {}
         return {p.name: p for p in sorted(refs_dir.iterdir()) if p.is_file()}
 
+    def starter_files(self) -> dict[str, Path]:
+        """Deterministic starter files (a known-good base the agent embellishes, not rewrites).
+
+        Keyed by project-relative path (e.g. ``Main.tscn``, ``Player.tscn``). The studio scaffolds
+        these verbatim before the agent runs, so the base game already runs and verifies.
+        """
+        starter = self.dir / "starter"
+        if not starter.is_dir():
+            return {}
+        out: dict[str, Path] = {}
+        for path in sorted(starter.rglob("*")):
+            if path.is_file():
+                out[path.relative_to(starter).as_posix()] = path
+        return out
+
     def read_script(self, name: str) -> str:
         """Read one bundled script on demand."""
         scripts = self.scripts()

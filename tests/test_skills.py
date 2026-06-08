@@ -54,6 +54,12 @@ def test_routes_between_repo_skills() -> None:
     assert router.route("a branching detective story with dialogue choices").name == "visual-novel"
 
 
+def test_2d_platformer_has_starter_scenes() -> None:
+    skill = SkillLoader([DEFAULT_SKILLS_ROOT]).get("2d-platformer")
+    starter = skill.starter_files()
+    assert "Main.tscn" in starter and "Player.tscn" in starter
+
+
 def test_3d_platformer_skill_loads() -> None:
     skill = SkillLoader([DEFAULT_SKILLS_ROOT]).get("3d-platformer")
     assert skill is not None

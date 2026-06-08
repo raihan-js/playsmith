@@ -53,6 +53,8 @@ def test_new_game_routes_scaffolds_generates_and_verifies(tmp_path) -> None:
     assert (adapter.project_dir / "project.godot").exists()
     assert (adapter.project_dir / "Main.tscn").exists()
     assert (adapter.project_dir / "scripts" / "player.gd").exists()
+    # The deterministic starter scene was scaffolded (Player.tscn isn't written by the agent here).
+    assert (adapter.project_dir / "Player.tscn").exists()
     # Agent finished and the final authoritative (assertion-based) verification was clean.
     assert outcome.agent_result.done
     assert outcome.runs_clean
@@ -63,6 +65,13 @@ def test_new_game_routes_scaffolds_generates_and_verifies(tmp_path) -> None:
     from playsmith.studio import read_manifest
 
     assert read_manifest(adapter.project_dir)["skill"] == "2d-platformer"
+
+
+def test_build_goal_with_scaffold_tells_agent_to_embellish(tmp_path) -> None:
+    goal = build_goal("a cat platformer", None, tmp_path, ["Main.tscn", "scripts/player.gd"])
+    assert "ALREADY EXISTS" in goal
+    assert "do NOT rewrite" in goal.lower() or "do not rewrite" in goal.lower()
+    assert "Main.tscn" in goal
 
 
 def test_build_goal_includes_skill_body_and_player_template(tmp_path) -> None:
