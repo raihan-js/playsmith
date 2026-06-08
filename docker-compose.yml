@@ -19,6 +19,7 @@ services:
       - .env
     volumes:
       - ./playsmith-games:/workspace                 # generated games land here on the host
+      - ./config:/app/config                          # UI-saved settings persist (playsmith.runtime.yaml)
       - playsmith-skills:/root/.playsmith/skills      # installed community skills persist
     stdin_open: true
     tty: true
@@ -37,6 +38,7 @@ services:
       - "8000:8000"
     volumes:
       - ./playsmith-games:/workspace
+      - ./config:/app/config                          # UI-saved settings persist (playsmith.runtime.yaml)
       - playsmith-skills:/root/.playsmith/skills
 
 volumes:

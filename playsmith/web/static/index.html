@@ -1028,11 +1028,11 @@ function wirePlay(){
   }
 }
 async function startGame(){
-  const p=S.projects.find(p=>p.name===S.activeProject);
-  if(!p){openTab('projects');return;}
+  const name=S.activeProject;
+  if(!name){openTab('projects');return;}
   $('#playOverlay').classList.remove('hidden');
   $('#playPoster').innerHTML=`<div class="exporting"><div class="bar"><i></i></div><div style="font-size:13px">Exporting the game…</div></div>`;
-  let res;try{res=await postJSON(`/api/projects/${encodeURIComponent(p.name)}/export`,{target:'web'});}catch{res=null;}
+  let res;try{res=await postJSON(`/api/projects/${encodeURIComponent(name)}/export`,{target:'web'});}catch{res=null;}
   if(res&&res.ok&&res.play){
     const f=$('#gameFrame');f.src=res.play+'?t='+Date.now();
     $('#playOverlay').classList.add('hidden');
@@ -1194,7 +1194,7 @@ function renderSettings(){
       <div class="field"><label>Model name</label><input id="customModel" placeholder="model id" value="${escapeHtml(selModel||'')}"></div>`;
   }
   if(selProvider==='ollama'){
-    inner+=`<div class="empty-hint">${p.running?'Ollama is running — pick an installed model or download one below.':'Ollama isn\\'t reachable at '+escapeHtml(p.base_url||'')+'. <a href="'+(p.key_url||'#')+'" target="_blank" rel="noopener">Install Ollama ↗</a>, then start it.'}</div>`;
+    inner+=`<div class="empty-hint">${p.running?'Ollama is running — pick an installed model or download one below.':'Ollama is not reachable at '+escapeHtml(p.base_url||'')+'. <a href="'+(p.key_url||'#')+'" target="_blank" rel="noopener">Install Ollama ↗</a>, then start it.'}</div>`;
     inner+=`<div class="sub-h">Installed</div><div class="model-list" id="modelList">`+
       ((p.installed||[]).length?p.installed.map(m=>modelRow(m)).join(''):'<div class="empty-hint">No models installed yet.</div>')+`</div>`;
     const dl=(p.suggested||[]).filter(s=>!(p.installed||[]).includes(s.name));

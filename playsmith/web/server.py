@@ -239,7 +239,10 @@ async def api_gen_asset(name: str, request: Request) -> JSONResponse:
             {"error": "Asset generation is off. Set an OpenAI key in Settings to enable art."},
             status_code=400,
         )
-    fname = {"background": "background.png"}.get(kind, _safe_asset_name(prompt))
+    # Map to a slot game.gd auto-applies so generated art shows up in-game immediately.
+    fname = {"background": "background.png", "sprite": "player.png"}.get(
+        kind, _safe_asset_name(prompt)
+    )
     out = root / "assets" / fname
     try:
         await asyncio.to_thread(gen.image, prompt, kind, str(out))
