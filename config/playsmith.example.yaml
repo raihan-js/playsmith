@@ -1,11 +1,13 @@
 # Playsmith configuration — copy to playsmith.yaml and edit.
-# Every model (local or cloud) is reached through the OpenAI-compatible /v1 API.
+# Every model (local or cloud) is reached through the OpenAI-compatible /v1 API, or Anthropic's
+# native /v1/messages. Playsmith is TIERED: a frontier model drives the director/critic reasoning,
+# local models handle cheap sub-steps (see WHY.md / the Unreal-first pivot).
 
 # Where generated game projects are written (NEVER inside the Playsmith repo).
 workspace_dir: "~/playsmith-games"
 
-# Default LLM provider. Reached via OpenAI-compatible /v1 (kind: openai) or Anthropic
-# /v1/messages (kind: anthropic). Per-task overrides and a cloud fallback are optional.
+# Default LLM provider. For the best results, point the default (or the routes below) at a
+# frontier model — e.g. Claude via kind: "anthropic" — and keep a local model for cheap steps.
 llm:
   provider: "ollama"
   base_url: "http://localhost:11434/v1"
@@ -14,20 +16,23 @@ llm:
   num_ctx: 16384         # IMPORTANT: 16K–32K. The 4K default breaks agentic editing.
   kind: "openai"         # "openai" (Ollama/LM Studio/vLLM/OpenAI/OpenRouter/Gemini) or "anthropic"
 
-  # Optional model router (Phase 1): per-task provider overrides. TaskTypes: general,
-  # coding, reasoning, routing. Unset tasks use the default provider above.
+  # TIERED setup (recommended): frontier model as the director/critic, local for cheap sub-steps.
   # routes:
+  #   reasoning:                       # director / critic / planning
+  #     provider: "anthropic"
+  #     base_url: "https://api.anthropic.com/v1"
+  #     model: "claude-opus-4-8"
+  #     api_key: "${ANTHROPIC_API_KEY}"
+  #     kind: "anthropic"
   #   coding:
-  #     provider: "openrouter"
-  #     base_url: "https://openrouter.ai/api/v1"
-  #     model: "qwen/qwen-2.5-coder-32b-instruct"
-  #     api_key: "${OPENROUTER_API_KEY}"
-  #     kind: "openai"
+  #     provider: "anthropic"
+  #     base_url: "https://api.anthropic.com/v1"
+  #     model: "claude-sonnet-4-6"
+  #     api_key: "${ANTHROPIC_API_KEY}"
+  #     kind: "anthropic"
 
-  # Optional cloud fallback for hard CODING/REASONING steps when the local model fails or
-  # returns no tool call. Crossing local -> cloud ALWAYS warns the user (CLAUDE.md §5).
-  # For Anthropic use kind: "anthropic" (native /v1/messages). Its OpenAI-compat endpoint
-  # drops strict tool schemas + prompt caching, which is unreliable for the tool loop.
+  # Optional cloud fallback for hard steps when the local model fails or returns no tool call.
+  # Crossing local -> cloud ALWAYS warns the user (CLAUDE.md §5).
   # fallback:
   #   provider: "anthropic"
   #   base_url: "https://api.anthropic.com/v1"
@@ -35,39 +40,15 @@ llm:
   #   api_key: "${ANTHROPIC_API_KEY}"
   #   kind: "anthropic"
 
-# Engine settings.
+# Engine settings. Playsmith targets Unreal Engine 5.x; UE runs on the host.
 engine:
-  default: "godot"
-  godot:
-    binary: "godot"      # path to the Godot 4.x executable
-    version: "4"
+  default: "unreal"
   unreal:
     # Path to UnrealEditor-Cmd (the headless editor). Auto-discovered from ~/UnrealEngine if blank.
-    # Used by `playsmith unreal new "<name>"` (UE runs on the host, not in Docker).
     editor_cmd: "UnrealEditor-Cmd"
 
-# Asset generation (optional). If unavailable, Playsmith uses placeholders and still ships.
-assets:
-  enabled: false                          # true -> agent generates art in-loop during `new`
-  image_backend: "comfyui"                # "comfyui" (local GPU) or "openai" (uses an OpenAI key)
-  openai_api_key: ""                      # for image_backend=openai; blank => falls back to llm.api_key
-  image_model: "gpt-image-1"              # OpenAI image model (or "dall-e-3")
-  comfyui_url: "http://localhost:8188"    # 2D image generation (ComfyUI)
-  model: "sd_xl_base_1.0.safetensors"     # the checkpoint ComfyUI loads (must exist in ComfyUI)
-  mesh_url: ""                            # 3D mesh backend (Hunyuan3D/TRELLIS); empty => primitives only
-  mesh_backend: "hunyuan3d"               # hunyuan3d (Apache-2.0) | trellis (MIT)
-  blender_path: "blender"                 # optional headless mesh cleanup; skipped if not installed
-
-# Publishing (Phase 1+). itch.io (butler) and Steam (steamcmd) — both optional.
-publish:
-  itch:
-    butler_path: "butler"
-  steam:
-    steamcmd_path: "steamcmd"           # SteamPipe; run `steamcmd +login <account>` once (Steam Guard)
-    account: ""                         # your Steamworks account; uploads go to a non-default branch
-
-# Community skill marketplace (Phase 2). Installs are integrity-checked and never auto-executed;
-# untrusted skills require `--allow-untrusted`. See docs/SKILL_SPEC.md + CONTRIBUTING_SKILLS.md.
+# Community skill marketplace. Installs are integrity-checked and never auto-executed;
+# untrusted skills require `--allow-untrusted`. See docs/SKILL_SPEC.md + docs/CONTRIBUTING_SKILLS.md.
 skills:
   registry_url: "https://raw.githubusercontent.com/raihan-js/playsmith-skills/main/index.json"
   dir: "~/.playsmith/skills"            # where installed community skills live

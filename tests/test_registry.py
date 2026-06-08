@@ -57,7 +57,7 @@ def test_validate_rejects_unknown_assertions() -> None:
 
 
 def test_validate_accepts_good_pack() -> None:
-    assert validate_skillpack(_skillpack("x", assertions=["player_on_floor", "no_errors"])) == []
+    assert validate_skillpack(_skillpack("x", assertions=["player_exists", "no_errors"])) == []
 
 
 # -- install: integrity + trust --------------------------------------------------

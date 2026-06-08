@@ -35,13 +35,13 @@ _READ = Tool(
 # (prompt, tool offered, expected tool name). Small, deterministic, tool-eliciting.
 DEFAULT_FIXTURES: list[tuple[str, Tool, str]] = [
     (
-        "Create a file hello.gd containing print('hi'). Use the write_file tool.",
+        "Create a file notes.txt containing 'hi'. Use the write_file tool.",
         _WRITE,
         "write_file",
     ),
-    ("Read the file project.godot. Use the read_file tool.", _READ, "read_file"),
-    ("Write player.gd extending CharacterBody2D. Use write_file.", _WRITE, "write_file"),
-    ("Read scripts/player.gd with read_file.", _READ, "read_file"),
+    ("Read the file README.md. Use the read_file tool.", _READ, "read_file"),
+    ("Write a file level.txt with the word 'arena'. Use write_file.", _WRITE, "write_file"),
+    ("Read scripts/main.py with read_file.", _READ, "read_file"),
 ]
 
 _EVAL_SYSTEM = "You build games by calling tools. When asked, respond with the requested tool call."

@@ -1,9 +1,9 @@
 """Skill marketplace — discover and install community skills, **safely**.
 
 This is the compounding moat (WHY.md) — and its security is non-negotiable. The threat model:
-a community skill's bundled ``scripts/`` become GDScript written into the user's game (and run
-when they play it), and its ``SKILL.md`` body is injected into the agent's prompt (a
-prompt-injection vector). So installs must:
+a community skill's bundled ``scripts/`` become code/automation written into the user's game (and
+may run when they play it or build it), and its ``SKILL.md`` body is injected into the agent's
+prompt (a prompt-injection vector). So installs must:
 
   1. **Verify integrity** — the fetched skillpack's SHA-256 must match the curated index entry.
   2. **Refuse untrusted by default** — third-party/untrusted skills require an explicit opt-in.

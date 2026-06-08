@@ -7,7 +7,6 @@ import httpx
 from playsmith.config import LLMConfig
 from playsmith.llm import LLMGateway
 from playsmith.skills import SkillLoader, SkillRouter, parse_frontmatter
-from playsmith.skills.loader import DEFAULT_SKILLS_ROOT
 
 
 def _make_skill(root, name, description, body="Do the thing.", script=None):
@@ -28,44 +27,21 @@ def test_parse_frontmatter_splits_meta_and_body() -> None:
     assert body.strip() == "Body text"
 
 
-def test_loads_real_2d_platformer_fixture() -> None:
-    # Metadata is parsed eagerly for every skill the repo ships.
-    skills = SkillLoader([DEFAULT_SKILLS_ROOT]).discover()
-    names = {s.name for s in skills}
-    assert "2d-platformer" in names
-    skill = next(s for s in skills if s.name == "2d-platformer")
-    # Body is lazy until requested, then contains the build steps.
-    assert "RUN AND VERIFY" in skill.body()
-    # Bundled script is exposed as a path (level 3) and readable on demand.
-    assert "player.gd" in skill.scripts()
-    assert "CharacterBody2D" in skill.read_script("player.gd")
-    # Skill-declared assertions feed the assertion-based reality loop.
-    assert "player_on_floor" in skill.assertions
-
-
-def test_routes_between_repo_skills() -> None:
-    # Real skills ship; routing must distinguish them (keyword fallback, no gateway).
-    router = SkillRouter(SkillLoader([DEFAULT_SKILLS_ROOT]))
-    assert router.route("a jump-and-run platformer with a fox").name == "2d-platformer"
-    assert (
-        router.route("a 3D platformer where a robot collects orbs in three dimensions").name
-        == "3d-platformer"
+def test_loader_discovers_synthetic_skill(tmp_path) -> None:
+    # The loader parses metadata eagerly; body/scripts load lazily on demand.
+    _make_skill(
+        tmp_path,
+        "third-person",
+        "an over-the-shoulder third-person Unreal game",
+        body="BUILD AND VERIFY the level.",
+        script=("notes.txt", "movement constants"),
     )
-    assert router.route("a branching detective story with dialogue choices").name == "visual-novel"
-
-
-def test_2d_platformer_has_starter_scenes() -> None:
-    skill = SkillLoader([DEFAULT_SKILLS_ROOT]).get("2d-platformer")
-    starter = skill.starter_files()
-    assert "Main.tscn" in starter and "Player.tscn" in starter
-
-
-def test_3d_platformer_skill_loads() -> None:
-    skill = SkillLoader([DEFAULT_SKILLS_ROOT]).get("3d-platformer")
-    assert skill is not None
-    assert "player_on_floor" in skill.assertions
-    assert "player_3d.gd" in skill.scripts()
-    assert "CharacterBody3D" in skill.read_script("player_3d.gd")
+    skills = SkillLoader([tmp_path]).discover()
+    assert {s.name for s in skills} == {"third-person"}
+    skill = next(s for s in skills if s.name == "third-person")
+    assert "BUILD AND VERIFY" in skill.body()
+    assert "notes.txt" in skill.scripts()
+    assert "movement constants" in skill.read_script("notes.txt")
 
 
 def test_loader_skips_dirs_without_name(tmp_path) -> None:

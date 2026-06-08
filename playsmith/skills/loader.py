@@ -88,8 +88,8 @@ class Skill:
     def starter_files(self) -> dict[str, Path]:
         """Deterministic starter files (a known-good base the agent embellishes, not rewrites).
 
-        Keyed by project-relative path (e.g. ``Main.tscn``, ``Player.tscn``). The studio scaffolds
-        these verbatim before the agent runs, so the base game already runs and verifies.
+        Keyed by project-relative path. Scaffolded verbatim before the agent runs, so the base
+        game already runs and verifies.
         """
         starter = self.dir / "starter"
         if not starter.is_dir():

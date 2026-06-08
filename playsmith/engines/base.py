@@ -15,27 +15,23 @@ from enum import StrEnum
 from pathlib import Path
 from typing import Protocol, runtime_checkable
 
-# Godot error markers we scan run logs for (used by the reality loop's evaluation).
+# Error markers we scan run logs for (the reality loop's evaluation). Kept broad so the same
+# scan works across engines; the UE verify harness's PLAYSMITH_ASSERT lines are the primary,
+# load-bearing signal (CLAUDE.md §4).
 _ERROR_MARKERS = (
-    "SCRIPT ERROR",
     "ERROR:",
-    "USER ERROR",
-    "Parse Error",
-    "Parser Error",
+    "Error:",
+    "Fatal error",
+    "Assertion failed",
     "Failed to load",
     "Can't open",
-    'Condition "',
 )
 
-# Benign Godot messages that match a marker above but are NOT game bugs: harmless shutdown
-# leaks (common when get_tree().quit() runs with physics bodies alive) and headless/display
-# warnings. These must not fail the `no_errors` check (a real-world false-positive we hit).
+# Benign messages that match a marker above but are NOT game bugs: harmless shutdown leaks and
+# headless/display/RHI driver chatter. These must not fail the `no_errors` check.
 _BENIGN_MARKERS = (
     "leaked at exit",
     "resources still in use at exit",
-    "RID allocations",
-    "ObjectDB instances leaked",
-    "StringName",
     "X11 Display is not available",
     "Could not initialize the display server",
     "Couldn't initialize display server",
@@ -49,11 +45,11 @@ class EngineError(Exception):
 
 
 class EngineNotFoundError(EngineError):
-    """The engine binary (e.g. ``godot``) was not found or is not executable."""
+    """The engine binary (e.g. ``UnrealEditor-Cmd``) was not found or is not executable."""
 
 
 class ExportTarget(StrEnum):
-    """Export presets. Values match the preset name Godot expects."""
+    """Export/target presets (engine-agnostic identifiers)."""
 
     WEB = "Web"
     LINUX = "Linux/X11"
@@ -65,13 +61,13 @@ class ExportTarget(StrEnum):
 
 @dataclass
 class SceneSpec:
-    """A scene to write: a project-relative path plus the full ``.tscn`` text.
+    """A scene to write as text: a project-relative path plus the serialized scene content.
 
-    Scenes are plain text in Godot 4, so the primary path is "hand the adapter the
-    serialized ``.tscn``". Helpers in ``engines/godot/templates.py`` build common ones.
+    Used by engines with text-based scenes. Binary-asset engines (Unreal: ``.umap``/``.uasset``)
+    author scenes via the editor / UE Python API instead, and reject text writes.
     """
 
-    path: str  # relative to project root, e.g. "Player.tscn"
+    path: str  # relative to project root
     content: str
 
 
@@ -97,7 +93,7 @@ class RunResult:
         return not self.timed_out and self.returncode == 0 and not self.error_lines()
 
     def error_lines(self) -> list[str]:
-        """Real Godot parse/runtime error lines (excluding benign shutdown/headless noise)."""
+        """Real error lines from the run (excluding benign shutdown/headless noise)."""
         out: list[str] = []
         for line in self.logs.splitlines():
             if not any(marker in line for marker in _ERROR_MARKERS):
@@ -116,21 +112,15 @@ _TRUTHY = frozenset({"true", "1", "yes", "ok", "pass"})
 
 # The assertion keys the verify harness can evaluate. Skills must declare checks from this set;
 # the marketplace validates installed skills against it (see playsmith/skills/registry.py).
+# Unreal structural checks come from the UE Python verify harness; richer playability/quality
+# gates (PIE metrics, rendered-screenshot scoring) are layered on by the director/critic loop.
 KNOWN_ASSERTIONS = frozenset(
     {
-        "scene_loads",
         "no_errors",
-        "player_exists",
-        "player_on_floor",
-        "player_not_falling",
-        "player_alive",
-        "has_dialogue_ui",
-        "enemy_spawns",
-        "obstacle_spawns",
-        # Unreal (structural, via the UE Python verify harness)
         "level_loads",
         "player_start_exists",
         "floor_exists",
+        "player_exists",
         "goal_exists",
         "obstacles_exist",
     }
@@ -169,7 +159,7 @@ class VerifyResult:
 
 @runtime_checkable
 class EngineAdapter(Protocol):
-    """A uniform way to drive any engine. Godot at MVP; Unreal in Phase 2."""
+    """A uniform way to drive an engine. Unreal Engine 5.x (more can be added behind this)."""
 
     project_dir: Path
 

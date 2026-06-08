@@ -4,16 +4,8 @@ Command surface:
   version       — print version
   config-check  — show the resolved configuration (providers, routes, fallback)
   models        — route table + round-trip the default model (--eval for reliability)
-  engine-check  — create + run a trivial Godot project headless
   skills        — list / search / install / remove game-generation skills (marketplace)
-  new           — prompt -> scaffold -> generate -> assertion-verify
-  edit          — apply a natural-language change to the latest project, then re-verify
-  assets        — import <file> | generate "<prompt>" — 2D sprites or 3D meshes (optional)
-  run           — run the latest generated project in a window
-  export        — headless export: web | windows | mac | linux | android | ios (guided)
-  publish       — itch.io (butler) | Steam (steamcmd) | --check compliance + age rating
-  unreal        — EXPERIMENTAL Unreal track (royalty calculator, availability check)
-  web           — launch the web UI (chat + interactive panel) — needs the `web` extra
+  unreal        — the Unreal Engine track: new (build + verify), check, royalty calculator
 """
 
 from __future__ import annotations
@@ -26,38 +18,16 @@ from rich.console import Console
 from rich.table import Table
 
 from playsmith import __version__
-from playsmith.assets import AssetError, ComfyUIClient, MeshClient, OpenAIImageClient
-from playsmith.assets.mesh import MESH_CAVEAT
 from playsmith.config import Config, ConfigError, load_config
-from playsmith.engines import (
-    EngineError,
-    EngineNotFoundError,
-    ExportTarget,
-    GodotAdapter,
-    SceneSpec,
-)
-from playsmith.engines.godot import templates as godot_templates
+from playsmith.engines import EngineError, EngineNotFoundError
 from playsmith.engines.unreal import UnrealAdapter, level_director, royalty_estimate
 from playsmith.llm import LLMError, LLMGateway, Message
 from playsmith.llm.eval import evaluate_targets
-from playsmith.publish import (
-    APPLE_4_2_6,
-    APPLE_4_3,
-    GOOGLE_REPETITIVE,
-    PublishError,
-    age_rating,
-    compliance_briefing,
-    ensure_android_keystore,
-    is_macos,
-    publish_itch,
-    publish_steam,
-)
 from playsmith.skills import SkillLoader, SkillRegistry, SkillRegistryError
-from playsmith.studio import edit_game, latest_project, new_game
 
 app = typer.Typer(
     name="playsmith",
-    help="Turn a plain prompt into a real, editable, shippable game — locally.",
+    help="Turn a plain prompt into a real, editable, shippable Unreal Engine game — locally.",
     no_args_is_help=True,
     add_completion=False,
 )
@@ -95,8 +65,7 @@ def config_check(
     table.add_row("llm.routes", f"{len(cfg.llm_routes)} configured")
     table.add_row("llm.fallback", cfg.llm_fallback.model if cfg.llm_fallback else "<none>")
     table.add_row("engine.default", cfg.engine.default)
-    table.add_row("engine.godot.binary", cfg.engine.godot.binary)
-    table.add_row("assets.enabled", str(cfg.assets.enabled))
+    table.add_row("engine.unreal.editor_cmd", cfg.engine.unreal.editor_cmd)
     console.print(table)
 
 
@@ -173,47 +142,6 @@ def models(
         raise typer.Exit(code=1) from exc
 
     console.print(f"[bold green]{cfg.llm.model}[/]: {resp.content or '<no content>'}")
-
-
-@app.command(name="engine-check")
-def engine_check(
-    config: str = typer.Option(None, "--config", "-c", help="Path to a config YAML."),
-) -> None:
-    """Create a trivial Godot project in the workspace and run it headless.
-
-    Proves Godot is wired up. The project it makes can be opened in the Godot editor.
-    """
-    try:
-        cfg = load_config(config)
-    except ConfigError as exc:
-        console.print(f"[bold red]Config error:[/] {exc}")
-        raise typer.Exit(code=1) from exc
-
-    project_dir = cfg.workspace_dir.expanduser() / "_playsmith_engine_check"
-    adapter = GodotAdapter(project_dir, binary=cfg.engine.godot.binary)
-
-    try:
-        ver = adapter.version()
-    except (EngineNotFoundError, EngineError) as exc:
-        console.print(f"[bold red]Engine error:[/] {exc}")
-        raise typer.Exit(code=1) from exc
-    console.print(f"Found Godot: [bold cyan]{ver}[/]")
-
-    adapter.create_project("Playsmith Engine Check", main_scene="res://Main.tscn")
-    adapter.write_scene(SceneSpec("Main.tscn", godot_templates.trivial_main_scene()))
-    console.print(f"Created trivial project at [dim]{project_dir}[/]")
-
-    result = adapter.run(headless=True, timeout_s=30)
-    if result.logs:
-        console.print("[dim]--- engine logs ---[/]")
-        console.print(result.logs)
-    if result.ok:
-        console.print("[bold green]engine-check passed[/] — Godot ran the project cleanly.")
-    else:
-        console.print("[bold red]engine-check failed[/] — see logs above.")
-        for line in result.error_lines():
-            console.print(f"  [red]{line}[/]")
-        raise typer.Exit(code=1)
 
 
 skills_app = typer.Typer(
@@ -322,417 +250,7 @@ def skills_remove(
         raise typer.Exit(code=1)
 
 
-assets_app = typer.Typer(help="Import or generate game art.", no_args_is_help=True)
-app.add_typer(assets_app, name="assets")
-
-
-@assets_app.command("import")
-def assets_import(
-    file: str = typer.Argument(..., help="Path to an image/audio file to import."),
-    as_path: str = typer.Option(
-        None, "--as", help="Destination res:// path (default assets/<name>)."
-    ),
-    project: str = typer.Option(None, "--project", "-p", help="Project dir (default: latest)."),
-    config: str = typer.Option(None, "--config", "-c", help="Path to a config YAML."),
-) -> None:
-    """Copy an image/audio file into a generated project so the agent (and you) can use it."""
-    cfg = load_config(config)
-    src = Path(file).expanduser()
-    if not src.is_file():
-        console.print(f"[bold red]No such file:[/] {src}")
-        raise typer.Exit(code=1)
-    project_dir = _resolve_project(cfg, project)
-    adapter = GodotAdapter(project_dir, binary=cfg.engine.godot.binary)
-    dest = (as_path or f"assets/{src.name}").replace("res://", "")
-    try:
-        adapter.add_asset(str(src), dest)
-    except (EngineError, OSError) as exc:
-        console.print(f"[bold red]Import failed:[/] {exc}")
-        raise typer.Exit(code=1) from exc
-    console.print(
-        f"[bold green]Imported[/] {src.name} → res://{dest} in [bold]{project_dir.name}[/]"
-    )
-    console.print('Use it via a Sprite2D texture, or `playsmith edit "use the imported art"`.')
-
-
-@assets_app.command("generate")
-def assets_generate(
-    prompt: str = typer.Argument(..., help="What art to generate, e.g. 'a pixel-art cat'."),
-    kind: str = typer.Option("sprite", "--kind", "-k", help="sprite|portrait|background|mesh."),
-    project: str = typer.Option(None, "--project", "-p", help="Project dir (default: latest)."),
-    out: str = typer.Option(
-        None, "--out", "-o", help="Output path (default <project>/assets/...)."
-    ),
-    config: str = typer.Option(None, "--config", "-c", help="Path to a config YAML."),
-) -> None:
-    """Generate a 2D sprite (ComfyUI) or a 3D mesh into a project (graceful if no backend)."""
-    cfg = load_config(config)
-    safe = re.sub(r"[^a-z0-9]+", "_", prompt.lower()).strip("_")[:40] or "asset"
-
-    if kind.lower() in ("mesh", "3d", "model"):
-        client = MeshClient(
-            cfg.assets.mesh_url,
-            backend=cfg.assets.mesh_backend,
-            blender_path=cfg.assets.blender_path,
-        )
-        if not cfg.assets.mesh_url or not client.available():
-            console.print(
-                "[yellow]No 3D mesh backend reachable.[/] Games still ship with primitive meshes."
-            )
-            console.print(
-                "[dim]Set assets.mesh_url to a Hunyuan3D/TRELLIS server to generate meshes.[/]"
-            )
-            raise typer.Exit(code=1)
-        project_dir = _resolve_project(cfg, project)
-        dest = Path(out).expanduser() if out else project_dir / "assets" / f"{safe}.glb"
-        console.print(f"Generating a mesh for '{prompt}' via {cfg.assets.mesh_backend} ...")
-        try:
-            with console.status("rendering..."):
-                client.mesh(prompt, str(dest))
-        except (AssetError, OSError) as exc:
-            console.print(f"[bold red]Generation failed:[/] {exc}")
-            raise typer.Exit(code=1) from exc
-        console.print(f"[bold green]Generated[/] {dest}")
-        console.print(f"[yellow]{MESH_CAVEAT}[/]")
-        return
-
-    if cfg.assets.image_backend == "openai":
-        key = cfg.assets.openai_api_key or (cfg.llm.api_key if cfg.llm.provider == "openai" else "")
-        if not key:
-            console.print(
-                "[yellow]No OpenAI key for images.[/] Set OPENAI_API_KEY or assets.openai_api_key."
-            )
-            raise typer.Exit(code=1)
-        client = OpenAIImageClient(
-            key, base_url=cfg.assets.image_base_url, model=cfg.assets.image_model
-        )
-        backend_name = cfg.assets.image_model
-    else:
-        client = ComfyUIClient(cfg.assets.comfyui_url, model=cfg.assets.model)
-        if not client.available():
-            console.print(
-                f"[yellow]ComfyUI not reachable at {cfg.assets.comfyui_url}.[/] "
-                "Games still ship with placeholders."
-            )
-            console.print("[dim]Start ComfyUI or set assets.image_backend: openai.[/]")
-            raise typer.Exit(code=1)
-        backend_name = "ComfyUI"
-    project_dir = _resolve_project(cfg, project)
-    dest = Path(out).expanduser() if out else project_dir / "assets" / f"{safe}.png"
-    console.print(f"Generating [bold]{kind}[/] for '{prompt}' via {backend_name} ...")
-    try:
-        with console.status("rendering..."):
-            client.image(prompt, kind, str(dest))
-    except (AssetError, OSError) as exc:
-        console.print(f"[bold red]Generation failed:[/] {exc}")
-        raise typer.Exit(code=1) from exc
-    console.print(f"[bold green]Generated[/] {dest}")
-
-
-def _resolve_project(cfg: Config, project: str | None) -> Path:
-    """Resolve an explicit project path, or fall back to the most recent generated game."""
-    if project:
-        path = Path(project).expanduser()
-        if not (path / "project.godot").exists():
-            console.print(f"[bold red]No Godot project at[/] {path}")
-            raise typer.Exit(code=1)
-        return path
-    found = latest_project(cfg.workspace_dir)
-    if found is None:
-        console.print(
-            '[yellow]No generated project found.[/] Run `playsmith new "<prompt>"` first.'
-        )
-        raise typer.Exit(code=1)
-    return found
-
-
-def _print_build_outcome(outcome) -> None:
-    """Shared result reporting for `new` and `edit`."""
-    console.print()
-    if outcome.runs_clean:
-        console.print("[bold green]✓ The game runs and all gameplay checks pass.[/]")
-    elif outcome.final_verify is not None:
-        console.print("[bold yellow]⚠ The game still has issues on final verification:[/]")
-        for check in outcome.final_verify.failures():
-            console.print(f"  [red]assertion failed: {check}[/]")
-        for line in outcome.final_verify.run.error_lines()[:8]:
-            console.print(f"  [red]{line}[/]")
-    else:
-        console.print("[yellow]Could not run a final verification (is Godot installed?).[/]")
-
-    console.print(f"\nProject: [bold]{outcome.project_dir}[/]")
-    console.print(f"Open it in Godot: [dim]godot --editor --path {outcome.project_dir}[/]")
-    console.print(
-        'Next: [cyan]playsmith run[/], [cyan]playsmith edit "..."[/], '
-        "or [cyan]playsmith export --target web[/]."
-    )
-    if not outcome.agent_result.done:
-        console.print(f"[dim](agent stopped: {outcome.agent_result.reason})[/]")
-
-
-@app.command()
-def new(
-    prompt: str = typer.Argument(..., help="What game to build, e.g. 'a 2D platformer...'."),
-    yes: bool = typer.Option(False, "--yes", "-y", help="Auto-approve all file writes."),
-    config: str = typer.Option(None, "--config", "-c", help="Path to a config YAML."),
-    max_iterations: int = typer.Option(24, "--max-iterations", help="Agent step cap."),
-) -> None:
-    """Turn a prompt into a real, runnable Godot 4 project (route -> generate -> verify)."""
-    try:
-        cfg = load_config(config)
-    except ConfigError as exc:
-        console.print(f"[bold red]Config error:[/] {exc}")
-        raise typer.Exit(code=1) from exc
-
-    try:
-        outcome = new_game(
-            prompt, config=cfg, auto_approve=yes, console=console, max_iterations=max_iterations
-        )
-    except EngineNotFoundError as exc:
-        console.print(f"[bold red]Engine error:[/] {exc}")
-        raise typer.Exit(code=1) from exc
-    except LLMError as exc:
-        console.print(f"[bold red]LLM error:[/] {exc}")
-        console.print("[dim]Is your model running? Check `playsmith models`.[/]")
-        raise typer.Exit(code=1) from exc
-
-    _print_build_outcome(outcome)
-
-
-@app.command()
-def edit(
-    change: str = typer.Argument(..., help='The change, e.g. "make the player jump higher".'),
-    project: str = typer.Option(None, "--project", "-p", help="Project dir (default: latest)."),
-    yes: bool = typer.Option(False, "--yes", "-y", help="Auto-approve all file writes."),
-    config: str = typer.Option(None, "--config", "-c", help="Path to a config YAML."),
-    max_iterations: int = typer.Option(24, "--max-iterations", help="Agent step cap."),
-) -> None:
-    """Iterate on an existing generated project in natural language (re-runs + re-verifies)."""
-    try:
-        cfg = load_config(config)
-    except ConfigError as exc:
-        console.print(f"[bold red]Config error:[/] {exc}")
-        raise typer.Exit(code=1) from exc
-
-    project_dir = _resolve_project(cfg, project)
-    try:
-        outcome = edit_game(
-            change,
-            config=cfg,
-            project_dir=str(project_dir),
-            auto_approve=yes,
-            console=console,
-            max_iterations=max_iterations,
-        )
-    except EngineNotFoundError as exc:
-        console.print(f"[bold red]Engine error:[/] {exc}")
-        raise typer.Exit(code=1) from exc
-    except LLMError as exc:
-        console.print(f"[bold red]LLM error:[/] {exc}")
-        console.print("[dim]Is your model running? Check `playsmith models`.[/]")
-        raise typer.Exit(code=1) from exc
-
-    _print_build_outcome(outcome)
-
-
-@app.command()
-def run(
-    project: str = typer.Option(None, "--project", "-p", help="Project dir (default: latest)."),
-    config: str = typer.Option(None, "--config", "-c", help="Path to a config YAML."),
-) -> None:
-    """Run the most recent (or a given) generated project in a window so you can play it."""
-    cfg = load_config(config)
-    project_dir = _resolve_project(cfg, project)
-    adapter = GodotAdapter(project_dir, binary=cfg.engine.godot.binary)
-    console.print(f"Running [bold]{project_dir}[/] ...")
-    try:
-        result = adapter.run(headless=False, timeout_s=600)
-    except (EngineError, EngineNotFoundError) as exc:
-        console.print(f"[bold red]Engine error:[/] {exc}")
-        raise typer.Exit(code=1) from exc
-    if result.error_lines():
-        console.print("[yellow]Engine reported errors:[/]")
-        for line in result.error_lines()[:10]:
-            console.print(f"  [red]{line}[/]")
-
-
-_EXPORT_TARGETS = {
-    "web": ExportTarget.WEB,
-    "windows": ExportTarget.WINDOWS,
-    "win": ExportTarget.WINDOWS,
-    "mac": ExportTarget.MACOS,
-    "macos": ExportTarget.MACOS,
-    "linux": ExportTarget.LINUX,
-    "android": ExportTarget.ANDROID,
-    "ios": ExportTarget.IOS,
-}
-_EXPORT_OUT_NAMES = {
-    ExportTarget.WEB: "index.html",
-    ExportTarget.WINDOWS: "game.exe",
-    ExportTarget.MACOS: "game.zip",
-    ExportTarget.LINUX: "game.x86_64",
-    ExportTarget.ANDROID: "game.aab",
-    ExportTarget.IOS: "ios-xcode",
-}
-
-
-def _mobile_guardrails(tgt: ExportTarget, cfg: Config) -> None:
-    """Surface the store rules / requirements before a mobile export (guided, manual)."""
-    if tgt is ExportTarget.ANDROID:
-        console.print(f"[yellow]{GOOGLE_REPETITIVE}[/]")
-        keystore = Path(cfg.skills.dir).expanduser().parent / "debug.keystore"
-        if ensure_android_keystore(keystore):
-            console.print(
-                f"[dim]Using debug keystore {keystore} (ship with your own release key).[/]"
-            )
-        else:
-            console.print(
-                "[dim]Install the JDK `keytool` and configure a keystore to sign the APK/AAB.[/]"
-            )
-    elif tgt is ExportTarget.IOS:
-        if not is_macos():
-            console.print(
-                "[bold red]iOS export requires macOS + Xcode[/] (Apple's tooling is macOS-only)."
-            )
-            console.print(f"[yellow]{APPLE_4_2_6}[/]")
-            raise typer.Exit(code=1)
-        console.print(f"[yellow]{APPLE_4_2_6}[/]\n[yellow]{APPLE_4_3}[/]")
-        console.print(
-            "[dim]Export produces an Xcode project; finish signing + submission in Xcode.[/]"
-        )
-
-
-@app.command()
-def export(
-    target: str = typer.Option(
-        "web", "--target", "-t", help="web | windows | mac | linux | android | ios."
-    ),
-    project: str = typer.Option(None, "--project", "-p", help="Project dir (default: latest)."),
-    out: str = typer.Option(
-        None, "--out", "-o", help="Output path (default: <project>/build/...)."
-    ),
-    config: str = typer.Option(None, "--config", "-c", help="Path to a config YAML."),
-) -> None:
-    """Headless export of the generated game (web, desktop, or guided mobile build)."""
-    cfg = load_config(config)
-    key = target.lower()
-    if key not in _EXPORT_TARGETS:
-        console.print(
-            f"[bold red]Unsupported target:[/] {target}. Try: {', '.join(sorted(_EXPORT_TARGETS))}."
-        )
-        raise typer.Exit(code=1)
-    tgt = _EXPORT_TARGETS[key]
-    project_dir = _resolve_project(cfg, project)
-    if tgt in (ExportTarget.ANDROID, ExportTarget.IOS):
-        _mobile_guardrails(tgt, cfg)
-    out_path = Path(out).expanduser() if out else project_dir / "build" / _EXPORT_OUT_NAMES[tgt]
-    adapter = GodotAdapter(project_dir, binary=cfg.engine.godot.binary)
-    console.print(
-        f"Exporting [bold]{project_dir}[/] ([cyan]{tgt.value}[/]) → [dim]{out_path}[/] ..."
-    )
-    try:
-        result = adapter.export(tgt, str(out_path))
-    except (EngineError, EngineNotFoundError) as exc:
-        console.print(f"[bold red]Engine error:[/] {exc}")
-        raise typer.Exit(code=1) from exc
-    if out_path.exists() and result.returncode == 0:
-        console.print(f"[bold green]✓ Exported[/] to {out_path}")
-        if tgt is ExportTarget.WEB:
-            console.print(f"Serve it: [dim]python -m http.server -d {out_path.parent}[/]")
-        else:
-            console.print(
-                "[dim]Code-sign / notarize the build before distributing (see the store's docs).[/]"
-            )
-    else:
-        console.print("[bold red]Export failed.[/] Logs:")
-        console.print(result.logs or "(no output)")
-        console.print(
-            f"[dim]Tip: install Godot export templates for {tgt.value} "
-            "(Editor → Manage Export Templates).[/]"
-        )
-        raise typer.Exit(code=1)
-
-
-@app.command()
-def publish(
-    itch: str = typer.Option(None, "--itch", help="Publish to itch.io; target as user/game."),
-    steam: str = typer.Option(None, "--steam", help="Publish to Steam; the app ID."),
-    check: bool = typer.Option(
-        False, "--check", help="Show the compliance + age-rating briefing only."
-    ),
-    for_target: str = typer.Option(
-        "all", "--for", help="Briefing target: all|steam|apple|google|itch."
-    ),
-    channel: str = typer.Option("web", "--channel", help="itch butler channel (default web)."),
-    branch: str = typer.Option("beta", "--branch", help="Steam branch (default beta; never live)."),
-    project: str = typer.Option(None, "--project", "-p", help="Project dir (default: latest)."),
-    config: str = typer.Option(None, "--config", "-c", help="Path to a config YAML."),
-) -> None:
-    """Publish to itch.io (butler) or Steam (steamcmd), or print a compliance briefing (--check)."""
-    cfg = load_config(config)
-
-    if check:
-        console.print(f"[bold]Compliance briefing ({for_target})[/]")
-        for note in compliance_briefing(for_target):
-            console.print(f"  • {note}")
-        rating = age_rating()
-        console.print(f"\n[bold]Age rating (IARC draft):[/] {rating['rating']}")
-        console.print(f"[dim]{rating['note']}[/]")
-        console.print(
-            "[dim]Adjust for your game's content (violence/language/etc.) and submit the official "
-            "IARC questionnaire on each store.[/]"
-        )
-        return
-
-    if not itch and not steam:
-        console.print(
-            "Specify a target, e.g. `playsmith publish --itch you/game` or `--steam <appid>`."
-        )
-        raise typer.Exit(code=1)
-    project_dir = _resolve_project(cfg, project)
-
-    if steam:
-        console.print(
-            f"Publishing [bold]{project_dir.name}[/] → Steam app [cyan]{steam}[/] branch "
-            f"[cyan]{branch}[/] (not live) ..."
-        )
-        try:
-            publish_steam(
-                project_dir,
-                steam,
-                branch=branch,
-                steamcmd_path=cfg.publish.steamcmd_path,
-                account=cfg.publish.steam_account,
-                godot_binary=cfg.engine.godot.binary,
-                console=console,
-            )
-        except (PublishError, EngineNotFoundError) as exc:
-            console.print(f"[bold red]Publish failed:[/] {exc}")
-            raise typer.Exit(code=1) from exc
-        console.print(
-            f"[bold green]Uploaded[/] to Steam app {steam} branch '{branch}'. "
-            "Promote to the default branch manually in Steamworks when ready."
-        )
-        return
-
-    console.print(f"Publishing [bold]{project_dir.name}[/] → itch.io [cyan]{itch}:{channel}[/] ...")
-    try:
-        publish_itch(
-            project_dir,
-            itch,
-            channel=channel,
-            butler_path=cfg.publish.butler_path,
-            godot_binary=cfg.engine.godot.binary,
-            console=console,
-        )
-    except (PublishError, EngineNotFoundError) as exc:
-        console.print(f"[bold red]Publish failed:[/] {exc}")
-        raise typer.Exit(code=1) from exc
-    user, game = itch.split("/", 1)
-    console.print(f"[bold green]Published[/] → https://{user}.itch.io/{game}")
-
-
-unreal_app = typer.Typer(help="Unreal Engine track (EXPERIMENTAL; Godot is the default engine).")
+unreal_app = typer.Typer(help="The Unreal Engine track: build + verify, check, royalty calculator.")
 app.add_typer(unreal_app, name="unreal")
 
 
@@ -742,7 +260,7 @@ def unreal_royalty(
     egs: bool = typer.Option(False, "--egs", help="Launched via Epic Games Store (3.5% rate)."),
     egs_exempt: float = typer.Option(0.0, "--egs-exempt", help="Revenue earned on EGS (exempt)."),
 ) -> None:
-    """Estimate Unreal EULA royalties (Godot has none, ever)."""
+    """Estimate Unreal EULA royalties (5% above $1M lifetime gross per product; 3.5% via EGS)."""
     est = royalty_estimate(gross, via_egs=egs, egs_exempt_revenue=egs_exempt)
     table = Table(title="Unreal royalty estimate", show_header=False)
     table.add_row("Gross revenue", f"${est['gross_revenue']:,.0f}")
@@ -751,7 +269,6 @@ def unreal_royalty(
     table.add_row("Royaltyable revenue", f"${est['royaltyable_revenue']:,.0f}")
     table.add_row("Estimated royalty owed", f"[bold]${est['royalty_owed']:,.2f}[/]")
     console.print(table)
-    console.print("[dim]Godot charges no royalties, ever — this cost is Unreal-only.[/]")
 
 
 @unreal_app.command("check")
@@ -759,8 +276,8 @@ def unreal_check(
     config: str = typer.Option(None, "--config", "-c", help="Path to a config YAML."),
 ) -> None:
     """Check the Unreal track: editor binary + Remote Control API availability."""
-    load_config(config)
-    adapter = UnrealAdapter("/tmp/_playsmith_unreal_check")
+    cfg = load_config(config)
+    adapter = UnrealAdapter("/tmp/_playsmith_unreal_check", editor_cmd=cfg.engine.unreal.editor_cmd)
     try:
         ver = adapter.version()
         console.print(f"Found Unreal: [bold cyan]{ver}[/]")
@@ -768,7 +285,6 @@ def unreal_check(
         console.print(f"[yellow]Unreal editor not available:[/] {exc}")
     rc = "[green]reachable[/]" if adapter.remote.available() else "[yellow]not reachable[/]"
     console.print(f"Remote Control API ({adapter.remote.host}): {rc}")
-    console.print("[dim]The Unreal track is experimental; Godot is the default, tested engine.[/]")
 
 
 @unreal_app.command("new")
@@ -779,7 +295,7 @@ def unreal_new(
     """Scaffold + verify a real, playable Unreal 5.x project (floor + PlayerStart + pawn).
 
     Drives your local UnrealEditor-Cmd headless via the UE Python API, builds a deterministic
-    playable level, and verifies it in-engine (the Unreal analog of Godot's assertion loop).
+    playable level, and verifies it in-engine (the assertion-based reality loop, CLAUDE.md §4).
     Set engine.unreal.editor_cmd in your config to your UnrealEditor-Cmd path.
     """
     cfg = load_config(config)
@@ -832,23 +348,6 @@ def unreal_new(
     else:
         console.print("[yellow]Some checks failed — see the table above.[/]")
         raise typer.Exit(code=1)
-
-
-@app.command()
-def web(
-    host: str = typer.Option("0.0.0.0", "--host", help="Bind host."),
-    port: int = typer.Option(8000, "--port", help="Bind port."),
-) -> None:
-    """Launch the Playsmith web UI (chat + interactive panel). Needs the `web` extra."""
-    try:
-        import uvicorn
-    except ModuleNotFoundError as exc:
-        console.print(
-            '[bold red]The web UI needs extra deps.[/] Install with: pip install -e ".[web]"'
-        )
-        raise typer.Exit(code=1) from exc
-    console.print(f"Playsmith web UI → [bold cyan]http://localhost:{port}[/]  (Ctrl-C to stop)")
-    uvicorn.run("playsmith.web.server:app", host=host, port=port, log_level="warning")
 
 
 def main() -> None:

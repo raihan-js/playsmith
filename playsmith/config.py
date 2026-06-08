@@ -87,7 +87,8 @@ class LLMConfig:
 
     Reached via the OpenAI-compatible ``/v1/chat/completions`` (``kind="openai"``, the default —
     covers Ollama, LM Studio, vLLM, OpenAI, OpenRouter, Gemini-compat) or Anthropic's native
-    ``/v1/messages`` (``kind="anthropic"``).
+    ``/v1/messages`` (``kind="anthropic"``). Playsmith is tiered: a frontier model (e.g. Claude
+    via ``kind="anthropic"``) drives the director/critic; local models handle cheap sub-steps.
     """
 
     provider: str = "ollama"
@@ -115,19 +116,6 @@ class LLMConfig:
 
 
 @dataclass
-class GodotConfig:
-    binary: str = "godot"
-    version: str = "4"
-
-    @classmethod
-    def from_dict(cls, data: dict) -> GodotConfig:
-        return cls(
-            binary=_expand(data.get("binary", "godot")),
-            version=str(data.get("version", "4")),
-        )
-
-
-@dataclass
 class UnrealConfig:
     # Path to UnrealEditor-Cmd (the headless editor binary). Full path or on $PATH.
     editor_cmd: str = "UnrealEditor-Cmd"
@@ -139,62 +127,14 @@ class UnrealConfig:
 
 @dataclass
 class EngineConfig:
-    default: str = "godot"
-    godot: GodotConfig = field(default_factory=GodotConfig)
+    default: str = "unreal"
     unreal: UnrealConfig = field(default_factory=UnrealConfig)
 
     @classmethod
     def from_dict(cls, data: dict) -> EngineConfig:
         return cls(
-            default=data.get("default", "godot"),
-            godot=GodotConfig.from_dict(data.get("godot", {}) or {}),
+            default=data.get("default", "unreal"),
             unreal=UnrealConfig.from_dict(data.get("unreal", {}) or {}),
-        )
-
-
-@dataclass
-class AssetsConfig:
-    enabled: bool = False
-    image_backend: str = "comfyui"  # "comfyui" (local GPU) | "openai" (uses an OpenAI key)
-    comfyui_url: str = "http://localhost:8188"
-    model: str = "sd_xl_base_1.0.safetensors"
-    openai_api_key: str = ""  # for image_backend="openai"; falls back to the LLM key if blank
-    image_model: str = "gpt-image-1"
-    image_base_url: str = "https://api.openai.com/v1"
-    mesh_url: str = ""  # 3D mesh backend (Hunyuan3D/TRELLIS); empty => primitives only
-    mesh_backend: str = "hunyuan3d"
-    blender_path: str = "blender"
-
-    @classmethod
-    def from_dict(cls, data: dict) -> AssetsConfig:
-        return cls(
-            enabled=bool(data.get("enabled", False)),
-            image_backend=data.get("image_backend", "comfyui"),
-            comfyui_url=data.get("comfyui_url", "http://localhost:8188"),
-            model=data.get("model", "sd_xl_base_1.0.safetensors"),
-            openai_api_key=_expand(data.get("openai_api_key", "") or ""),
-            image_model=data.get("image_model", "gpt-image-1"),
-            image_base_url=data.get("image_base_url", "https://api.openai.com/v1"),
-            mesh_url=data.get("mesh_url", "") or "",
-            mesh_backend=data.get("mesh_backend", "hunyuan3d"),
-            blender_path=_expand(data.get("blender_path", "blender")),
-        )
-
-
-@dataclass
-class PublishConfig:
-    butler_path: str = "butler"
-    steamcmd_path: str = "steamcmd"
-    steam_account: str = ""
-
-    @classmethod
-    def from_dict(cls, data: dict) -> PublishConfig:
-        itch = data.get("itch", {}) or {}
-        steam = data.get("steam", {}) or {}
-        return cls(
-            butler_path=_expand(itch.get("butler_path", "butler")),
-            steamcmd_path=_expand(steam.get("steamcmd_path", "steamcmd")),
-            steam_account=steam.get("account", "") or "",
         )
 
 
@@ -227,8 +167,6 @@ class Config:
     llm_routes: dict[str, LLMConfig] = field(default_factory=dict)
     llm_fallback: LLMConfig | None = None
     engine: EngineConfig = field(default_factory=EngineConfig)
-    assets: AssetsConfig = field(default_factory=AssetsConfig)
-    publish: PublishConfig = field(default_factory=PublishConfig)
     skills: SkillsConfig = field(default_factory=SkillsConfig)
     source_path: Path | None = None
 
@@ -248,8 +186,6 @@ class Config:
             llm_routes=routes,
             llm_fallback=fallback,
             engine=EngineConfig.from_dict(data.get("engine", {}) or {}),
-            assets=AssetsConfig.from_dict(data.get("assets", {}) or {}),
-            publish=PublishConfig.from_dict(data.get("publish", {}) or {}),
             skills=SkillsConfig.from_dict(data.get("skills", {}) or {}),
             source_path=source_path,
         )

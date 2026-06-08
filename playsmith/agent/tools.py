@@ -8,14 +8,11 @@ the model can observe and self-correct — the reality loop (CLAUDE.md §4).
 
 from __future__ import annotations
 
-import re
 from collections.abc import Callable
 from dataclasses import dataclass, field
 from pathlib import Path
 
 from playsmith.agent.approval import Approver, make_diff
-from playsmith.assets.base import AssetError, AssetGenerator, MeshGenerator
-from playsmith.assets.mesh import MESH_CAVEAT
 from playsmith.engines.base import EngineAdapter, EngineError, RunResult, VerifyResult
 from playsmith.llm import Tool, ToolCall
 
@@ -38,8 +35,6 @@ class ToolContext:
 
     adapter: EngineAdapter
     approver: Approver
-    asset_generator: AssetGenerator | None = None
-    mesh_generator: MeshGenerator | None = None
     last_run: RunResult | None = None
     last_verify: VerifyResult | None = None
     last_screenshot: Path | None = None
@@ -51,7 +46,7 @@ class ToolContext:
 
     def resolve(self, rel_path: str) -> Path:
         """Resolve a project-relative path, refusing escapes outside the workspace."""
-        rel = rel_path.replace("res://", "").lstrip("/")
+        rel = rel_path.lstrip("/")
         target = (self.workspace / rel).resolve()
         if target != self.workspace and self.workspace not in target.parents:
             raise ToolError(f"Path '{rel_path}' is outside the project workspace.")
@@ -170,79 +165,6 @@ def _verify_game(args: dict, ctx: ToolContext) -> str:
     return header + ("\n" + "\n".join(lines) if lines else "")
 
 
-_ASSET_EXTS = frozenset(
-    {".png", ".jpg", ".jpeg", ".webp", ".svg", ".bmp", ".tga", ".ogg", ".wav", ".mp3"}
-)
-
-
-def scan_assets(root: Path) -> list[str]:
-    """List image/audio asset files in a project as ``res://`` paths (skips our harnesses)."""
-    out: list[str] = []
-    for path in sorted(root.rglob("*")):
-        if (
-            path.is_file()
-            and path.suffix.lower() in _ASSET_EXTS
-            and not path.name.startswith("_playsmith")
-        ):
-            out.append("res://" + path.relative_to(root).as_posix())
-    return out
-
-
-def _list_assets(args: dict, ctx: ToolContext) -> str:
-    found = scan_assets(ctx.workspace)
-    if not found:
-        return (
-            "No imported art found. Use colored placeholders (ColorRect / a Sprite2D with a "
-            "PlaceholderTexture2D). The user can add real art with `playsmith assets import`."
-        )
-    return "Imported art available — reference these instead of placeholders:\n" + "\n".join(found)
-
-
-_PLACEHOLDER_MSG = (
-    "Asset generation is unavailable. Use a colored placeholder (a Sprite2D with a "
-    "PlaceholderTexture2D, or a ColorRect). A runnable game with placeholders beats a "
-    "pretty one that doesn't run."
-)
-
-
-_MESH_KINDS = frozenset({"mesh", "3d", "model"})
-_MESH_PLACEHOLDER_MSG = (
-    "3D mesh generation is unavailable. Use a primitive mesh (BoxMesh / CapsuleMesh / SphereMesh "
-    "on a MeshInstance3D). A runnable game with primitives beats one that doesn't run."
-)
-
-
-def _generate_asset(args: dict, ctx: ToolContext) -> str:
-    prompt = (args.get("prompt") or "").strip()
-    kind = (args.get("kind") or "sprite").lower()
-    if not prompt:
-        return "Provide a 'prompt' describing the art to generate."
-    safe = re.sub(r"[^a-z0-9]+", "_", prompt.lower()).strip("_")[:40] or "asset"
-
-    if kind in _MESH_KINDS:
-        gen = ctx.mesh_generator
-        if gen is None or not gen.available():
-            return _MESH_PLACEHOLDER_MSG
-        dest = ctx.workspace / "assets" / f"{safe}.glb"
-        try:
-            gen.mesh(prompt, str(dest))
-        except (AssetError, NotImplementedError, OSError) as exc:
-            return f"Mesh generation failed ({exc}). Use a primitive mesh instead."
-        rel = dest.relative_to(ctx.workspace).as_posix()
-        return f"Generated res://{rel} (load on a MeshInstance3D). {MESH_CAVEAT}"
-
-    gen = ctx.asset_generator
-    if gen is None or not gen.available():
-        return _PLACEHOLDER_MSG
-    dest = ctx.workspace / "assets" / f"{safe}.png"
-    try:
-        gen.image(prompt, kind, str(dest))
-    except (AssetError, NotImplementedError, OSError) as exc:
-        return f"Asset generation failed ({exc}). Use a placeholder instead."
-    rel = dest.relative_to(ctx.workspace).as_posix()
-    return f"Generated res://{rel}. Use it as the texture of a Sprite2D."
-
-
 @dataclass
 class _ToolDef:
     tool: Tool
@@ -305,28 +227,11 @@ _TOOL_DEFS: list[_ToolDef] = [
     _ToolDef(
         Tool(
             "verify_game",
-            "Run the game headless and check gameplay assertions (e.g. player_on_floor, "
-            "player_not_falling, no_errors). Use after run_engine to confirm it ACTUALLY works.",
+            "Run the game headless and check gameplay assertions (e.g. level_loads, "
+            "player_exists, no_errors). Use after run_engine to confirm it ACTUALLY works.",
             _obj({"checks": {"type": "array", "items": _STR}, "scene": _STR}, []),
         ),
         _verify_game,
-    ),
-    _ToolDef(
-        Tool(
-            "list_assets",
-            "List image/audio art already imported into the project (use these over placeholders).",
-            _obj({}, []),
-        ),
-        _list_assets,
-    ),
-    _ToolDef(
-        Tool(
-            "generate_asset",
-            "Generate a game asset from a text prompt. kind: sprite|portrait|background|mesh "
-            "(optional; falls back to placeholders/primitives if no backend is available).",
-            _obj({"prompt": _STR, "kind": _STR}, ["prompt"]),
-        ),
-        _generate_asset,
     ),
     _ToolDef(
         Tool(

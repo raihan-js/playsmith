@@ -1,6 +1,6 @@
 """UE 5.x Python automation: scaffold a lit, themed, playable level + verify it headless.
 
-The Unreal analog of Godot's deterministic scaffold + ``PLAYSMITH_ASSERT`` harness. Scripts run via
+Playsmith's deterministic UE scaffold + ``PLAYSMITH_ASSERT`` reality-loop harness. Scripts run via
 ``UnrealEditor-Cmd <proj> -run=pythonscript -script=<file>`` (the ``unreal`` module). Results come
 back through a FILE (env ``PLAYSMITH_UE_OUT``) because the commandlet does not reliably surface
 ``print()``/``unreal.log()`` on stdout. Validated against UE 5.7 on Linux.

@@ -1,4 +1,4 @@
-"""Unreal Engine adapter (EXPERIMENTAL, Phase 2 power-user track). Godot is the default."""
+"""Unreal Engine adapter — Playsmith's engine (UE 5.x)."""
 
 from playsmith.engines.unreal.adapter import RemoteControlClient, UnrealAdapter, royalty_estimate
 

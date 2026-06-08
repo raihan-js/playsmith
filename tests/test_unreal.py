@@ -59,7 +59,7 @@ def test_remote_call_builds_put_request() -> None:
 # -- adapter ---------------------------------------------------------------------
 def test_unreal_adapter_satisfies_engine_protocol(tmp_path) -> None:
     adapter = UnrealAdapter(tmp_path / "proj")
-    assert isinstance(adapter, EngineAdapter)  # same interface as Godot
+    assert isinstance(adapter, EngineAdapter)  # satisfies the EngineAdapter interface
 
 
 def test_create_project_writes_blueprint_uproject_and_boot_config(tmp_path) -> None:

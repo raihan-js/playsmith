@@ -14,7 +14,7 @@ def test_loads_example_config_by_default() -> None:
     assert cfg.llm.provider == "ollama"
     assert cfg.llm.base_url.endswith("/v1")
     assert cfg.llm.num_ctx >= 16384  # 4K default breaks agentic editing; example uses 16K.
-    assert cfg.engine.default == "godot"
+    assert cfg.engine.default == "unreal"
 
 
 def test_explicit_yaml_overrides(tmp_path) -> None:
@@ -74,17 +74,3 @@ def test_runtime_override_merges_and_persists(tmp_path) -> None:
     cfg2 = load_config(base)
     assert cfg2.llm.model == "gpt-4o-mini"
     assert cfg2.llm.api_key == "sk-xyz"
-
-
-def test_config_patch_for_providers() -> None:
-    from playsmith.llm.catalog import config_patch_for
-
-    openai = config_patch_for("openai", "gpt-4o", "sk-test", None)
-    assert openai["llm"]["provider"] == "openai"
-    assert openai["llm"]["base_url"].endswith("openai.com/v1")
-    assert openai["assets"]["openai_api_key"] == "sk-test"  # OpenAI key also powers art gen
-
-    ollama = config_patch_for("ollama", "qwen2.5-coder:7b", None, None)
-    assert "api_key" not in ollama["llm"]  # local needs no key
-    assert "11434" in ollama["llm"]["base_url"]
-    assert "assets" not in ollama

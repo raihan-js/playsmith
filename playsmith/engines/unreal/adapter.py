@@ -1,14 +1,12 @@
-"""EXPERIMENTAL Unreal Engine 5.x adapter (power-user track).
+"""Unreal Engine 5.x adapter — Playsmith's engine.
 
-Godot remains Playsmith's default, fully-tested engine. This adapter implements the SAME
-:class:`~playsmith.engines.base.EngineAdapter` interface for Unreal via the Remote Control API
-(HTTP, default port 30010) and the ``UnrealEditor-Cmd`` CLI for headless run/build. Unreal differs
-fundamentally from Godot — maps/assets are binary (``.umap``/``.uasset``), not text — so some
-authoring operations are limited and must go through the editor / Remote Control rather than file
-writes. This is intentionally a thin, advanced track; it is never a dependency of the core.
+Implements the :class:`~playsmith.engines.base.EngineAdapter` interface for Unreal via the
+``UnrealEditor-Cmd`` CLI (headless run/build + UE Python) and the Remote Control API
+(HTTP, default port 30010). Maps and assets are binary (``.umap``/``.uasset``), not text, so
+authoring goes through the editor / UE Python / Remote Control rather than file writes.
 
-The MCP server ecosystem (e.g. ``remiphilippe/mcp-unreal``, UE 5.7) changes monthly — pin a
-version when you wire one in (docs/ARCHITECTURE.md "open risks").
+The editor-in-the-loop MCP ecosystem (e.g. ``remiphilippe/mcp-unreal``, UE 5.7) moves fast —
+pin a version when you wire one in (docs/ARCHITECTURE.md "open risks").
 """
 
 from __future__ import annotations
@@ -33,7 +31,7 @@ from playsmith.engines.base import (
 )
 from playsmith.engines.unreal import templates
 
-# Epic's Unreal EULA royalty terms (surfaced so users see the cost Godot never has).
+# Epic's Unreal EULA royalty terms (surfaced so users can plan for the cost).
 _ROYALTY_THRESHOLD = 1_000_000.0
 _ROYALTY_RATE = 0.05
 _ROYALTY_RATE_EGS = 0.035
@@ -46,7 +44,7 @@ def royalty_estimate(
 
     Epic charges 5% of lifetime gross revenue **above the first $1M per product** (3.5% if you
     launch via the Epic Games Store "Launch Everywhere with Epic"); revenue earned ON the Epic
-    Games Store is royalty-exempt. Godot has **no** royalties, ever.
+    Games Store is royalty-exempt.
     """
     rate = _ROYALTY_RATE_EGS if via_egs else _ROYALTY_RATE
     royaltyable = max(0.0, (gross_revenue - max(0.0, egs_exempt_revenue)) - _ROYALTY_THRESHOLD)
@@ -187,8 +185,8 @@ class UnrealAdapter:
 
     def write_scene(self, scene: SceneSpec) -> Path:
         raise EngineError(
-            "Unreal maps/assets are binary (.umap/.uasset). Build levels via the editor or the "
-            "Remote Control API, not text writes. (Godot uses text scenes; Unreal does not.)"
+            "Unreal maps/assets are binary (.umap/.uasset). Build levels via the editor, the UE "
+            "Python API, or the Remote Control API — not text writes."
         )
 
     def add_asset(self, src: str, dest: str) -> Path:
@@ -212,7 +210,7 @@ class UnrealAdapter:
         except FileNotFoundError as exc:
             raise EngineNotFoundError(
                 f"Unreal editor '{self.editor_cmd}' not found. Install UE 5.x and set the path. "
-                "(The Unreal track is experimental; Godot is the default engine.)"
+                "Set engine.unreal.editor_cmd to your UnrealEditor-Cmd path."
             ) from exc
         except subprocess.TimeoutExpired as exc:
             return RunResult(
@@ -310,7 +308,7 @@ class UnrealAdapter:
         """Run the UE Python verify harness headless; parse ``PLAYSMITH_ASSERT`` from the file.
 
         Structural, headless checks (level loads, a PlayerStart/floor/pawn exist) — the Unreal
-        analog of Godot's in-engine assertion harness. ``no_errors`` is only evaluated if asked
+        the in-engine assertion harness (CLAUDE.md §4). ``no_errors`` is only evaluated if asked
         for (UE startup logs are noisy); the structural assertions are the load-bearing signal.
         """
         out_file = self.project_dir / "Saved" / "playsmith_assert.txt"
