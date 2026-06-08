@@ -20,7 +20,7 @@ from rich.table import Table
 from playsmith import __version__
 from playsmith.config import Config, ConfigError, load_config
 from playsmith.engines import EngineError, EngineNotFoundError
-from playsmith.engines.unreal import UnrealAdapter, level_director, royalty_estimate
+from playsmith.engines.unreal import UnrealAdapter, royalty_estimate, template_clone
 from playsmith.llm import LLMError, LLMGateway, Message
 from playsmith.llm.eval import evaluate_targets
 from playsmith.skills import SkillLoader, SkillRegistry, SkillRegistryError
@@ -290,54 +290,52 @@ def unreal_check(
 @unreal_app.command("new")
 def unreal_new(
     name: str = typer.Argument(..., help="A name for the game/project."),
+    genre: str = typer.Option(
+        "third-person",
+        "--genre",
+        "-g",
+        help="Which UE template to build on: third-person | first-person | top-down.",
+    ),
     config: str = typer.Option(None, "--config", "-c", help="Path to a config YAML."),
 ) -> None:
-    """Scaffold + verify a real, playable Unreal 5.x project (floor + PlayerStart + pawn).
+    """Clone a shipping UE template into a real, playable project, then verify it.
 
-    Drives your local UnrealEditor-Cmd headless via the UE Python API, builds a deterministic
-    playable level, and verifies it in-engine (the assertion-based reality loop, CLAUDE.md §4).
-    Set engine.unreal.editor_cmd in your config to your UnrealEditor-Cmd path.
+    Build-on-template (CLAUDE.md §0): copies a built-in UE template — already a playable, lit,
+    animated game — plus its shared content packs into your workspace, then verifies headless that
+    the level loads and the player character resolved. The director (Stage 3) dresses it next.
+    Set engine.unreal.editor_cmd to your UnrealEditor-Cmd path.
     """
     cfg = load_config(config)
+    genre = genre.lower()
+    if genre not in template_clone.TEMPLATES:
+        console.print(
+            f"[bold red]Unknown genre:[/] {genre}. "
+            f"Choose: {', '.join(sorted(template_clone.TEMPLATES))}."
+        )
+        raise typer.Exit(code=1)
     slug = re.sub(r"[^a-z0-9]+", "-", name.lower()).strip("-") or "unreal-game"
+    proj_name = re.sub(r"[^A-Za-z0-9]", "", name) or "Game"
     project_dir = cfg.workspace_dir.expanduser() / slug
     adapter = UnrealAdapter(project_dir, editor_cmd=cfg.engine.unreal.editor_cmd)
-    console.print(f"Creating Unreal project at [dim]{project_dir}[/] ...")
-    adapter.create_project(name)
 
-    # Theme the level from the prompt (best-effort; falls back to a safe default level).
-    spec = None
+    console.print(
+        f"Cloning the [cyan]{genre}[/] UE template into [dim]{project_dir}[/] "
+        "(copies shared content — hundreds of MB) ..."
+    )
     try:
-        gateway = LLMGateway.from_config(cfg, console=console)
-        console.print("Designing the level from your prompt ...")
-        spec = level_director.plan_level(name, gateway)
-        console.print(
-            f"  theme: [cyan]{spec.get('theme', '')}[/] · "
-            f"{len(spec.get('obstacles', []))} obstacles"
-        )
-    except (LLMError, OSError):
-        console.print("[dim]LLM unavailable — building a default level.[/]")
+        spec = adapter.create_from_template(genre, project_name=proj_name)
+    except (template_clone.TemplateError, EngineNotFoundError) as exc:
+        console.print(f"[bold red]Clone failed:[/] {exc}")
+        raise typer.Exit(code=1) from exc
 
-    console.print("Scaffolding a lit, playable level (UE headless — first build is slow) ...")
+    console.print("Verifying the cloned project in-engine (UE headless — first boot is slow) ...")
     try:
-        adapter.scaffold(spec)
-        console.print("Verifying the level in-engine ...")
-        result = adapter.verify(
-            checks=[
-                "level_loads",
-                "player_start_exists",
-                "floor_exists",
-                "player_exists",
-                "goal_exists",
-            ]
-        )
+        result = adapter.verify_template(spec)
     except EngineNotFoundError as exc:
         console.print(f"[bold red]{exc}[/]")
-        console.print(
-            "[dim]Set engine.unreal.editor_cmd to your full UnrealEditor-Cmd path in the config.[/]"
-        )
         raise typer.Exit(code=1) from exc
-    table = Table(title="Unreal verify", show_header=False)
+
+    table = Table(title=f"Unreal verify ({genre})", show_header=False)
     for key, value in result.assertions.items():
         table.add_row(key, "[green]PASS[/]" if value else "[red]FAIL[/]")
     console.print(table)
@@ -345,8 +343,12 @@ def unreal_new(
         uproj = next(project_dir.glob("*.uproject"), None)
         console.print(f"[bold green]✓ Real, verified Unreal project[/] at [dim]{project_dir}[/]")
         console.print(f"[dim]Open it in the editor: UnrealEditor {uproj}[/]")
+        console.print("[dim]Next: the director (Stage 3) dresses this into your game.[/]")
     else:
         console.print("[yellow]Some checks failed — see the table above.[/]")
+        if not result.assertions:
+            for line in result.run.error_lines()[:8]:
+                console.print(f"  [red]{line}[/]")
         raise typer.Exit(code=1)
 
 

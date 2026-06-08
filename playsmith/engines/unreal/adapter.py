@@ -16,6 +16,7 @@ import os
 import re
 import shutil
 import subprocess
+import time
 from pathlib import Path
 
 import httpx
@@ -29,7 +30,7 @@ from playsmith.engines.base import (
     VerifyResult,
     parse_assert_lines,
 )
-from playsmith.engines.unreal import templates
+from playsmith.engines.unreal import template_clone, templates
 
 # Epic's Unreal EULA royalty terms (surfaced so users can plan for the cost).
 _ROYALTY_THRESHOLD = 1_000_000.0
@@ -163,8 +164,47 @@ class UnrealAdapter:
         """Build a lit, themed, playable level (floor + lights + obstacles + goal + pawn).
 
         ``spec`` (optional) is an LLM-authored level layout; without it a safe default is built.
+        Legacy primitive scaffold; prefer :meth:`create_from_template` (build-on-template).
         """
         return self._run_python(templates.build_level_script(spec), timeout_s=600)
+
+    def create_from_template(
+        self, genre: str, *, project_name: str
+    ) -> template_clone.TemplateSpec:
+        """Clone a shipping UE template (+ its shared content) into this project (CLAUDE.md §0).
+
+        This is the build-on-template foundation: the cloned project is already a playable, lit,
+        animated game. Returns the :class:`~..template_clone.TemplateSpec` so callers know the map
+        and character paths to verify/dress. Raises :class:`EngineNotFoundError` if no UE root.
+        """
+        ue_root = template_clone.find_ue_root(self.editor_cmd)
+        if ue_root is None:
+            raise EngineNotFoundError(
+                "Unreal Engine root not found. Set engine.unreal.editor_cmd to your "
+                "UnrealEditor-Cmd path (a source build's editor is at "
+                "<UE>/Engine/Binaries/<Platform>/UnrealEditor-Cmd)."
+            )
+        self.project_dir.mkdir(parents=True, exist_ok=True)
+        return template_clone.clone_template(
+            genre, self.project_dir, ue_root=ue_root, project_name=project_name
+        )
+
+    def verify_template(self, spec: template_clone.TemplateSpec) -> VerifyResult:
+        """Verify a cloned template is a real playable project (map loads, character resolved).
+
+        Runs the clone harness headless and parses its ``PLAYSMITH_ASSERT`` lines — the build-on-
+        template analog of :meth:`verify` (CLAUDE.md §4).
+        """
+        out_file = self.project_dir / "Saved" / "playsmith_assert.txt"
+        if out_file.exists():
+            out_file.unlink()
+        result = self._run_python(
+            template_clone.clone_verify_script(spec), timeout_s=600, out_file=out_file
+        )
+        assertions: dict[str, bool] = {}
+        if out_file.exists():
+            assertions = parse_assert_lines(out_file.read_text())
+        return VerifyResult(run=result, assertions=assertions)
 
     def set_main_scene(self, res_path: str) -> None:
         path = self._uproject_path()
@@ -198,20 +238,29 @@ class UnrealAdapter:
         return target
 
     # -- process driving -------------------------------------------------------
+    _NOT_FOUND = (
+        "Unreal editor '{cmd}' not found. Install UE 5.x and set the path. "
+        "Set engine.unreal.editor_cmd to your UnrealEditor-Cmd path."
+    )
+
     def _invoke(
-        self, args: list[str], *, timeout_s: int, env: dict[str, str] | None = None
+        self,
+        args: list[str],
+        *,
+        timeout_s: int,
+        env: dict[str, str] | None = None,
+        done_file: Path | None = None,
     ) -> RunResult:
         cmd = [self.editor_cmd, *args]
         run_env = {**os.environ, **(env or {})}
+        if done_file is not None:
+            return self._invoke_until_done(cmd, run_env, timeout_s=timeout_s, done_file=done_file)
         try:
             proc = subprocess.run(
                 cmd, capture_output=True, text=True, timeout=timeout_s, env=run_env
             )
         except FileNotFoundError as exc:
-            raise EngineNotFoundError(
-                f"Unreal editor '{self.editor_cmd}' not found. Install UE 5.x and set the path. "
-                "Set engine.unreal.editor_cmd to your UnrealEditor-Cmd path."
-            ) from exc
+            raise EngineNotFoundError(self._NOT_FOUND.format(cmd=self.editor_cmd)) from exc
         except subprocess.TimeoutExpired as exc:
             return RunResult(
                 command=cmd,
@@ -225,6 +274,63 @@ class UnrealAdapter:
             returncode=proc.returncode,
             stdout=proc.stdout or "",
             stderr=proc.stderr or "",
+        )
+
+    def _invoke_until_done(
+        self, cmd: list[str], run_env: dict[str, str], *, timeout_s: int, done_file: Path
+    ) -> RunResult:
+        """Run UE headless but stop as soon as it writes ``done_file``.
+
+        UE source-build editors reliably do their work (and write the harness's result file) and
+        then HANG on shutdown — so a plain blocking run burns the whole timeout. We poll for the
+        result file and terminate the editor once it appears; the result is already on disk.
+        """
+        saved = self.project_dir / "Saved"
+        saved.mkdir(parents=True, exist_ok=True)
+        out_log, err_log = saved / "_playsmith_stdout.log", saved / "_playsmith_stderr.log"
+        try:
+            so = open(out_log, "w")  # noqa: SIM115 - closed in finally
+            se = open(err_log, "w")  # noqa: SIM115
+        except OSError:
+            so = se = None
+        try:
+            proc = subprocess.Popen(cmd, stdout=so, stderr=se, text=True, env=run_env)
+        except FileNotFoundError as exc:
+            for fh in (so, se):
+                if fh:
+                    fh.close()
+            raise EngineNotFoundError(self._NOT_FOUND.format(cmd=self.editor_cmd)) from exc
+
+        deadline = time.monotonic() + timeout_s
+        early = timed_out = False
+        try:
+            while True:
+                if proc.poll() is not None:
+                    break  # exited on its own
+                if done_file.exists():
+                    early = True
+                    time.sleep(1.0)  # let the harness flush its last write
+                    break
+                if time.monotonic() > deadline:
+                    timed_out = True
+                    break
+                time.sleep(0.5)
+            if proc.poll() is None:  # work is done (or timed out) — don't wait out the hang
+                proc.terminate()
+                try:
+                    proc.wait(timeout=10)
+                except subprocess.TimeoutExpired:
+                    proc.kill()
+        finally:
+            for fh in (so, se):
+                if fh:
+                    fh.close()
+        return RunResult(
+            command=cmd,
+            returncode=proc.returncode,
+            stdout=out_log.read_text(errors="ignore") if out_log.exists() else "",
+            stderr=err_log.read_text(errors="ignore") if err_log.exists() else "",
+            timed_out=timed_out and not early,
         )
 
     def _run_python(
@@ -253,8 +359,15 @@ class UnrealAdapter:
             "-notrace",  # don't start the trace server (a common headless shutdown-hang cause)
             "-noxgecontroller",
         ]
-        env = {"PLAYSMITH_UE_OUT": str(out_file)} if out_file is not None else None
-        return self._invoke(args, timeout_s=timeout_s, env=env)
+        if out_file is not None:
+            # Early-exit once the harness writes its result file (UE hangs on shutdown).
+            return self._invoke(
+                args,
+                timeout_s=timeout_s,
+                env={"PLAYSMITH_UE_OUT": str(out_file)},
+                done_file=out_file,
+            )
+        return self._invoke(args, timeout_s=timeout_s, env=None)
 
     def version(self) -> str:
         result = self._invoke(["-version"], timeout_s=30)

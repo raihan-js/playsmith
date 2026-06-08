@@ -121,6 +121,7 @@ KNOWN_ASSERTIONS = frozenset(
         "player_start_exists",
         "floor_exists",
         "player_exists",
+        "character_present",  # build-on-template: the player character + shared content resolved
         "goal_exists",
         "obstacles_exist",
     }
