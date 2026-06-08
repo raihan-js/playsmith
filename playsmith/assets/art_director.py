@@ -85,8 +85,7 @@ def plan_art(
             [
                 {"role": "system", "content": _SYSTEM},
                 {"role": "user", "content": _ask_prompt(game_prompt, genre, slots)},
-            ],
-            task="art",
+            ]
         )
         spec = _extract_json(resp.content or "")
     except Exception:  # noqa: BLE001 - art planning must never break a build

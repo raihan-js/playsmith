@@ -194,6 +194,19 @@ def api_projects() -> JSONResponse:
     return JSONResponse(_projects())
 
 
+@app.delete("/api/projects/{name}")
+def api_delete_project(name: str) -> JSONResponse:
+    """Permanently delete a generated game folder (only real projects under the workspace)."""
+    import shutil
+
+    ws = _workspace().resolve()
+    root = (ws / name).resolve()
+    if ws not in root.parents or not root.is_dir() or not (root / "project.godot").exists():
+        return JSONResponse({"error": "no such project"}, status_code=404)
+    shutil.rmtree(root)
+    return JSONResponse({"ok": True, "deleted": name})
+
+
 @app.get("/api/projects/{name}/thumb")
 def api_thumb(name: str) -> Response:
     root = (_workspace() / name).resolve()

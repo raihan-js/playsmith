@@ -78,3 +78,12 @@ def test_export_unknown_project_404() -> None:
 
 def test_download_unknown_project_404() -> None:
     assert _client().get("/api/projects/nope-xyz/download/linux").status_code == 404
+
+
+def test_delete_unknown_project_404() -> None:
+    assert _client().delete("/api/projects/nope-xyz").status_code == 404
+
+
+def test_delete_refuses_path_escape() -> None:
+    # A traversal attempt must not delete anything outside the workspace.
+    assert _client().delete("/api/projects/..%2f..%2fetc").status_code in (404, 400)
