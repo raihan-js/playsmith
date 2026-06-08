@@ -10,8 +10,12 @@ build/
 .ruff_cache/
 
 # Playsmith
-config/playsmith.yaml        # local config (copy from example)
-/playsmith-games/            # generated games live in workspace_dir, not the repo
+# NOTE: .gitignore does NOT support inline comments — keep patterns on their own lines.
+# local config (copy from the example):
+config/playsmith.yaml
+# generated games live in workspace_dir, never the repo:
+playsmith-games/
+/workspace/
 
 # OS / editor
 .DS_Store
