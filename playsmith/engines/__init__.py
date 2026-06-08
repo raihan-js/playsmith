@@ -7,6 +7,8 @@ from playsmith.engines.base import (
     ExportTarget,
     RunResult,
     SceneSpec,
+    VerifyResult,
+    parse_assert_lines,
 )
 from playsmith.engines.godot import GodotAdapter
 
@@ -18,4 +20,6 @@ __all__ = [
     "GodotAdapter",
     "RunResult",
     "SceneSpec",
+    "VerifyResult",
+    "parse_assert_lines",
 ]

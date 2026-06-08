@@ -75,13 +75,18 @@ before they hit disk.
 - `apply_patch(path, find, replace)` — a targeted, unique find/replace edit (more reliable for small
   local models than unified diffs); preferred over whole-file writes
 - `run_engine(headless, scene)` — via the EngineAdapter, never a raw shell to `godot`
-- `screenshot()` — capture current game/editor frame
+- `verify_game(checks)` — run headless and assert gameplay (`player_on_floor`, `player_not_falling`,
+  `no_errors`, …) via the `PLAYSMITH_ASSERT key=value` harness; the machine-readable reality check
 - `read_logs()` — engine stdout/stderr and error output
+- `screenshot()` — capture current frame (optional polish; blank under `--headless`)
 - `generate_asset(spec)` — via the asset pipeline (optional)
 
 **The reality loop (critical):** after any code change, the agent must
-`run_engine(...) → screenshot()/read_logs() → evaluate → fix`. A game is never "done"
-until it has been run and visually/log-verified. This lives here and is reused by every skill.
+`run_engine(...) → read_logs() → verify_game() → evaluate → fix`. Verification is **assertion-based**:
+an injected in-engine harness prints `PLAYSMITH_ASSERT key=value` lines a text model can read, and it
+works headless (unlike screenshots). A game is never "done" until `verify_game` reports every gameplay
+assertion PASS. Skills declare their checks (Engine adapters implement `verify()` → `VerifyResult`).
+This lives here and is reused by every skill.
 
 **Safety:** all file ops are confined to the user's game workspace dir (never this repo).
 Show diffs; ask before destructive actions.

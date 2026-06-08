@@ -92,12 +92,17 @@ The thing that makes this work (and what most prompt-to-game tools lack): **the 
 must close the loop on reality.** After generating or editing game code, you must:
 
 1. **Run** the game headlessly (`godot --headless` or a short play session).
-2. **Capture** a screenshot and/or the run logs.
-3. **Read** the errors/output and the screenshot.
+2. **Verify** with the in-engine assertion harness (`verify_game`): it prints machine-readable
+   `PLAYSMITH_ASSERT key=value` lines (e.g. `player_on_floor=true`) the model can read — and it
+   works **headless**, no display/vision model needed. Also capture the run logs (and optionally
+   a screenshot for human eyes).
+3. **Read** the assertion results and the errors/output — not the screenshot a text model can't see.
 4. **Self-correct** based on what actually happened — not on what the code "should" do.
 
-Never declare a game "done" without having run it and verified it visually and/or via logs.
-This loop is implemented in `playsmith/agent/` and used by every skill.
+Never declare a game "done" until `verify_game` reports every gameplay assertion PASS (not just
+"no parse errors"). Skills declare their assertions (e.g. `2d-platformer`: `player_on_floor`,
+`player_not_falling`). This loop is implemented in `playsmith/agent/` + `playsmith/engines/` and
+used by every skill. Screenshots are optional polish, not the load-bearing check.
 
 ---
 

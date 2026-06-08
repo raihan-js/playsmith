@@ -82,6 +82,36 @@ def test_reality_loop_self_corrects_on_error(tmp_path) -> None:
     assert "func _ready" in (adapter.project_dir / "p.gd").read_text()
 
 
+def test_verify_game_drives_fix_until_assertions_pass(tmp_path) -> None:
+    from playsmith.engines.base import VerifyResult
+
+    bad = VerifyResult(
+        run=RunResult(command=["g"], returncode=0),
+        assertions={"player_on_floor": False, "no_errors": True},
+    )
+    good = VerifyResult(
+        run=RunResult(command=["g"], returncode=0),
+        assertions={"player_on_floor": True, "no_errors": True},
+    )
+    loop, ctx, adapter = _loop(
+        tmp_path,
+        [
+            tool_response("write_file", {"path": "Main.tscn", "content": "[gd_scene format=3]\n"}),
+            tool_response("verify_game", {}),  # player_on_floor FAILS
+            tool_response(
+                "apply_patch", {"path": "Main.tscn", "find": "format=3", "replace": "format=3 "}
+            ),
+            tool_response("verify_game", {}),  # passes
+            tool_response("task_complete", {"summary": "verified"}),
+        ],
+        verify_results=[bad, good],
+    )
+    result = loop.run("build and verify the platformer")
+    assert result.done
+    assert adapter.verifies == 2  # it re-verified after fixing
+    assert ctx.last_verify is not None and ctx.last_verify.ok
+
+
 def test_apply_patch_requires_unique_find(tmp_path) -> None:
     loop, ctx, adapter = _loop(tmp_path, [text_response("done")])
     (adapter.project_dir / "d.gd").write_text("aa")

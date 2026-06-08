@@ -141,6 +141,54 @@ def test_export_web_writes_preset_and_builds_command(tmp_path, monkeypatch) -> N
     assert "Web" in captured["cmd"]
 
 
+def test_verify_parses_assertions_and_adds_no_errors(tmp_path, monkeypatch) -> None:
+    captured = {}
+
+    def fake_run(cmd, **kwargs):
+        captured["cmd"] = cmd
+        captured["env"] = kwargs.get("env")
+        return subprocess.CompletedProcess(
+            cmd,
+            0,
+            stdout=(
+                "PLAYSMITH_ASSERT player_exists=true\n"
+                "PLAYSMITH_ASSERT player_on_floor=true\n"
+                "PLAYSMITH_ASSERT player_not_falling=false\n"
+            ),
+            stderr="",
+        )
+
+    monkeypatch.setattr(subprocess, "run", fake_run)
+    a = _adapter(tmp_path)
+    a.create_project("G", main_scene="res://Main.tscn")
+    vr = a.verify(checks=["player_exists", "player_on_floor", "player_not_falling", "no_errors"])
+
+    assert vr.assertions["player_exists"] is True
+    assert vr.assertions["player_on_floor"] is True
+    assert vr.assertions["player_not_falling"] is False
+    assert vr.assertions["no_errors"] is True  # no error markers in the logs
+    assert not vr.ok  # one assertion failed
+    assert vr.failures() == ["player_not_falling"]
+    # Harness was injected and run headless against the main scene.
+    assert (a.project_dir / templates.VERIFY_SCRIPT).exists()
+    assert "--headless" in captured["cmd"]
+    assert captured["env"]["PLAYSMITH_TARGET_SCENE"] == "res://Main.tscn"
+
+
+def test_verify_no_errors_false_when_logs_have_script_error(tmp_path, monkeypatch) -> None:
+    def fake_run(cmd, **kwargs):
+        return subprocess.CompletedProcess(
+            cmd, 0, stdout="PLAYSMITH_ASSERT player_exists=true\n", stderr="SCRIPT ERROR: boom\n"
+        )
+
+    monkeypatch.setattr(subprocess, "run", fake_run)
+    a = _adapter(tmp_path)
+    a.create_project("G", main_scene="res://Main.tscn")
+    vr = a.verify(checks=["player_exists", "no_errors"])
+    assert vr.assertions["no_errors"] is False
+    assert not vr.ok
+
+
 def test_screenshot_injects_harness_and_passes_env(tmp_path, monkeypatch) -> None:
     captured = {}
 

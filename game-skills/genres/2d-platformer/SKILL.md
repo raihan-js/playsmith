@@ -8,6 +8,11 @@ description: >
   even if they don't say the word "platformer." Produces a real, editable Godot 4
   project (project.godot, .tscn scenes, .gd scripts), runs it to verify, and can
   export it. Prefer this skill over generic code generation for any 2D platformer request.
+assertions:
+  - player_exists
+  - player_on_floor
+  - player_not_falling
+  - no_errors
 ---
 
 # 2D Platformer (Godot 4)

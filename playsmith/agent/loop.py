@@ -28,8 +28,10 @@ touch files inside the project workspace.
 CLOSE THE LOOP ON REALITY. This is non-negotiable:
 - After writing or editing code, call run_engine and READ the logs.
 - If there are parse/runtime errors, FIX them and run again. Do not guess that code works.
+- Then call verify_game to check the gameplay assertions actually hold (e.g. the player is on
+  the floor, isn't falling through it, no errors). If any assertion FAILS, fix it and re-verify.
 - Use read_file before editing so your patches match the real file.
-- Only call task_complete after a run with NO errors.
+- Only call task_complete once verify_game reports every assertion PASS.
 
 Godot 4 correctness (never emit Godot 3.x APIs):
 - Player root is CharacterBody2D; set `velocity`, then call move_and_slide() with NO arguments.

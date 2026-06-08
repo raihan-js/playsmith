@@ -49,11 +49,12 @@ def test_new_game_routes_scaffolds_generates_and_verifies(tmp_path) -> None:
     assert (adapter.project_dir / "project.godot").exists()
     assert (adapter.project_dir / "Main.tscn").exists()
     assert (adapter.project_dir / "scripts" / "player.gd").exists()
-    # Agent finished and the final authoritative run was clean.
+    # Agent finished and the final authoritative (assertion-based) verification was clean.
     assert outcome.agent_result.done
     assert outcome.runs_clean
-    # The agent ran the engine at least once + the final verification run.
-    assert adapter.runs >= 2
+    # The agent ran the engine, and studio ran the final verify() with the skill's assertions.
+    assert adapter.runs >= 1
+    assert adapter.verifies >= 1
 
 
 def test_build_goal_includes_skill_body_and_player_template(tmp_path) -> None:

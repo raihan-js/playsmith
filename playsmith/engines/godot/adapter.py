@@ -18,6 +18,8 @@ from playsmith.engines.base import (
     ExportTarget,
     RunResult,
     SceneSpec,
+    VerifyResult,
+    parse_assert_lines,
 )
 from playsmith.engines.godot import templates
 
@@ -181,6 +183,35 @@ class GodotAdapter:
             str(out),
         ]
         return self._invoke(args, timeout_s=180)
+
+    def verify(self, checks: list[str] | None = None, *, scene: str | None = None) -> VerifyResult:
+        """Run the assertion harness headless and report per-check pass/fail.
+
+        Injects a probe scene that instances the target scene, lets physics settle, and prints
+        ``PLAYSMITH_ASSERT`` lines. ``no_errors`` is derived from the run logs (parse/runtime
+        errors), the rest from the harness. Unlike screenshots, this works headless.
+        """
+        self.write_script(templates.VERIFY_SCRIPT, templates.verify_harness_script())
+        self.write_scene(SceneSpec(templates.VERIFY_SCENE, templates.verify_harness_scene()))
+        target = scene or self._current_main_scene() or ""
+        gameplay_checks = [c for c in (checks or []) if c != "no_errors"]
+        env = {
+            "PLAYSMITH_TARGET_SCENE": target,
+            "PLAYSMITH_CHECKS": ",".join(gameplay_checks),
+        }
+        args = [
+            "--headless",
+            "--path",
+            str(self.project_dir),
+            "--quit-after",
+            "300",
+            f"res://{templates.VERIFY_SCENE}",
+        ]
+        result = self._invoke(args, timeout_s=60, env=env)
+        assertions = parse_assert_lines(result.logs)
+        if checks is None or "no_errors" in checks:
+            assertions["no_errors"] = not result.error_lines()
+        return VerifyResult(run=result, assertions=assertions)
 
     # -- helpers ---------------------------------------------------------------
     def _current_main_scene(self) -> str | None:

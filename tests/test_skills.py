@@ -39,6 +39,8 @@ def test_loads_real_2d_platformer_fixture() -> None:
     # Bundled script is exposed as a path (level 3) and readable on demand.
     assert "player.gd" in skill.scripts()
     assert "CharacterBody2D" in skill.read_script("player.gd")
+    # Skill-declared assertions feed the assertion-based reality loop.
+    assert "player_on_floor" in skill.assertions
 
 
 def test_loader_skips_dirs_without_name(tmp_path) -> None:

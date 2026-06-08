@@ -50,6 +50,8 @@ class Skill:
     name: str
     description: str
     path: Path  # the SKILL.md file
+    # Gameplay checks for the assertion-based reality loop (see engines.base.parse_assert_lines).
+    assertions: list[str] = field(default_factory=list)
     _body: str | None = field(default=None, repr=False)
 
     @property
@@ -113,9 +115,10 @@ class SkillLoader:
             return None
         name = (meta.get("name") or "").strip()
         description = " ".join((meta.get("description") or "").split())
+        assertions = [str(a).strip() for a in (meta.get("assertions") or []) if str(a).strip()]
         if not name:
             return None
-        return Skill(name=name, description=description, path=skill_md)
+        return Skill(name=name, description=description, path=skill_md, assertions=assertions)
 
     def get(self, name: str) -> Skill | None:
         for skill in self.discover():

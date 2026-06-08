@@ -10,7 +10,7 @@ small refinement of the protocol sketch in the architecture doc and keeps call s
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from enum import StrEnum
 from pathlib import Path
 from typing import Protocol, runtime_checkable
@@ -87,6 +87,43 @@ class RunResult:
         return out
 
 
+# The in-engine verify harness prints lines like `PLAYSMITH_ASSERT player_on_floor=true`.
+# This is the machine-readable half of the reality loop a text model can actually read,
+# and it works headless (CLAUDE.md §4).
+ASSERT_PREFIX = "PLAYSMITH_ASSERT "
+_TRUTHY = frozenset({"true", "1", "yes", "ok", "pass"})
+
+
+def parse_assert_lines(logs: str) -> dict[str, bool]:
+    """Parse ``PLAYSMITH_ASSERT key=value`` lines emitted by the verify harness."""
+    results: dict[str, bool] = {}
+    for line in logs.splitlines():
+        line = line.strip()
+        if not line.startswith(ASSERT_PREFIX):
+            continue
+        body = line[len(ASSERT_PREFIX) :]
+        if "=" in body:
+            key, value = body.split("=", 1)
+            results[key.strip()] = value.strip().lower() in _TRUTHY
+    return results
+
+
+@dataclass
+class VerifyResult:
+    """Per-check pass/fail from the assertion-based reality loop, plus the underlying run."""
+
+    run: RunResult
+    assertions: dict[str, bool] = field(default_factory=dict)
+
+    @property
+    def ok(self) -> bool:
+        """True only when there is at least one check and every check passed."""
+        return bool(self.assertions) and all(self.assertions.values())
+
+    def failures(self) -> list[str]:
+        return [key for key, passed in self.assertions.items() if not passed]
+
+
 @runtime_checkable
 class EngineAdapter(Protocol):
     """A uniform way to drive any engine. Godot at MVP; Unreal in Phase 2."""
@@ -104,3 +141,6 @@ class EngineAdapter(Protocol):
     ) -> RunResult: ...
     def screenshot(self, out_path: str, *, scene: str | None = None) -> RunResult: ...
     def export(self, target: ExportTarget, out_path: str, *, debug: bool = False) -> RunResult: ...
+    def verify(
+        self, checks: list[str] | None = None, *, scene: str | None = None
+    ) -> VerifyResult: ...

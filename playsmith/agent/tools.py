@@ -13,7 +13,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 
 from playsmith.agent.approval import Approver, make_diff
-from playsmith.engines.base import EngineAdapter, EngineError, RunResult
+from playsmith.engines.base import EngineAdapter, EngineError, RunResult, VerifyResult
 from playsmith.llm import Tool, ToolCall
 
 _MAX_RESULT_CHARS = 4000
@@ -36,6 +36,7 @@ class ToolContext:
     adapter: EngineAdapter
     approver: Approver
     last_run: RunResult | None = None
+    last_verify: VerifyResult | None = None
     last_screenshot: Path | None = None
     files_written: list[str] = field(default_factory=list)
 
@@ -143,6 +144,27 @@ def _read_logs(args: dict, ctx: ToolContext) -> str:
     return _truncate(ctx.last_run.logs or "(no output)", 3000)
 
 
+def _verify_game(args: dict, ctx: ToolContext) -> str:
+    checks = args.get("checks") or None
+    if isinstance(checks, str):
+        checks = [c.strip() for c in checks.split(",") if c.strip()]
+    try:
+        result = ctx.adapter.verify(checks=checks, scene=args.get("scene"))
+    except EngineError as exc:
+        return f"Could not verify: {exc}"
+    ctx.last_verify = result
+    lines = [f"  {key}: {'PASS' if ok else 'FAIL'}" for key, ok in result.assertions.items()]
+    if result.ok:
+        header = "All gameplay assertions PASSED — the game actually works."
+    elif result.assertions:
+        header = (
+            "FAILED: " + ", ".join(result.failures()) + ". Fix these and call verify_game again."
+        )
+    else:
+        header = "No assertions were evaluated (is there a player/main scene yet?)."
+    return header + ("\n" + "\n".join(lines) if lines else "")
+
+
 def _generate_asset(args: dict, ctx: ToolContext) -> str:
     # Asset pipeline is Phase 1. For now: degrade gracefully to placeholders (CLAUDE.md §5).
     return (
@@ -213,6 +235,15 @@ _TOOL_DEFS: list[_ToolDef] = [
     ),
     _ToolDef(
         Tool(
+            "verify_game",
+            "Run the game headless and check gameplay assertions (e.g. player_on_floor, "
+            "player_not_falling, no_errors). Use after run_engine to confirm it ACTUALLY works.",
+            _obj({"checks": {"type": "array", "items": _STR}, "scene": _STR}, []),
+        ),
+        _verify_game,
+    ),
+    _ToolDef(
+        Tool(
             "generate_asset",
             "Generate a game asset from a text prompt (optional; may be unavailable).",
             _obj({"prompt": _STR, "kind": _STR}, ["prompt"]),
@@ -222,7 +253,8 @@ _TOOL_DEFS: list[_ToolDef] = [
     _ToolDef(
         Tool(
             "task_complete",
-            "Call when the game is built AND verified running with no errors. End the task.",
+            "Call ONLY after verify_game reports all gameplay assertions PASS (not just 'no "
+            "parse errors'). Ends the task.",
             _obj({"summary": _STR}, ["summary"]),
         ),
         lambda args, ctx: args.get("summary", "Done."),

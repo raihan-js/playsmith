@@ -229,10 +229,12 @@ def new(
 
     console.print()
     if outcome.runs_clean:
-        console.print("[bold green]✓ The game runs cleanly.[/]")
-    elif outcome.final_run is not None:
-        console.print("[bold yellow]⚠ The game still has issues on the final run:[/]")
-        for line in outcome.final_run.error_lines()[:10]:
+        console.print("[bold green]✓ The game runs and all gameplay checks pass.[/]")
+    elif outcome.final_verify is not None:
+        console.print("[bold yellow]⚠ The game still has issues on final verification:[/]")
+        for check in outcome.final_verify.failures():
+            console.print(f"  [red]assertion failed: {check}[/]")
+        for line in outcome.final_verify.run.error_lines()[:8]:
             console.print(f"  [red]{line}[/]")
     else:
         console.print("[yellow]Could not run a final verification (is Godot installed?).[/]")

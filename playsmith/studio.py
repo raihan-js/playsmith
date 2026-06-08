@@ -21,7 +21,7 @@ from playsmith.agent import AgentLoop, AgentResult, AutoApprover, InteractiveApp
 from playsmith.agent.approval import Approver
 from playsmith.config import Config, load_config
 from playsmith.engines import EngineError, GodotAdapter
-from playsmith.engines.base import EngineAdapter, RunResult
+from playsmith.engines.base import EngineAdapter, RunResult, VerifyResult
 from playsmith.llm import LLMGateway
 from playsmith.skills import Skill, SkillLoader, SkillRouter
 
@@ -35,11 +35,15 @@ class BuildOutcome:
     project_dir: Path
     skill_name: str | None
     agent_result: AgentResult
-    final_run: RunResult | None
+    final_verify: VerifyResult | None
 
     @property
     def runs_clean(self) -> bool:
-        return self.final_run is not None and self.final_run.ok
+        return self.final_verify is not None and self.final_verify.ok
+
+    @property
+    def final_run(self) -> RunResult | None:
+        return self.final_verify.run if self.final_verify else None
 
 
 def slugify(text: str, *, fallback: str = "game") -> str:
@@ -73,9 +77,14 @@ def build_goal(prompt: str, skill: Skill | None, project_dir: Path) -> str:
             )
         except Exception:  # noqa: BLE001 - template is a nicety, not required
             pass
+    if skill is not None and skill.assertions:
+        parts.append(
+            "\nVERIFY before finishing: call verify_game and ensure these assertions PASS — "
+            + ", ".join(skill.assertions)
+            + ". If any fails, fix it and verify again."
+        )
     parts.append(
-        "\nWhen the game runs cleanly and the player can stand on ground and jump, "
-        "call task_complete with a one-line summary."
+        "\nOnce verify_game reports every assertion PASS, call task_complete with a short summary."
     )
     return "\n".join(parts)
 
@@ -119,10 +128,11 @@ def new_game(
     loop = AgentLoop(gateway, ctx, max_iterations=max_iterations, console=console, verbose=verbose)
     agent_result = loop.run(build_goal(prompt, skill, adapter.project_dir))
 
-    # Final authoritative verification, independent of whatever the agent claimed.
-    final_run: RunResult | None = None
+    # Final authoritative verification (assertion-based), independent of the agent's claim.
+    checks = skill.assertions if (skill and skill.assertions) else None
+    final_verify: VerifyResult | None = None
     try:
-        final_run = adapter.run(headless=True, timeout_s=30)
+        final_verify = adapter.verify(checks=checks)
     except EngineError as exc:
         if verbose:
             console.print(f"[yellow]Final verification could not run:[/] {exc}")
@@ -131,7 +141,7 @@ def new_game(
         project_dir=Path(adapter.project_dir),
         skill_name=skill.name if skill else None,
         agent_result=agent_result,
-        final_run=final_run,
+        final_verify=final_verify,
     )
 
 

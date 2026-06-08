@@ -6,7 +6,7 @@ import json
 from dataclasses import dataclass, field
 from pathlib import Path
 
-from playsmith.engines.base import RunResult, SceneSpec
+from playsmith.engines.base import RunResult, SceneSpec, VerifyResult
 from playsmith.llm import ChatResponse, ToolCall
 
 
@@ -53,8 +53,10 @@ class FakeAdapter:
     project_dir: Path
     run_results: list[RunResult] = field(default_factory=list)
     screenshot_result: RunResult | None = None
+    verify_results: list[VerifyResult] = field(default_factory=list)
     runs: int = 0
     screenshots: int = 0
+    verifies: int = 0
 
     def __post_init__(self) -> None:
         self.project_dir = Path(self.project_dir)
@@ -91,3 +93,12 @@ class FakeAdapter:
         self.screenshots += 1
         Path(out_path).write_bytes(b"\x89PNG\r\n")  # pretend PNG
         return self.screenshot_result or RunResult(command=["godot"], returncode=0)
+
+    def verify(self, checks=None, *, scene=None) -> VerifyResult:
+        self.verifies += 1
+        if self.verify_results:
+            return self.verify_results.pop(0)
+        passed = {c: True for c in (checks or ["no_errors"])}
+        return VerifyResult(
+            run=RunResult(command=["godot"], returncode=0, stdout="ok"), assertions=passed
+        )

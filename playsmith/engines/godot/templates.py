@@ -10,6 +10,10 @@ from __future__ import annotations
 SCREENSHOT_SCENE = "_playsmith_screenshot.tscn"
 SCREENSHOT_SCRIPT = "_playsmith_screenshot.gd"
 
+# The verify harness — runs headless, evaluates gameplay assertions, prints PLAYSMITH_ASSERT.
+VERIFY_SCENE = "_playsmith_verify.tscn"
+VERIFY_SCRIPT = "_playsmith_verify.gd"
+
 
 def project_godot(name: str, main_scene: str | None = None) -> str:
     """A minimal, valid Godot 4 ``project.godot``.
@@ -92,6 +96,77 @@ def screenshot_harness_scene() -> str:
         "[gd_scene load_steps=2 format=3]\n\n"
         f'[ext_resource type="Script" path="res://{SCREENSHOT_SCRIPT}" id="1"]\n\n'
         '[node name="PlaysmithScreenshot" type="Node"]\n'
+        'script = ExtResource("1")\n'
+    )
+
+
+def verify_harness_script() -> str:
+    """A GDScript probe that runs the game headless and prints PLAYSMITH_ASSERT lines.
+
+    It instances the target scene, lets physics settle for ~90 frames, then evaluates a
+    fixed vocabulary of gameplay checks (player_exists / player_on_floor / player_not_falling)
+    against the first CharacterBody2D it finds. ``is_on_floor()`` is valid headless because
+    physics runs without a display — that's the whole point of the assertion loop.
+    """
+    return (
+        "extends Node\n"
+        "\n"
+        "var _frames := 0\n"
+        "var _player: Node = null\n"
+        "var _start_y := 0.0\n"
+        "var _max_y := -1.0e20\n"
+        "\n"
+        "func _ready() -> void:\n"
+        '\tvar target := OS.get_environment("PLAYSMITH_TARGET_SCENE")\n'
+        '\tif target != "":\n'
+        "\t\tvar packed = load(target)\n"
+        "\t\tif packed:\n"
+        "\t\t\tadd_child(packed.instantiate())\n"
+        "\t_player = _find_body(self)\n"
+        "\n"
+        "func _find_body(node: Node) -> Node:\n"
+        "\tif node is CharacterBody2D:\n"
+        "\t\treturn node\n"
+        "\tfor child in node.get_children():\n"
+        "\t\tvar found = _find_body(child)\n"
+        "\t\tif found != null:\n"
+        "\t\t\treturn found\n"
+        "\treturn null\n"
+        "\n"
+        "func _physics_process(_delta: float) -> void:\n"
+        "\t_frames += 1\n"
+        "\tif _player != null and _player is Node2D:\n"
+        "\t\tvar y: float = _player.global_position.y\n"
+        "\t\tif _frames == 1:\n"
+        "\t\t\t_start_y = y\n"
+        "\t\t_max_y = max(_max_y, y)\n"
+        "\tif _frames >= 90:\n"
+        "\t\t_emit()\n"
+        "\n"
+        "func _emit() -> void:\n"
+        '\tvar wanted := OS.get_environment("PLAYSMITH_CHECKS").split(",", false)\n'
+        "\tvar on_floor := false\n"
+        '\tif _player != null and _player.has_method("is_on_floor"):\n'
+        "\t\ton_floor = _player.is_on_floor()\n"
+        "\tvar fell := (_max_y - _start_y) > 2000.0\n"
+        "\tvar results := {\n"
+        '\t\t"player_exists": _player != null,\n'
+        '\t\t"player_on_floor": on_floor,\n'
+        '\t\t"player_not_falling": not fell,\n'
+        "\t}\n"
+        "\tfor key in results.keys():\n"
+        "\t\tif wanted.is_empty() or wanted.has(key):\n"
+        '\t\t\tprint("PLAYSMITH_ASSERT ", key, "=", "true" if results[key] else "false")\n'
+        "\tget_tree().quit()\n"
+    )
+
+
+def verify_harness_scene() -> str:
+    """The scene that runs the verify harness script."""
+    return (
+        "[gd_scene load_steps=2 format=3]\n\n"
+        f'[ext_resource type="Script" path="res://{VERIFY_SCRIPT}" id="1"]\n\n'
+        '[node name="PlaysmithVerify" type="Node"]\n'
         'script = ExtResource("1")\n'
     )
 
