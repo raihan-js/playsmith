@@ -161,9 +161,12 @@ class UnrealAdapter:
             templates.default_engine_ini(main_scene or templates.MAP)
         )
 
-    def scaffold(self) -> RunResult:
-        """Build the deterministic playable level (floor + PlayerStart + pawn) via UE Python."""
-        return self._run_python(templates.scaffold_level_script(), timeout_s=600)
+    def scaffold(self, spec: dict | None = None) -> RunResult:
+        """Build a lit, themed, playable level (floor + lights + obstacles + goal + pawn).
+
+        ``spec`` (optional) is an LLM-authored level layout; without it a safe default is built.
+        """
+        return self._run_python(templates.build_level_script(spec), timeout_s=600)
 
     def set_main_scene(self, res_path: str) -> None:
         path = self._uproject_path()

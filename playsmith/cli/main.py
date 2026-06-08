@@ -37,7 +37,7 @@ from playsmith.engines import (
     SceneSpec,
 )
 from playsmith.engines.godot import templates as godot_templates
-from playsmith.engines.unreal import UnrealAdapter, royalty_estimate
+from playsmith.engines.unreal import UnrealAdapter, level_director, royalty_estimate
 from playsmith.llm import LLMError, LLMGateway, Message
 from playsmith.llm.eval import evaluate_targets
 from playsmith.publish import (
@@ -788,12 +788,32 @@ def unreal_new(
     adapter = UnrealAdapter(project_dir, editor_cmd=cfg.engine.unreal.editor_cmd)
     console.print(f"Creating Unreal project at [dim]{project_dir}[/] ...")
     adapter.create_project(name)
-    console.print("Scaffolding a playable level (floor + PlayerStart + pawn) — UE headless ...")
+
+    # Theme the level from the prompt (best-effort; falls back to a safe default level).
+    spec = None
     try:
-        adapter.scaffold()
+        gateway = LLMGateway.from_config(cfg, console=console)
+        console.print("Designing the level from your prompt ...")
+        spec = level_director.plan_level(name, gateway)
+        console.print(
+            f"  theme: [cyan]{spec.get('theme', '')}[/] · "
+            f"{len(spec.get('obstacles', []))} obstacles"
+        )
+    except (LLMError, OSError):
+        console.print("[dim]LLM unavailable — building a default level.[/]")
+
+    console.print("Scaffolding a lit, playable level (UE headless — first build is slow) ...")
+    try:
+        adapter.scaffold(spec)
         console.print("Verifying the level in-engine ...")
         result = adapter.verify(
-            checks=["level_loads", "player_start_exists", "floor_exists", "player_exists"]
+            checks=[
+                "level_loads",
+                "player_start_exists",
+                "floor_exists",
+                "player_exists",
+                "goal_exists",
+            ]
         )
     except EngineNotFoundError as exc:
         console.print(f"[bold red]{exc}[/]")

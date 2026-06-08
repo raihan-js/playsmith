@@ -131,6 +131,8 @@ KNOWN_ASSERTIONS = frozenset(
         "level_loads",
         "player_start_exists",
         "floor_exists",
+        "goal_exists",
+        "obstacles_exist",
     }
 )
 
