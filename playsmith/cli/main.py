@@ -35,6 +35,7 @@ from playsmith.engines import (
     SceneSpec,
 )
 from playsmith.engines.godot import templates as godot_templates
+from playsmith.engines.unreal import UnrealAdapter, royalty_estimate
 from playsmith.llm import LLMError, LLMGateway, Message
 from playsmith.llm.eval import evaluate_targets
 from playsmith.publish import PublishError, publish_itch
@@ -593,6 +594,45 @@ def publish(
         raise typer.Exit(code=1) from exc
     user, game = itch.split("/", 1)
     console.print(f"[bold green]Published[/] → https://{user}.itch.io/{game}")
+
+
+unreal_app = typer.Typer(help="Unreal Engine track (EXPERIMENTAL; Godot is the default engine).")
+app.add_typer(unreal_app, name="unreal")
+
+
+@unreal_app.command("royalty")
+def unreal_royalty(
+    gross: float = typer.Argument(..., help="Lifetime gross revenue for the product (USD)."),
+    egs: bool = typer.Option(False, "--egs", help="Launched via Epic Games Store (3.5% rate)."),
+    egs_exempt: float = typer.Option(0.0, "--egs-exempt", help="Revenue earned on EGS (exempt)."),
+) -> None:
+    """Estimate Unreal EULA royalties (Godot has none, ever)."""
+    est = royalty_estimate(gross, via_egs=egs, egs_exempt_revenue=egs_exempt)
+    table = Table(title="Unreal royalty estimate", show_header=False)
+    table.add_row("Gross revenue", f"${est['gross_revenue']:,.0f}")
+    table.add_row("Royalty-free threshold", f"${est['threshold']:,.0f} per product")
+    table.add_row("Rate", f"{est['rate'] * 100:.1f}%{' (EGS)' if est['via_egs'] else ''}")
+    table.add_row("Royaltyable revenue", f"${est['royaltyable_revenue']:,.0f}")
+    table.add_row("Estimated royalty owed", f"[bold]${est['royalty_owed']:,.2f}[/]")
+    console.print(table)
+    console.print("[dim]Godot charges no royalties, ever — this cost is Unreal-only.[/]")
+
+
+@unreal_app.command("check")
+def unreal_check(
+    config: str = typer.Option(None, "--config", "-c", help="Path to a config YAML."),
+) -> None:
+    """Check the Unreal track: editor binary + Remote Control API availability."""
+    load_config(config)
+    adapter = UnrealAdapter("/tmp/_playsmith_unreal_check")
+    try:
+        ver = adapter.version()
+        console.print(f"Found Unreal: [bold cyan]{ver}[/]")
+    except (EngineNotFoundError, EngineError) as exc:
+        console.print(f"[yellow]Unreal editor not available:[/] {exc}")
+    rc = "[green]reachable[/]" if adapter.remote.available() else "[yellow]not reachable[/]"
+    console.print(f"Remote Control API ({adapter.remote.host}): {rc}")
+    console.print("[dim]The Unreal track is experimental; Godot is the default, tested engine.[/]")
 
 
 def main() -> None:
