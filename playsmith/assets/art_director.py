@@ -17,7 +17,7 @@ import re
 from collections.abc import Callable
 from pathlib import Path
 
-from playsmith.llm import LLMGateway
+from playsmith.llm import LLMGateway, Message
 
 # Slots a skill's game.gd knows how to apply at runtime. Background + player are universal.
 PLATFORMER_SLOTS = ["background", "player", "coin", "spike", "goal"]
@@ -82,10 +82,7 @@ def plan_art(
     spec: dict | None = None
     try:
         resp = gateway.chat(
-            [
-                {"role": "system", "content": _SYSTEM},
-                {"role": "user", "content": _ask_prompt(game_prompt, genre, slots)},
-            ]
+            [Message.system(_SYSTEM), Message.user(_ask_prompt(game_prompt, genre, slots))]
         )
         spec = _extract_json(resp.content or "")
     except Exception:  # noqa: BLE001 - art planning must never break a build
