@@ -26,6 +26,80 @@ GOOGLE_REPETITIVE = (
     "Submit a single, distinct, polished game."
 )
 
+NO_MASS_SUBMIT = (
+    "Ship ONE distinct, polished game. Never mass-submit near-identical games — stores reject it "
+    "and it harms users (CLAUDE.md §8)."
+)
+
+
+def compliance_briefing(target: str = "all", *, used_unreal: bool = False) -> list[str]:
+    """Return the policy notes that apply to a given publish target (advisory only)."""
+    t = target.lower()
+    notes: list[str] = []
+
+    def add(note: str) -> None:
+        if note not in notes:
+            notes.append(note)
+
+    if t in ("steam", "all"):
+        add(steam_ai_disclosure())
+    if t in ("apple", "ios", "all"):
+        add(APPLE_4_2_6)
+        add(APPLE_4_3)
+    if t in ("google", "android", "all"):
+        add(GOOGLE_REPETITIVE)
+    if t in ("itch", "web", "all"):
+        add("itch.io is lenient, but disclose AI-generated player-facing art on your page.")
+    if used_unreal:
+        add("Unreal royalties may apply — run `playsmith unreal royalty <gross>`.")
+    add(AI_ASSET_COPYRIGHT_CAVEAT)
+    add(NO_MASS_SUBMIT)
+    return notes
+
+
+_RATING_BANDS = {
+    0: "Everyone (3+)",
+    1: "Everyone 10+ (7+)",
+    2: "Teen (12+)",
+    3: "Mature (17+)",
+}
+
+
+def age_rating(
+    *,
+    violence: int = 0,
+    language: int = 0,
+    sexual_content: int = 0,
+    fear: int = 0,
+    gambling: bool = False,
+    controlled_substances: bool = False,
+) -> dict:
+    """A rough IARC-style age-rating draft from 0–3 severities + flags.
+
+    Advisory only — submit the official IARC questionnaire on each store for a binding rating.
+    """
+    score = max(violence, language, sexual_content, fear)
+    if gambling or controlled_substances:
+        score = max(score, 2)
+    descriptors: list[str] = []
+    if violence >= 2:
+        descriptors.append("Violence")
+    if language >= 2:
+        descriptors.append("Strong Language")
+    if sexual_content >= 2:
+        descriptors.append("Sexual Content")
+    if fear >= 2:
+        descriptors.append("Fear")
+    if gambling:
+        descriptors.append("Simulated Gambling")
+    if controlled_substances:
+        descriptors.append("Use of Alcohol/Drugs")
+    return {
+        "rating": _RATING_BANDS[min(score, 3)],
+        "descriptors": descriptors,
+        "note": "Draft only — submit the official IARC questionnaire on each store to be binding.",
+    }
+
 
 def steam_ai_disclosure(
     *,

@@ -44,6 +44,8 @@ from playsmith.publish import (
     APPLE_4_3,
     GOOGLE_REPETITIVE,
     PublishError,
+    age_rating,
+    compliance_briefing,
     ensure_android_keystore,
     is_macos,
     publish_itch,
@@ -641,13 +643,33 @@ def export(
 def publish(
     itch: str = typer.Option(None, "--itch", help="Publish to itch.io; target as user/game."),
     steam: str = typer.Option(None, "--steam", help="Publish to Steam; the app ID."),
+    check: bool = typer.Option(
+        False, "--check", help="Show the compliance + age-rating briefing only."
+    ),
+    for_target: str = typer.Option(
+        "all", "--for", help="Briefing target: all|steam|apple|google|itch."
+    ),
     channel: str = typer.Option("web", "--channel", help="itch butler channel (default web)."),
     branch: str = typer.Option("beta", "--branch", help="Steam branch (default beta; never live)."),
     project: str = typer.Option(None, "--project", "-p", help="Project dir (default: latest)."),
     config: str = typer.Option(None, "--config", "-c", help="Path to a config YAML."),
 ) -> None:
-    """Publish to itch.io (butler) or Steam (steamcmd), with compliance reminders."""
+    """Publish to itch.io (butler) or Steam (steamcmd), or print a compliance briefing (--check)."""
     cfg = load_config(config)
+
+    if check:
+        console.print(f"[bold]Compliance briefing ({for_target})[/]")
+        for note in compliance_briefing(for_target):
+            console.print(f"  • {note}")
+        rating = age_rating()
+        console.print(f"\n[bold]Age rating (IARC draft):[/] {rating['rating']}")
+        console.print(f"[dim]{rating['note']}[/]")
+        console.print(
+            "[dim]Adjust for your game's content (violence/language/etc.) and submit the official "
+            "IARC questionnaire on each store.[/]"
+        )
+        return
+
     if not itch and not steam:
         console.print(
             "Specify a target, e.g. `playsmith publish --itch you/game` or `--steam <appid>`."

@@ -6,6 +6,9 @@ from playsmith.publish.compliance import (
     APPLE_4_2_6,
     APPLE_4_3,
     GOOGLE_REPETITIVE,
+    NO_MASS_SUBMIT,
+    age_rating,
+    compliance_briefing,
     steam_ai_disclosure,
 )
 from playsmith.publish.itch import ItchPublisher, itch_compliance_note, publish_itch
@@ -17,6 +20,9 @@ __all__ = [
     "APPLE_4_2_6",
     "APPLE_4_3",
     "GOOGLE_REPETITIVE",
+    "NO_MASS_SUBMIT",
+    "age_rating",
+    "compliance_briefing",
     "ItchPublisher",
     "PublishError",
     "PublishResult",
