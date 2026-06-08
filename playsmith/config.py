@@ -130,12 +130,14 @@ class EngineConfig:
 class AssetsConfig:
     enabled: bool = False
     comfyui_url: str = "http://localhost:8188"
+    model: str = "sd_xl_base_1.0.safetensors"
 
     @classmethod
     def from_dict(cls, data: dict) -> AssetsConfig:
         return cls(
             enabled=bool(data.get("enabled", False)),
             comfyui_url=data.get("comfyui_url", "http://localhost:8188"),
+            model=data.get("model", "sd_xl_base_1.0.safetensors"),
         )
 
 

@@ -13,6 +13,7 @@ Commands are added incrementally as capabilities land (see BUILD_PLAN.md):
 
 from __future__ import annotations
 
+import re
 from pathlib import Path
 
 import typer
@@ -20,6 +21,7 @@ from rich.console import Console
 from rich.table import Table
 
 from playsmith import __version__
+from playsmith.assets import AssetError, ComfyUIClient
 from playsmith.config import Config, ConfigError, load_config
 from playsmith.engines import (
     EngineError,
@@ -215,6 +217,39 @@ def assets_import(
         f"[bold green]Imported[/] {src.name} → res://{dest} in [bold]{project_dir.name}[/]"
     )
     console.print('Use it via a Sprite2D texture, or `playsmith edit "use the imported art"`.')
+
+
+@assets_app.command("generate")
+def assets_generate(
+    prompt: str = typer.Argument(..., help="What art to generate, e.g. 'a pixel-art cat'."),
+    kind: str = typer.Option("sprite", "--kind", "-k", help="sprite|portrait|background|tileset."),
+    project: str = typer.Option(None, "--project", "-p", help="Project dir (default: latest)."),
+    out: str = typer.Option(
+        None, "--out", "-o", help="Output path (default <project>/assets/...)."
+    ),
+    config: str = typer.Option(None, "--config", "-c", help="Path to a config YAML."),
+) -> None:
+    """Generate a 2D asset via ComfyUI into a project (graceful if ComfyUI isn't running)."""
+    cfg = load_config(config)
+    client = ComfyUIClient(cfg.assets.comfyui_url, model=cfg.assets.model)
+    if not client.available():
+        console.print(
+            f"[yellow]ComfyUI not reachable at {cfg.assets.comfyui_url}.[/] "
+            "Games still ship with placeholders."
+        )
+        console.print("[dim]Start ComfyUI and set assets.comfyui_url to generate real sprites.[/]")
+        raise typer.Exit(code=1)
+    project_dir = _resolve_project(cfg, project)
+    safe = re.sub(r"[^a-z0-9]+", "_", prompt.lower()).strip("_")[:40] or "asset"
+    dest = Path(out).expanduser() if out else project_dir / "assets" / f"{safe}.png"
+    console.print(f"Generating [bold]{kind}[/] for '{prompt}' via ComfyUI ...")
+    try:
+        with console.status("rendering..."):
+            client.image(prompt, kind, str(dest))
+    except (AssetError, OSError) as exc:
+        console.print(f"[bold red]Generation failed:[/] {exc}")
+        raise typer.Exit(code=1) from exc
+    console.print(f"[bold green]Generated[/] {dest}")
 
 
 def _resolve_project(cfg: Config, project: str | None) -> Path:

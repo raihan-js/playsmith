@@ -8,11 +8,13 @@ the model can observe and self-correct — the reality loop (CLAUDE.md §4).
 
 from __future__ import annotations
 
+import re
 from collections.abc import Callable
 from dataclasses import dataclass, field
 from pathlib import Path
 
 from playsmith.agent.approval import Approver, make_diff
+from playsmith.assets.base import AssetError, AssetGenerator
 from playsmith.engines.base import EngineAdapter, EngineError, RunResult, VerifyResult
 from playsmith.llm import Tool, ToolCall
 
@@ -35,6 +37,7 @@ class ToolContext:
 
     adapter: EngineAdapter
     approver: Approver
+    asset_generator: AssetGenerator | None = None
     last_run: RunResult | None = None
     last_verify: VerifyResult | None = None
     last_screenshot: Path | None = None
@@ -193,13 +196,29 @@ def _list_assets(args: dict, ctx: ToolContext) -> str:
     return "Imported art available — reference these instead of placeholders:\n" + "\n".join(found)
 
 
+_PLACEHOLDER_MSG = (
+    "Asset generation is unavailable. Use a colored placeholder (a Sprite2D with a "
+    "PlaceholderTexture2D, or a ColorRect). A runnable game with placeholders beats a "
+    "pretty one that doesn't run."
+)
+
+
 def _generate_asset(args: dict, ctx: ToolContext) -> str:
-    # Asset pipeline is Phase 1. For now: degrade gracefully to placeholders (CLAUDE.md §5).
-    return (
-        "Asset generation is not available in this build. Use a colored placeholder instead "
-        "(e.g. a Sprite2D with a PlaceholderTexture2D, or a ColorRect). A runnable game with "
-        "placeholders beats a pretty game that doesn't run."
-    )
+    gen = ctx.asset_generator
+    prompt = (args.get("prompt") or "").strip()
+    kind = args.get("kind") or "sprite"
+    if not prompt:
+        return "Provide a 'prompt' describing the art to generate."
+    if gen is None or not gen.available():
+        return _PLACEHOLDER_MSG
+    safe = re.sub(r"[^a-z0-9]+", "_", prompt.lower()).strip("_")[:40] or "asset"
+    dest = ctx.workspace / "assets" / f"{safe}.png"
+    try:
+        gen.image(prompt, kind, str(dest))
+    except (AssetError, NotImplementedError, OSError) as exc:
+        return f"Asset generation failed ({exc}). Use a placeholder instead."
+    rel = dest.relative_to(ctx.workspace).as_posix()
+    return f"Generated res://{rel}. Use it as the texture of a Sprite2D."
 
 
 @dataclass

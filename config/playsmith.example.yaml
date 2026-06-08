@@ -42,11 +42,12 @@ engine:
     binary: "godot"      # path to the Godot 4.x executable
     version: "4"
 
-# Asset generation (optional; Phase 1+). If unavailable, Playsmith uses placeholders.
+# Asset generation (optional). If unavailable, Playsmith uses placeholders and still ships.
 assets:
-  enabled: false
-  comfyui_url: "http://localhost:8188"   # 2D image generation
-  # mesh_backend: "hunyuan3d"            # 3D, Phase 2
+  enabled: false                          # true -> agent generates sprites in-loop during `new`
+  comfyui_url: "http://localhost:8188"    # 2D image generation (ComfyUI)
+  model: "sd_xl_base_1.0.safetensors"     # the checkpoint ComfyUI loads (must exist in ComfyUI)
+  # mesh_backend: "hunyuan3d"             # 3D, Phase 2
 
 # Publishing (Phase 1+).
 publish:
