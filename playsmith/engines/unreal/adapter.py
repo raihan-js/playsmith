@@ -252,6 +252,8 @@ class UnrealAdapter:
             "-nopause",
             "-stdout",
             "-NoLogTimes",
+            "-notrace",  # don't start the trace server (a common headless shutdown-hang cause)
+            "-noxgecontroller",
         ]
         env = {"PLAYSMITH_UE_OUT": str(out_file)} if out_file is not None else None
         return self._invoke(args, timeout_s=timeout_s, env=env)
