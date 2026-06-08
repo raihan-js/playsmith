@@ -23,6 +23,7 @@ from playsmith.agent import AgentLoop, AgentResult, AutoApprover, InteractiveApp
 from playsmith.agent.approval import Approver
 from playsmith.agent.tools import scan_assets
 from playsmith.assets import get_asset_generator, get_mesh_generator
+from playsmith.assets.art_director import generate_art, plan_art
 from playsmith.config import Config, load_config
 from playsmith.engines import EngineError, GodotAdapter
 from playsmith.engines.base import EngineAdapter, RunResult, VerifyResult
@@ -35,14 +36,13 @@ _ENGINE_CHECK_DIR = "_playsmith_engine_check"
 _MANIFEST_PATH = ".playsmith/manifest.json"
 
 
-def write_manifest(
-    project_dir: Path, *, skill: str | None, prompt: str, assertions: list[str]
-) -> None:
+def write_manifest(project_dir: Path, **fields) -> None:
+    """Write/merge the per-project manifest. Existing keys are preserved unless overwritten."""
     path = Path(project_dir) / _MANIFEST_PATH
     path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(
-        json.dumps({"skill": skill, "prompt": prompt, "assertions": assertions}, indent=2)
-    )
+    data = read_manifest(project_dir) or {}
+    data.update({k: v for k, v in fields.items() if v is not None})
+    path.write_text(json.dumps(data, indent=2))
 
 
 def read_manifest(project_dir: Path) -> dict | None:
@@ -219,19 +219,25 @@ def new_game(
             {"type": "phase", "text": f"Scaffolded a working base ({len(scaffolded)} files)"},
         )
 
-    # Reliable graphics: generate a themed background + import it. game.gd applies it at runtime
-    # from res://assets/background.png, so every game looks real — no brittle scene edits.
+    # Reliable, CONTEXTUAL graphics: ask the LLM for a per-game art plan, then generate each asset
+    # one at a time (streamed). game.gd applies them at runtime from res://assets/<slot>.png, so
+    # every game looks distinct and on-theme — no brittle scene edits. Art is always optional.
     asset_gen = get_asset_generator(cfg)
     if asset_gen is not None and scaffolded:
         try:
             if asset_gen.available():
-                asset_gen.image(
-                    prompt, "background", str(adapter.project_dir / "assets" / "background.png")
+                genre = skill.name if skill else "2D game"
+                _emit(on_event, {"type": "phase", "text": "Art-directing the game"})
+                spec = plan_art(prompt, genre, gateway)
+                produced = generate_art(
+                    spec,
+                    asset_gen,
+                    adapter,
+                    emit=(lambda ev: _emit(on_event, ev)),
+                    log=(console.print if verbose else None),
                 )
-                adapter.import_assets()
-                if verbose:
-                    console.print("Generated a themed background.")
-                _emit(on_event, {"type": "phase", "text": "Generated a themed background"})
+                if verbose and produced:
+                    console.print(f"Generated contextual art: {', '.join(produced)}")
         except Exception:  # noqa: BLE001 - art is optional; never block a build
             pass
 
@@ -292,6 +298,14 @@ def new_game(
                 on_event,
                 {"type": "phase", "text": "Agent changes failed — restored the working base game."},
             )
+
+    # Record the authoritative pass/fail so project cards show the right Playable/Draft status.
+    try:
+        write_manifest(
+            adapter.project_dir, runs_clean=bool(final_verify is not None and final_verify.ok)
+        )
+    except OSError:
+        pass
 
     outcome = BuildOutcome(
         project_dir=Path(adapter.project_dir),

@@ -19,6 +19,9 @@ import yaml
 REPO_ROOT = Path(__file__).resolve().parent.parent
 DEFAULT_CONFIG = REPO_ROOT / "config" / "playsmith.yaml"
 EXAMPLE_CONFIG = REPO_ROOT / "config" / "playsmith.example.yaml"
+# UI-managed settings (provider/model/API keys) are written here and deep-merged on top of the
+# chosen base config at load time. Keeps the commented base file pristine and secrets out of it.
+RUNTIME_OVERRIDE_NAME = "playsmith.runtime.yaml"
 
 _ENV_PATTERN = re.compile(r"\$\{([^}]+)\}")
 
@@ -54,6 +57,17 @@ def _is_local_endpoint(base_url: str, provider: str) -> bool:
 
 class ConfigError(Exception):
     """Raised when configuration is missing or malformed."""
+
+
+def _deep_merge(base: dict, over: dict) -> dict:
+    """Recursively merge ``over`` onto ``base`` (over wins; nested dicts merged, not replaced)."""
+    out = dict(base)
+    for key, value in over.items():
+        if isinstance(value, dict) and isinstance(out.get(key), dict):
+            out[key] = _deep_merge(out[key], value)
+        else:
+            out[key] = value
+    return out
 
 
 def _expand(value: str) -> str:
@@ -265,4 +279,36 @@ def load_config(path: str | os.PathLike[str] | None = None) -> Config:
         raise ConfigError(
             f"Config root in {config_path} must be a mapping, got {type(raw).__name__}."
         )
+    overrides_path = config_path.parent / RUNTIME_OVERRIDE_NAME
+    if overrides_path.exists():
+        try:
+            over = yaml.safe_load(overrides_path.read_text()) or {}
+            if isinstance(over, dict):
+                raw = _deep_merge(raw, over)
+        except yaml.YAMLError:  # pragma: no cover - a broken override must not break startup
+            pass
     return Config.from_dict(raw, source_path=config_path)
+
+
+def save_runtime_patch(
+    updates: dict, *, config_path: str | os.PathLike[str] | None = None
+) -> Path:
+    """Persist UI-managed settings to the runtime-overrides file next to the active config.
+
+    Deep-merges ``updates`` into the existing overrides so unrelated settings are preserved.
+    Returns the overrides file path. Values are stored literally (API keys are NOT ``${ENV}``
+    references), so the next ``load_config`` picks them up everywhere.
+    """
+    base = _resolve_config_path(config_path)
+    overrides_path = base.parent / RUNTIME_OVERRIDE_NAME
+    existing: dict = {}
+    if overrides_path.exists():
+        try:
+            loaded = yaml.safe_load(overrides_path.read_text()) or {}
+            existing = loaded if isinstance(loaded, dict) else {}
+        except yaml.YAMLError:
+            existing = {}
+    merged = _deep_merge(existing, updates)
+    overrides_path.parent.mkdir(parents=True, exist_ok=True)
+    overrides_path.write_text(yaml.safe_dump(merged, sort_keys=False))
+    return overrides_path

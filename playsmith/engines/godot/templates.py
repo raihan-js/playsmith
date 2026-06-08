@@ -225,6 +225,9 @@ def export_preset(index: int, name: str, platform: str, *, web: bool = False) ->
     if web:
         lines += [
             "variant/extensions_support=false",
+            # Single-threaded build: runs in any embedded <iframe> without cross-origin isolation
+            # (no SharedArrayBuffer needed). Essential for in-app Play; fine for 2D games.
+            "variant/thread_support=false",
             "html/export_icon=true",
             "html/canvas_resize_policy=2",
             "progressive_web_app/enabled=false",

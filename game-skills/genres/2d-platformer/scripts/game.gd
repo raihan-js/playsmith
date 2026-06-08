@@ -35,15 +35,38 @@ func _apply_generated_art() -> void:
 			if w > 0.0 and h > 0.0:
 				bg.scale = Vector2(1152.0 / w, 648.0 / h)
 			print("PLAYSMITH_BG_APPLIED")
-	# Player sprite (optional).
-	var p_path := "res://assets/player.png"
-	if ResourceLoader.exists(p_path):
-		var ptex: Texture2D = load(p_path)
-		var player := _find_player(self)
-		if ptex and player:
-			var spr := player.get_node_or_null("Sprite2D")
-			if spr and spr is Sprite2D:
-				spr.texture = ptex
+	# Player sprite (scaled to a sane height so a 1024px generated PNG isn't gigantic).
+	var player := _find_player(self)
+	if player and ResourceLoader.exists("res://assets/player.png"):
+		var ptex: Texture2D = load("res://assets/player.png")
+		if ptex:
+			_apply_sprite(player, ptex, 44.0)
+	# Per-element art by group — contextual sprites for coins, spikes and the goal.
+	var slot_heights := {"coin": 26.0, "spike": 30.0, "goal": 42.0}
+	for slot in slot_heights:
+		var path := "res://assets/%s.png" % slot
+		if not ResourceLoader.exists(path):
+			continue
+		var stex: Texture2D = load(path)
+		if not stex:
+			continue
+		for node in get_tree().get_nodes_in_group(slot):
+			if node is Node2D:
+				_apply_sprite(node, stex, slot_heights[slot])
+
+
+func _apply_sprite(node: Node, tex: Texture2D, target_h: float) -> void:
+	# Set the texture on the node's Sprite2D (creating one if needed), scaled to target_h px tall.
+	var spr := node.get_node_or_null("Sprite2D")
+	if spr == null or not (spr is Sprite2D):
+		spr = Sprite2D.new()
+		spr.name = "Sprite2D"
+		node.add_child(spr)
+	spr.texture = tex
+	var h := float(tex.get_height())
+	if h > 0.0:
+		var s := target_h / h
+		spr.scale = Vector2(s, s)
 
 
 func _find_player(node: Node) -> Node:

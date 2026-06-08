@@ -1,223 +1,1274 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="en">
 <head>
-<meta charset="utf-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1" />
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
 <title>Playsmith</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet" />
 <style>
-  :root{
-    --bg:#0e0f13; --panel:#16181f; --panel2:#1c1f29; --line:#272b36;
-    --text:#e7e9ee; --dim:#9aa0ad; --accent:#7c9cff; --green:#46d39a; --yellow:#f2c14e; --red:#ff6b6b;
-    --mono:"SF Mono",ui-monospace,"JetBrains Mono",Menlo,Consolas,monospace;
-  }
-  *{box-sizing:border-box}
-  html,body{height:100%;margin:0}
-  body{background:var(--bg);color:var(--text);font:14px/1.5 system-ui,-apple-system,Segoe UI,Roboto,sans-serif;display:flex;flex-direction:column}
-  header{display:flex;align-items:center;gap:12px;padding:10px 16px;border-bottom:1px solid var(--line);background:var(--panel)}
-  header .logo{font-weight:700;font-size:16px;letter-spacing:.2px}
-  header .logo span{color:var(--accent)}
-  header .badge{margin-left:auto;font-size:12px;color:var(--dim);background:var(--panel2);border:1px solid var(--line);padding:3px 9px;border-radius:999px}
-  main{flex:1;display:flex;min-height:0}
-  .chat{width:42%;min-width:360px;display:flex;flex-direction:column;border-right:1px solid var(--line)}
-  .stream{flex:1;overflow:auto;padding:16px;display:flex;flex-direction:column;gap:10px}
-  .msg{max-width:92%;padding:9px 12px;border-radius:12px;white-space:pre-wrap;word-break:break-word}
-  .msg.user{align-self:flex-end;background:var(--accent);color:#0b0d12;border-bottom-right-radius:4px}
-  .msg.sys{align-self:flex-start;background:var(--panel);border:1px solid var(--line)}
-  .turn{align-self:flex-start;width:100%;background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:10px 12px}
-  .turn .phase{color:var(--accent);font-size:12.5px;margin:2px 0}
-  .turn .tool{font-family:var(--mono);font-size:12.5px;color:var(--text);margin-top:6px}
-  .turn .obs{font-family:var(--mono);font-size:12px;color:var(--dim);margin:1px 0 2px 14px;white-space:pre-wrap}
-  .card{border-radius:12px;padding:12px;border:1px solid var(--line);background:var(--panel2)}
-  .card.ok{border-color:#1f5d45}.card.warn{border-color:#5e4f1e}.card.err{border-color:#5e2626;color:var(--red)}
-  .card h4{margin:0 0 6px}
-  .chips{display:flex;flex-wrap:wrap;gap:6px;margin-top:6px}
-  .chip{font-family:var(--mono);font-size:11.5px;padding:2px 8px;border-radius:999px;border:1px solid var(--line)}
-  .chip.pass{color:var(--green);border-color:#1f5d45}.chip.fail{color:var(--red);border-color:#5e2626}
-  .composer{border-top:1px solid var(--line);padding:10px;display:flex;flex-direction:column;gap:8px;background:var(--panel)}
-  .composer .row{display:flex;gap:8px;align-items:center}
-  textarea{flex:1;resize:none;background:var(--panel2);color:var(--text);border:1px solid var(--line);border-radius:10px;padding:10px;font:inherit;min-height:46px;max-height:140px}
-  select,button{background:var(--panel2);color:var(--text);border:1px solid var(--line);border-radius:10px;padding:8px 12px;font:inherit;cursor:pointer}
-  button.primary{background:var(--accent);color:#0b0d12;border:none;font-weight:600}
-  button:disabled{opacity:.5;cursor:not-allowed}
-  .hint{color:var(--dim);font-size:12px}
-  .panel{flex:1;display:flex;flex-direction:column;min-width:0}
-  .tabs{display:flex;gap:4px;padding:8px 10px;border-bottom:1px solid var(--line);background:var(--panel)}
-  .tabs button{padding:6px 12px;border-radius:8px;border:1px solid transparent;background:transparent;color:var(--dim)}
-  .tabs button.active{background:var(--panel2);border-color:var(--line);color:var(--text)}
-  .tabbody{flex:1;overflow:auto;padding:14px}
-  .plist .item{padding:10px 12px;border:1px solid var(--line);border-radius:10px;margin-bottom:8px;cursor:pointer;background:var(--panel)}
-  .plist .item:hover{border-color:var(--accent)}
-  .plist .item b{font-size:14px}.plist .item .meta{color:var(--dim);font-size:12px;margin-top:2px}
-  .files{display:flex;height:100%;gap:10px;min-height:0}
-  .tree{width:230px;overflow:auto;border-right:1px solid var(--line);padding-right:8px}
-  .tree div{font-family:var(--mono);font-size:12.5px;padding:3px 6px;border-radius:6px;cursor:pointer;color:var(--dim)}
-  .tree div:hover{background:var(--panel2)}.tree div.active{background:var(--panel2);color:var(--text)}
-  pre.code{flex:1;overflow:auto;margin:0;background:#0b0c10;border:1px solid var(--line);border-radius:10px;padding:12px;font-family:var(--mono);font-size:12.5px;white-space:pre-wrap}
-  .play{display:flex;flex-direction:column;height:100%;gap:10px}
-  .play iframe{flex:1;width:100%;border:1px solid var(--line);border-radius:10px;background:#000}
-  .empty{color:var(--dim);text-align:center;margin-top:40px}
+/* ============================================================
+   PLAYSMITH — redesigned web UI
+   Single self-contained file. Inline CSS + vanilla JS.
+   The API/WS contract is MOCKED below (see MOCK block in JS) so
+   this runs standalone for preview. Swap the mock layer for real
+   fetch()/WebSocket('/ws') calls to go live — search "LIVE WIRING".
+   ============================================================ */
+
+:root{
+  --bg:#0e0d13;
+  --bg-2:#15131d;
+  --bg-3:#1b1827;
+  --bg-4:#221e30;
+  --line:#272333;
+  --line-2:#352f47;
+  --text:#ece9f6;
+  --muted:#9c95ae;
+  --faint:#6b6480;
+  --accent:#7b61ff;
+  --accent-2:#a48bff;
+  --accent-deep:#5b3df0;
+  --accent-soft:rgba(123,97,255,.14);
+  --accent-glow:rgba(123,97,255,.35);
+  --pass:#3ad29a;
+  --pass-soft:rgba(58,210,154,.13);
+  --fail:#ff6b76;
+  --fail-soft:rgba(255,107,118,.13);
+  --work:#ffb547;
+  --work-soft:rgba(255,181,71,.13);
+  --r-sm:8px; --r:12px; --r-lg:18px; --r-xl:26px;
+  --shadow:0 18px 50px -20px rgba(0,0,0,.7);
+  --ui:'Space Grotesk',system-ui,sans-serif;
+  --mono:'JetBrains Mono',ui-monospace,monospace;
+}
+
+*{box-sizing:border-box}
+html,body{height:100%}
+body{
+  margin:0;
+  font-family:var(--ui);
+  background:var(--bg);
+  color:var(--text);
+  -webkit-font-smoothing:antialiased;
+  overflow:hidden;
+}
+::selection{background:var(--accent-glow);color:#fff}
+button{font-family:inherit;cursor:pointer;border:none;background:none;color:inherit}
+::-webkit-scrollbar{width:10px;height:10px}
+::-webkit-scrollbar-thumb{background:var(--line-2);border-radius:20px;border:2px solid transparent;background-clip:padding-box}
+::-webkit-scrollbar-thumb:hover{background:#46405a;background-clip:padding-box;border:2px solid transparent}
+input,textarea{font-family:inherit}
+
+/* ===================== SHELL ===================== */
+.app{display:flex;flex-direction:column;height:100vh;
+  background:
+    radial-gradient(1200px 600px at 78% -10%, rgba(123,97,255,.10), transparent 60%),
+    radial-gradient(900px 500px at -5% 110%, rgba(123,97,255,.06), transparent 55%),
+    var(--bg);
+}
+
+/* topbar */
+.topbar{display:flex;align-items:center;gap:16px;height:58px;flex:0 0 58px;
+  padding:0 18px;border-bottom:1px solid var(--line);
+  background:linear-gradient(180deg,rgba(27,24,39,.6),rgba(14,13,19,.3));backdrop-filter:blur(8px);z-index:30}
+.brand{display:flex;align-items:center;gap:11px;user-select:none}
+.brand .mark{width:30px;height:30px;flex:0 0 30px}
+.brand .name{font-weight:700;font-size:18px;letter-spacing:-.4px}
+.brand .name b{color:var(--accent-2);font-weight:700}
+.topbar .spacer{flex:1}
+.chip{display:inline-flex;align-items:center;gap:7px;height:32px;padding:0 12px;border-radius:999px;
+  border:1px solid var(--line);background:var(--bg-2);font-size:12.5px;color:var(--muted);white-space:nowrap}
+.chip .dot{width:7px;height:7px;border-radius:50%;background:var(--pass);box-shadow:0 0 9px var(--pass)}
+.chip b{color:var(--text);font-weight:500}
+.chip.where{cursor:default}
+.icon-btn{width:34px;height:34px;border-radius:10px;border:1px solid var(--line);background:var(--bg-2);
+  display:grid;place-items:center;color:var(--muted);transition:.15s}
+.icon-btn:hover{color:var(--text);border-color:var(--line-2);background:var(--bg-3)}
+
+/* body split */
+.body{flex:1;display:flex;min-height:0}
+.pane-chat{flex:0 0 41%;max-width:560px;min-width:380px;display:flex;flex-direction:column;
+  border-right:1px solid var(--line);min-height:0;position:relative}
+.pane-work{flex:1;display:flex;flex-direction:column;min-width:0;min-height:0}
+
+/* mobile tab toggle (hidden on desktop) */
+.mobile-switch{display:none}
+
+/* ===================== CHAT PANE ===================== */
+.chat-head{display:flex;align-items:center;gap:10px;padding:14px 18px 12px;flex:0 0 auto}
+.chat-head .ttl{font-size:13px;font-weight:600;color:var(--muted);letter-spacing:.3px;text-transform:uppercase}
+.chat-head .ttl b{color:var(--text)}
+.chat-head .clear{margin-left:auto;font-size:12px;color:var(--faint);padding:5px 9px;border-radius:8px;transition:.15s}
+.chat-head .clear:hover{color:var(--text);background:var(--bg-3)}
+
+.scroll{flex:1;overflow-y:auto;min-height:0}
+.chat-scroll{padding:4px 18px 18px}
+
+/* onboarding empty state */
+.onboard{height:100%;display:flex;flex-direction:column;justify-content:center;padding:24px 26px 10px;gap:22px}
+.onboard .halo{width:62px;height:62px;border-radius:18px;display:grid;place-items:center;
+  background:linear-gradient(150deg,var(--accent),var(--accent-deep));box-shadow:0 14px 40px -10px var(--accent-glow);position:relative}
+.onboard .halo svg{width:34px;height:34px}
+.onboard h1{font-size:27px;line-height:1.12;letter-spacing:-.6px;margin:0;font-weight:600;max-width:18ch}
+.onboard h1 em{font-style:normal;color:var(--accent-2)}
+.onboard p.sub{margin:0;color:var(--muted);font-size:14.5px;line-height:1.5;max-width:42ch}
+.examples{display:flex;flex-direction:column;gap:9px;margin-top:2px}
+.examples .lbl{font-size:11px;text-transform:uppercase;letter-spacing:.6px;color:var(--faint);font-weight:600}
+.ex-chip{display:flex;align-items:center;gap:11px;text-align:left;padding:12px 13px;border-radius:13px;
+  border:1px solid var(--line);background:linear-gradient(180deg,var(--bg-2),rgba(27,24,39,.4));
+  font-size:13.5px;color:var(--text);transition:.16s;line-height:1.35}
+.ex-chip:hover{border-color:var(--accent);background:var(--bg-3);transform:translateY(-1px)}
+.ex-chip .emo{font-size:17px;flex:0 0 auto;width:34px;height:34px;border-radius:9px;display:grid;place-items:center;background:var(--accent-soft);border:1px solid var(--line)}
+.ex-chip .arr{margin-left:auto;color:var(--faint);transition:.16s}
+.ex-chip:hover .arr{color:var(--accent-2);transform:translateX(2px)}
+
+/* messages */
+.msg{margin-bottom:18px;animation:rise .4s ease}
+.msg.user{display:flex;justify-content:flex-end}
+.bubble{max-width:86%;padding:11px 15px;border-radius:16px 16px 4px 16px;
+  background:linear-gradient(160deg,var(--accent),var(--accent-deep));color:#fff;font-size:14px;line-height:1.45;
+  box-shadow:0 8px 22px -10px var(--accent-glow)}
+.bubble .kind{font-size:10.5px;text-transform:uppercase;letter-spacing:.6px;opacity:.8;margin-bottom:3px;font-weight:600}
+
+/* agent build card */
+.build{border:1px solid var(--line);border-radius:16px;background:linear-gradient(180deg,var(--bg-2),rgba(21,19,29,.5));overflow:hidden}
+.build-head{display:flex;align-items:center;gap:11px;padding:13px 15px;border-bottom:1px solid var(--line)}
+.build-head .av{width:30px;height:30px;border-radius:9px;background:linear-gradient(150deg,var(--accent),var(--accent-deep));
+  display:grid;place-items:center;flex:0 0 auto;box-shadow:0 6px 16px -6px var(--accent-glow)}
+.build-head .av svg{width:17px;height:17px}
+.build-head .t{font-size:13.5px;font-weight:600}
+.build-head .t small{display:block;font-weight:400;color:var(--faint);font-size:11.5px;margin-top:1px}
+.build-head .live{margin-left:auto;display:inline-flex;align-items:center;gap:6px;font-size:11px;color:var(--work);
+  font-weight:600;text-transform:uppercase;letter-spacing:.5px}
+.build-head .live .pulse{width:7px;height:7px;border-radius:50%;background:var(--work);animation:pulse 1.1s infinite}
+.build-head .live.done{color:var(--pass)}
+.build-head .live.done .pulse{background:var(--pass);animation:none}
+.build-body{padding:8px 6px 10px}
+
+.phase{display:flex;align-items:center;gap:9px;margin:7px 9px;padding:7px 11px;border-radius:10px;
+  background:var(--accent-soft);border:1px solid rgba(123,97,255,.22);font-size:12.5px;color:var(--accent-2);font-weight:500;animation:rise .35s ease}
+.phase svg{width:14px;height:14px;flex:0 0 auto}
+
+.step{display:flex;align-items:flex-start;gap:10px;padding:6px 12px;animation:slidein .35s ease;position:relative}
+.step .ico{width:26px;height:26px;flex:0 0 auto;border-radius:8px;display:grid;place-items:center;
+  background:var(--bg-3);border:1px solid var(--line);color:var(--muted);margin-top:1px}
+.step .ico svg{width:14px;height:14px}
+.step .body{flex:1;min-width:0}
+.step .label{font-size:13px;color:var(--text);display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.step .label .verb{color:var(--muted)}
+.step .label .file{font-family:var(--mono);font-size:12px;color:var(--text);background:var(--bg-3);
+  padding:1px 7px;border-radius:6px;border:1px solid var(--line)}
+.step .observe{font-family:var(--mono);font-size:11.5px;color:var(--faint);margin-top:4px;line-height:1.5;
+  padding-left:1px;animation:fade .4s ease}
+.step .observe.ok{color:var(--pass)}
+.step .stat{flex:0 0 auto;margin-top:4px}
+.spin{width:14px;height:14px;border:2px solid var(--line-2);border-top-color:var(--accent-2);border-radius:50%;animation:spin .7s linear infinite}
+.tick{width:16px;height:16px;color:var(--pass)}
+
+/* result card */
+.result{margin:10px 11px 6px;border:1px solid var(--line-2);border-radius:14px;overflow:hidden;
+  background:linear-gradient(180deg,var(--bg-3),var(--bg-2));animation:rise .45s ease}
+.result .rh{display:flex;align-items:center;gap:11px;padding:13px 15px;background:linear-gradient(180deg,var(--pass-soft),transparent)}
+.result .rh .badge{width:34px;height:34px;border-radius:10px;display:grid;place-items:center;background:var(--pass-soft);color:var(--pass);flex:0 0 auto}
+.result .rh .badge svg{width:19px;height:19px}
+.result .rh .t{font-size:14px;font-weight:600}
+.result .rh .t small{display:block;color:var(--muted);font-weight:400;font-size:12px;margin-top:1px}
+.assert-row{display:flex;flex-wrap:wrap;gap:7px;padding:2px 15px 13px}
+.achip{display:inline-flex;align-items:center;gap:6px;font-size:11.5px;padding:5px 10px;border-radius:999px;font-family:var(--mono);font-weight:500}
+.achip.pass{background:var(--pass-soft);color:var(--pass);border:1px solid rgba(58,210,154,.25)}
+.achip.fail{background:var(--fail-soft);color:var(--fail);border:1px solid rgba(255,107,118,.25)}
+.achip svg{width:13px;height:13px}
+.result .actions{display:flex;gap:8px;padding:0 15px 15px;flex-wrap:wrap}
+
+/* error callout */
+.callout-err{margin:8px 11px;border:1px solid rgba(255,107,118,.3);background:var(--fail-soft);border-radius:12px;
+  padding:12px 14px;font-size:13px;color:#ffb4ba;display:flex;gap:10px;align-items:flex-start}
+.callout-err svg{width:16px;height:16px;flex:0 0 auto;color:var(--fail);margin-top:1px}
+
+/* buttons */
+.btn{display:inline-flex;align-items:center;gap:7px;height:36px;padding:0 15px;border-radius:10px;font-size:13px;font-weight:600;
+  transition:.15s;border:1px solid var(--line);background:var(--bg-3);color:var(--text)}
+.btn:hover{border-color:var(--line-2);background:var(--bg-4)}
+.btn svg{width:15px;height:15px}
+.btn.primary{background:linear-gradient(160deg,var(--accent),var(--accent-deep));border-color:transparent;color:#fff;box-shadow:0 8px 20px -10px var(--accent-glow)}
+.btn.primary:hover{filter:brightness(1.08)}
+.btn.sm{height:30px;padding:0 11px;font-size:12px;border-radius:8px}
+.btn.ghost{background:transparent}
+.btn.ghost:hover{background:var(--bg-3)}
+
+/* composer */
+.composer-wrap{flex:0 0 auto;padding:12px 16px 16px;background:linear-gradient(0deg,var(--bg),transparent)}
+.ctx-bar{display:flex;align-items:center;gap:8px;margin-bottom:9px;animation:rise .3s ease}
+.ctx-bar .pill{display:inline-flex;align-items:center;gap:7px;height:30px;padding:0 11px;border-radius:9px;
+  background:var(--accent-soft);border:1px solid rgba(123,97,255,.3);font-size:12.5px;color:var(--accent-2);font-weight:500}
+.ctx-bar .pill .x{margin-left:3px;color:var(--accent-2);opacity:.7;display:grid;place-items:center;width:16px;height:16px;border-radius:5px}
+.ctx-bar .pill .x:hover{opacity:1;background:rgba(123,97,255,.2)}
+.ctx-bar .pill svg{width:13px;height:13px}
+.composer{border:1px solid var(--line-2);border-radius:16px;background:var(--bg-2);transition:.18s;overflow:hidden}
+.composer:focus-within{border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-soft)}
+.composer textarea{width:100%;border:none;background:transparent;color:var(--text);resize:none;outline:none;
+  padding:14px 15px 4px;font-size:14.5px;line-height:1.5;max-height:160px;min-height:26px}
+.composer textarea::placeholder{color:var(--faint)}
+.composer-bar{display:flex;align-items:center;gap:8px;padding:8px 10px 9px}
+.mode-seg{display:flex;background:var(--bg-3);border:1px solid var(--line);border-radius:9px;padding:2px}
+.mode-seg button{padding:5px 12px;border-radius:7px;font-size:12px;font-weight:600;color:var(--muted);transition:.14s}
+.mode-seg button.on{background:var(--accent);color:#fff}
+.mode-seg button.on.edit{background:var(--bg-4);color:var(--accent-2)}
+.composer-bar .hint{font-size:11.5px;color:var(--faint);margin-left:4px}
+.send{margin-left:auto;width:38px;height:38px;border-radius:11px;display:grid;place-items:center;
+  background:linear-gradient(160deg,var(--accent),var(--accent-deep));color:#fff;transition:.15s;box-shadow:0 8px 18px -8px var(--accent-glow)}
+.send:hover{filter:brightness(1.1)}
+.send:disabled{opacity:.4;cursor:not-allowed;box-shadow:none;filter:none}
+
+/* ===================== WORKSPACE ===================== */
+.work-tabs{display:flex;align-items:center;gap:2px;padding:10px 14px 0;flex:0 0 auto;border-bottom:1px solid var(--line)}
+.tab{display:inline-flex;align-items:center;gap:8px;padding:10px 14px;font-size:13.5px;font-weight:500;color:var(--muted);
+  border-bottom:2px solid transparent;transition:.14s;position:relative;top:1px}
+.tab svg{width:15px;height:15px;opacity:.8}
+.tab:hover{color:var(--text)}
+.tab.on{color:var(--text);border-bottom-color:var(--accent)}
+.tab .count{font-size:10.5px;background:var(--bg-3);border:1px solid var(--line);padding:1px 6px;border-radius:999px;color:var(--muted)}
+.tab.on .count{color:var(--accent-2);border-color:rgba(123,97,255,.3)}
+.work-tabs .spacer{flex:1}
+.work-body{flex:1;min-height:0;overflow:hidden;display:flex}
+.panel{flex:1;min-width:0;overflow-y:auto;display:none}
+.panel.on{display:block}
+
+/* projects gallery */
+.gallery{padding:20px 22px}
+.gallery-head{display:flex;align-items:flex-end;gap:12px;margin-bottom:18px}
+.gallery-head h2{margin:0;font-size:19px;font-weight:600;letter-spacing:-.3px}
+.gallery-head p{margin:3px 0 0;font-size:13px;color:var(--muted)}
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:16px}
+.card{border:1px solid var(--line);border-radius:16px;overflow:hidden;background:var(--bg-2);transition:.18s;cursor:pointer;position:relative}
+.card:hover{border-color:var(--line-2);transform:translateY(-3px);box-shadow:var(--shadow)}
+.thumb{aspect-ratio:16/10;position:relative;overflow:hidden;background:var(--bg-3)}
+.thumb .ph{position:absolute;inset:0}
+.thumb .genre{position:absolute;top:9px;left:9px;font-size:10.5px;font-weight:600;letter-spacing:.3px;
+  padding:4px 9px;border-radius:999px;background:rgba(14,13,19,.7);backdrop-filter:blur(6px);color:var(--text);border:1px solid rgba(255,255,255,.08)}
+.thumb .play-badge{position:absolute;top:9px;right:9px;display:inline-flex;align-items:center;gap:5px;font-size:10.5px;font-weight:600;
+  padding:4px 8px;border-radius:999px;background:var(--pass-soft);color:var(--pass);border:1px solid rgba(58,210,154,.3);backdrop-filter:blur(6px)}
+.thumb .play-badge.draft{background:var(--work-soft);color:var(--work);border-color:rgba(255,181,71,.3)}
+.thumb .play-badge svg{width:11px;height:11px}
+.thumb .hover-play{position:absolute;inset:0;display:grid;place-items:center;background:rgba(14,13,19,.5);backdrop-filter:blur(2px);opacity:0;transition:.2s}
+.card:hover .hover-play{opacity:1}
+.thumb .hover-play .pbtn{width:52px;height:52px;border-radius:50%;background:rgba(255,255,255,.95);display:grid;place-items:center;
+  color:var(--accent-deep);box-shadow:0 10px 30px -8px rgba(0,0,0,.6);transform:scale(.85);transition:.2s}
+.card:hover .hover-play .pbtn{transform:scale(1)}
+.thumb .hover-play .pbtn svg{width:22px;height:22px;margin-left:2px}
+.card-meta{padding:13px 14px 14px}
+.card-meta .nm{font-size:14.5px;font-weight:600;letter-spacing:-.2px;display:flex;align-items:center;gap:7px}
+.card-meta .pr{font-size:12.5px;color:var(--muted);margin:4px 0 0;line-height:1.4;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;min-height:34px}
+.card-actions{display:flex;gap:6px;margin-top:12px}
+.card-actions .qa{flex:1;display:inline-flex;align-items:center;justify-content:center;gap:6px;height:32px;border-radius:9px;
+  border:1px solid var(--line);font-size:12px;font-weight:600;color:var(--muted);transition:.14s}
+.card-actions .qa:hover{color:var(--text);background:var(--bg-3);border-color:var(--line-2)}
+.card-actions .qa.main{color:var(--accent-2);border-color:rgba(123,97,255,.3);background:var(--accent-soft)}
+.card-actions .qa.main:hover{background:rgba(123,97,255,.2)}
+.card-actions .qa svg{width:13px;height:13px}
+/* new-project tile */
+.card.new-tile{border-style:dashed;display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:240px;color:var(--muted);gap:10px}
+.card.new-tile:hover{color:var(--accent-2);border-color:var(--accent)}
+.card.new-tile .plus{width:46px;height:46px;border-radius:14px;background:var(--accent-soft);display:grid;place-items:center;border:1px solid rgba(123,97,255,.25)}
+.card.new-tile .plus svg{width:22px;height:22px}
+
+/* PLAY panel */
+.play-wrap{height:100%;display:flex;flex-direction:column;padding:18px 22px 22px}
+.play-top{display:flex;align-items:center;gap:12px;margin-bottom:14px;flex:0 0 auto}
+.play-top .now{display:inline-flex;align-items:center;gap:8px;font-size:12px;font-weight:600;color:var(--pass);
+  padding:6px 12px;border-radius:999px;background:var(--pass-soft);border:1px solid rgba(58,210,154,.25)}
+.play-top .now .eq{display:inline-flex;gap:2px;align-items:flex-end;height:11px}
+.play-top .now .eq i{width:2.5px;background:var(--pass);border-radius:2px;animation:eq 1s infinite ease-in-out}
+.play-top .now .eq i:nth-child(2){animation-delay:.2s}
+.play-top .now .eq i:nth-child(3){animation-delay:.4s}
+.play-top .title{font-size:16px;font-weight:600}
+.play-top .title small{color:var(--faint);font-weight:400;margin-left:8px;font-size:12.5px}
+.play-stage{flex:1;min-height:0;border-radius:18px;border:1px solid var(--line-2);position:relative;overflow:hidden;
+  background:radial-gradient(120% 120% at 50% 0%,#1a2540,#0c1020 70%);
+  box-shadow:inset 0 0 80px rgba(0,0,0,.5),var(--shadow);display:grid;place-items:center}
+.play-stage canvas{display:block;width:100%;height:100%;image-rendering:auto}
+.play-overlay{position:absolute;inset:0;display:grid;place-items:center;background:rgba(8,7,12,.6);backdrop-filter:blur(3px);transition:.3s;z-index:5}
+.play-overlay.hidden{opacity:0;pointer-events:none}
+.poster{text-align:center;display:flex;flex-direction:column;align-items:center;gap:14px}
+.poster .big-play{width:78px;height:78px;border-radius:50%;background:linear-gradient(160deg,var(--accent),var(--accent-deep));
+  display:grid;place-items:center;box-shadow:0 16px 44px -12px var(--accent-glow);transition:.2s}
+.poster .big-play:hover{transform:scale(1.06)}
+.poster .big-play svg{width:32px;height:32px;color:#fff;margin-left:4px}
+.poster .pt{font-size:15px;font-weight:600}
+.poster .ps{font-size:12.5px;color:var(--muted);margin-top:-6px}
+.exporting{display:flex;flex-direction:column;align-items:center;gap:14px;color:var(--muted)}
+.exporting .bar{width:180px;height:5px;border-radius:999px;background:var(--bg-3);overflow:hidden;border:1px solid var(--line)}
+.exporting .bar i{display:block;height:100%;width:30%;background:linear-gradient(90deg,var(--accent),var(--accent-2));border-radius:999px;animation:load 1.3s infinite}
+.play-hud{position:absolute;left:14px;bottom:14px;display:flex;gap:8px;z-index:6}
+.play-hud .score{font-family:var(--mono);font-size:13px;font-weight:600;color:var(--text);background:rgba(8,7,12,.6);
+  padding:6px 12px;border-radius:9px;border:1px solid rgba(255,255,255,.08);backdrop-filter:blur(6px)}
+.play-hud .score b{color:var(--work)}
+.play-controls{position:absolute;right:14px;bottom:14px;display:flex;gap:8px;z-index:6;align-items:center}
+.kbd{font-family:var(--mono);font-size:11px;font-weight:600;color:var(--muted);background:rgba(8,7,12,.6);
+  padding:6px 10px;border-radius:9px;border:1px solid rgba(255,255,255,.08);backdrop-filter:blur(6px);display:inline-flex;gap:6px;align-items:center}
+.kbd .k{display:inline-block;padding:1px 6px;border-radius:5px;background:var(--bg-4);border:1px solid var(--line-2);color:var(--text);font-size:10.5px}
+
+/* FILES panel */
+.files-wrap{height:100%;display:flex;min-height:0}
+.tree{flex:0 0 230px;border-right:1px solid var(--line);overflow-y:auto;padding:12px 8px;background:var(--bg-2)}
+.tree .proj{font-size:11px;text-transform:uppercase;letter-spacing:.5px;color:var(--faint);font-weight:600;padding:4px 10px 10px}
+.tnode{display:flex;align-items:center;gap:8px;padding:6px 10px;border-radius:8px;font-size:13px;color:var(--muted);cursor:pointer;transition:.12s;font-family:var(--mono);font-size:12.5px}
+.tnode:hover{background:var(--bg-3);color:var(--text)}
+.tnode.on{background:var(--accent-soft);color:var(--text)}
+.tnode svg{width:14px;height:14px;flex:0 0 auto}
+.tnode.dir{color:var(--text);font-family:var(--ui);font-size:13px;font-weight:500}
+.tnode .ext{margin-left:auto;font-size:10px;color:var(--faint)}
+.code-view{flex:1;min-width:0;display:flex;flex-direction:column}
+.code-head{display:flex;align-items:center;gap:10px;padding:11px 16px;border-bottom:1px solid var(--line);flex:0 0 auto}
+.code-head .fp{font-family:var(--mono);font-size:12.5px;color:var(--text)}
+.code-head .sz{font-size:11.5px;color:var(--faint);margin-left:auto}
+.code-body{flex:1;overflow:auto;min-height:0}
+pre.code{margin:0;padding:16px 18px 30px;font-family:var(--mono);font-size:12.5px;line-height:1.7;tab-size:4}
+pre.code .ln{display:inline-block;width:30px;color:var(--faint);user-select:none;text-align:right;margin-right:18px}
+.tok-kw{color:#c792ff}.tok-str{color:#9ee493}.tok-com{color:var(--faint);font-style:italic}
+.tok-num{color:#ffb547}.tok-fn{color:#7bb6ff}.tok-type{color:#5ad7d0}.tok-prop{color:#ff9ec4}
+
+/* generic panels (assets, skills) */
+.gen{padding:20px 22px}
+.gen h2{margin:0 0 3px;font-size:19px;font-weight:600;letter-spacing:-.3px}
+.gen p.lead{margin:0 0 18px;font-size:13px;color:var(--muted)}
+
+/* assets */
+.asset-gen{border:1px solid var(--line);border-radius:16px;background:linear-gradient(180deg,var(--bg-2),rgba(21,19,29,.4));padding:16px;margin-bottom:20px}
+.asset-gen .row{display:flex;gap:10px}
+.asset-gen input{flex:1;height:42px;border-radius:11px;border:1px solid var(--line-2);background:var(--bg);color:var(--text);
+  padding:0 14px;font-size:13.5px;outline:none;transition:.15s}
+.asset-gen input:focus{border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-soft)}
+.asset-gen .kinds{display:flex;gap:7px;margin-top:11px}
+.asset-gen .kinds button{padding:6px 12px;border-radius:8px;border:1px solid var(--line);font-size:12px;font-weight:600;color:var(--muted);transition:.14s}
+.asset-gen .kinds button.on{color:var(--accent-2);border-color:rgba(123,97,255,.35);background:var(--accent-soft)}
+.asset-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:14px}
+.asset{border:1px solid var(--line);border-radius:14px;overflow:hidden;background:var(--bg-2)}
+.asset .pv{aspect-ratio:1;position:relative;background:var(--bg-3);display:grid;place-items:center}
+.asset .pv .shimmer{position:absolute;inset:0;background:linear-gradient(110deg,transparent 30%,rgba(123,97,255,.18) 50%,transparent 70%);
+  background-size:220% 100%;animation:shimmer 1.4s infinite}
+.asset .am{padding:9px 11px}
+.asset .am .an{font-size:12.5px;font-weight:600}
+.asset .am .ad{font-size:11px;color:var(--faint);margin-top:2px;font-family:var(--mono)}
+.asset .applied{position:absolute;bottom:7px;right:7px;display:inline-flex;align-items:center;gap:4px;font-size:10px;font-weight:600;
+  background:var(--pass-soft);color:var(--pass);padding:3px 7px;border-radius:999px;border:1px solid rgba(58,210,154,.3)}
+.asset .applied svg{width:10px;height:10px}
+
+/* skills */
+.skill-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:14px}
+.skill{border:1px solid var(--line);border-radius:15px;background:var(--bg-2);padding:15px;transition:.16s;display:flex;flex-direction:column;gap:10px}
+.skill:hover{border-color:var(--line-2)}
+.skill .sh{display:flex;align-items:center;gap:11px}
+.skill .si{width:40px;height:40px;border-radius:11px;display:grid;place-items:center;font-size:20px;flex:0 0 auto;
+  background:var(--accent-soft);border:1px solid rgba(123,97,255,.2)}
+.skill .snm{font-size:14px;font-weight:600;display:flex;align-items:center;gap:7px;flex-wrap:wrap}
+.skill .src{font-size:11px;color:var(--faint);margin-top:2px;font-family:var(--mono)}
+.skill .sd{font-size:12.5px;color:var(--muted);line-height:1.5;flex:1}
+.skill .sf{display:flex;align-items:center;gap:8px}
+.badge-trust{display:inline-flex;align-items:center;gap:4px;font-size:10px;font-weight:600;padding:2px 7px;border-radius:999px;
+  background:var(--pass-soft);color:var(--pass);border:1px solid rgba(58,210,154,.25)}
+.badge-trust.un{background:var(--work-soft);color:var(--work);border-color:rgba(255,181,71,.25)}
+.badge-trust svg{width:10px;height:10px}
+.badge-builtin{font-size:10px;font-weight:600;padding:2px 7px;border-radius:999px;background:var(--bg-3);color:var(--muted);border:1px solid var(--line)}
+.installed{font-size:12px;color:var(--pass);font-weight:600;display:inline-flex;align-items:center;gap:6px;margin-left:auto}
+
+/* striped placeholder helper */
+.stripe-ph{width:100%;height:100%;position:relative}
+
+/* ===================== animations ===================== */
+@keyframes rise{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:none}}
+@keyframes slidein{from{opacity:0;transform:translateX(-8px)}to{opacity:1;transform:none}}
+@keyframes fade{from{opacity:0}to{opacity:1}}
+@keyframes spin{to{transform:rotate(360deg)}}
+@keyframes pulse{0%,100%{opacity:1;transform:scale(1)}50%{opacity:.35;transform:scale(.8)}}
+@keyframes eq{0%,100%{height:3px}50%{height:11px}}
+@keyframes shimmer{to{background-position:-220% 0}}
+@keyframes load{0%{transform:translateX(-100%)}100%{transform:translateX(380%)}}
+@keyframes float{0%,100%{transform:translateY(0)}50%{transform:translateY(-5px)}}
+
+/* ===================== responsive ===================== */
+@media(max-width:920px){
+  .pane-chat{max-width:none;min-width:0;flex:1;border-right:none;display:none}
+  .pane-work{display:none}
+  .body.show-chat .pane-chat{display:flex}
+  .body.show-work .pane-work{display:flex}
+  .mobile-switch{display:flex;gap:3px;background:var(--bg-2);border:1px solid var(--line);border-radius:11px;padding:3px}
+  .mobile-switch button{padding:7px 15px;border-radius:8px;font-size:13px;font-weight:600;color:var(--muted)}
+  .mobile-switch button.on{background:var(--accent);color:#fff}
+  .brand .name{font-size:16px}
+  .chip.where{display:none}
+}
+@media(prefers-reduced-motion:reduce){
+  *{animation-duration:.001s!important;animation-iteration-count:1!important;transition-duration:.05s!important}
+}
+
+/* ===================== live additions ===================== */
+.chip.where{cursor:pointer;transition:.15s}
+.chip.where:hover{border-color:var(--line-2);background:var(--bg-3);color:var(--text)}
+.play-stage iframe{display:block;width:100%;height:100%;border:0;background:#0c1020}
+.menu-wrap{position:relative}
+.dropdown{position:absolute;top:calc(100% + 6px);right:0;z-index:40;min-width:200px;background:var(--bg-2);
+  border:1px solid var(--line-2);border-radius:12px;box-shadow:var(--shadow);padding:6px;display:none}
+.dropdown.on{display:block;animation:rise .18s ease}
+.dropdown button{display:flex;align-items:center;gap:9px;width:100%;text-align:left;padding:9px 11px;border-radius:8px;
+  font-size:13px;color:var(--text);transition:.12s}
+.dropdown button:hover{background:var(--bg-3)}
+.dropdown button small{color:var(--faint);margin-left:auto;font-size:11px}
+.dropdown .dh{font-size:10.5px;text-transform:uppercase;letter-spacing:.5px;color:var(--faint);padding:6px 11px 4px;font-weight:600}
+.toast-wrap{position:fixed;bottom:18px;left:50%;transform:translateX(-50%);z-index:80;display:flex;flex-direction:column;gap:8px;align-items:center}
+.toast{display:flex;align-items:center;gap:10px;background:var(--bg-3);border:1px solid var(--line-2);border-radius:12px;
+  padding:11px 16px;font-size:13px;color:var(--text);box-shadow:var(--shadow);animation:rise .25s ease;max-width:90vw}
+.toast.err{border-color:rgba(255,107,118,.4);color:#ffb4ba}
+.toast.ok{border-color:rgba(58,210,154,.4)}
+.toast .spin{width:15px;height:15px}
+.modal-back{position:fixed;inset:0;z-index:60;background:rgba(8,7,12,.66);backdrop-filter:blur(4px);
+  display:none;place-items:center;padding:24px}
+.modal-back.on{display:grid;animation:fade .18s ease}
+.modal{width:min(680px,96vw);max-height:88vh;display:flex;flex-direction:column;background:var(--bg-2);
+  border:1px solid var(--line-2);border-radius:20px;box-shadow:var(--shadow);overflow:hidden;animation:rise .22s ease}
+.modal-head{display:flex;align-items:center;gap:11px;padding:16px 18px;border-bottom:1px solid var(--line)}
+.modal-head h3{margin:0;font-size:16px;font-weight:600}
+.modal-head p{margin:2px 0 0;font-size:12px;color:var(--muted)}
+.modal-head .x{margin-left:auto;width:32px;height:32px;border-radius:9px;display:grid;place-items:center;color:var(--muted);border:1px solid var(--line);font-size:13px}
+.modal-head .x:hover{color:var(--text);background:var(--bg-3)}
+.modal-body{padding:16px 18px;overflow-y:auto}
+.prov-seg{display:flex;gap:4px;background:var(--bg-3);border:1px solid var(--line);border-radius:11px;padding:3px;margin-bottom:16px;flex-wrap:wrap}
+.prov-seg button{padding:7px 13px;border-radius:8px;font-size:12.5px;font-weight:600;color:var(--muted);transition:.14s;display:inline-flex;align-items:center;gap:7px}
+.prov-seg button.on{background:var(--accent);color:#fff}
+.prov-seg button .pdot{width:7px;height:7px;border-radius:50%;background:var(--faint)}
+.prov-seg button .pdot.up{background:var(--pass);box-shadow:0 0 8px var(--pass)}
+.field{margin-bottom:14px}
+.field label{display:block;font-size:12px;font-weight:600;color:var(--muted);margin-bottom:6px}
+.field label a{color:var(--accent-2);font-weight:500;float:right;font-size:11.5px}
+.field input{width:100%;height:42px;border-radius:11px;border:1px solid var(--line-2);background:var(--bg);color:var(--text);
+  padding:0 13px;font-size:13.5px;outline:none;transition:.15s;font-family:var(--mono)}
+.field input:focus{border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-soft)}
+.model-list{display:flex;flex-direction:column;gap:7px;max-height:230px;overflow-y:auto;margin-bottom:8px}
+.model-row{display:flex;align-items:center;gap:10px;padding:11px 13px;border-radius:11px;border:1px solid var(--line);
+  background:var(--bg);cursor:pointer;transition:.13s}
+.model-row:hover{border-color:var(--line-2);background:var(--bg-3)}
+.model-row.on{border-color:var(--accent);background:var(--accent-soft)}
+.model-row .mn{font-size:13px;font-family:var(--mono);color:var(--text)}
+.model-row .mtag{font-size:10.5px;color:var(--faint);margin-left:auto}
+.model-row .pull{margin-left:auto;display:inline-flex;align-items:center;gap:6px;font-size:11.5px;font-weight:600;
+  color:var(--accent-2);border:1px solid rgba(123,97,255,.3);padding:5px 10px;border-radius:8px;background:var(--accent-soft)}
+.model-row .pull svg{width:13px;height:13px}
+.model-row .pull:hover{background:rgba(123,97,255,.2)}
+.model-row .installed-tag{margin-left:auto;font-size:10.5px;color:var(--pass);font-weight:600;display:inline-flex;align-items:center;gap:5px}
+.pull-bar{height:5px;border-radius:999px;background:var(--bg-3);overflow:hidden;border:1px solid var(--line);margin-top:8px;width:130px}
+.pull-bar i{display:block;height:100%;background:linear-gradient(90deg,var(--accent),var(--accent-2));border-radius:999px;width:0;transition:width .3s}
+.sub-h{font-size:11px;text-transform:uppercase;letter-spacing:.5px;color:var(--faint);font-weight:600;margin:16px 0 9px}
+.modal-foot{display:flex;align-items:center;gap:10px;padding:14px 18px;border-top:1px solid var(--line)}
+.modal-foot .note{font-size:12px;color:var(--muted)}
+.modal-foot .sp{flex:1}
+.empty-hint{font-size:12.5px;color:var(--muted);padding:10px 0;line-height:1.5}
 </style>
 </head>
 <body>
-<header>
-  <div class="logo">🎮 <span>Play</span>smith</div>
-  <div class="badge" id="cfg">connecting…</div>
-</header>
-<main>
-  <section class="chat">
-    <div class="stream" id="stream">
-      <div class="msg sys">Describe a game and I'll build a real, editable Godot project — and verify it actually runs. Try <i>"a 2D platformer where a cat collects fish and avoids spikes"</i>.</div>
+<div class="app">
+  <!-- TOPBAR -->
+  <header class="topbar">
+    <div class="brand">
+      <svg class="mark" viewBox="0 0 32 32" fill="none">
+        <rect x="1" y="1" width="30" height="30" rx="9" fill="url(#g1)"/>
+        <path d="M13 10.5L22 16L13 21.5V10.5Z" fill="#fff"/>
+        <circle cx="10.5" cy="10.5" r="1.7" fill="#fff" opacity=".9"/>
+        <defs><linearGradient id="g1" x1="2" y1="2" x2="30" y2="30">
+          <stop stop-color="#a48bff"/><stop offset="1" stop-color="#5b3df0"/>
+        </linearGradient></defs>
+      </svg>
+      <div class="name">Play<b>smith</b></div>
     </div>
-    <div class="composer">
-      <textarea id="prompt" placeholder="Describe a game to build, or a change to make…"></textarea>
-      <div class="row">
-        <select id="mode" title="Build a new game, or edit the selected project">
-          <option value="new">New game</option>
-          <option value="edit">Edit selected</option>
-        </select>
-        <span class="hint" id="status">idle</span>
-        <button class="primary" id="send" style="margin-left:auto">Build ▸</button>
+    <div class="mobile-switch" id="mobileSwitch">
+      <button data-m="chat" class="on">Chat</button>
+      <button data-m="work">Workspace</button>
+    </div>
+    <div class="spacer"></div>
+    <div class="chip where" id="cfgChip" title="Generation config">
+      <span class="dot"></span><b id="cfgModel">gpt-4o</b> · <span id="cfgWhere">local</span>
+    </div>
+    <button class="icon-btn" title="Models &amp; settings" id="settingsBtn">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1Z"/></svg>
+    </button>
+    <button class="icon-btn" title="Workspace folder" id="folderBtn">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V7Z"/></svg>
+    </button>
+  </header>
+
+  <div class="body show-chat" id="body">
+    <!-- ===================== CHAT PANE ===================== -->
+    <section class="pane-chat">
+      <div class="chat-head">
+        <span class="ttl" id="chatTitle">Studio</span>
+        <button class="clear" id="clearBtn" style="display:none">Clear</button>
+      </div>
+      <div class="scroll" id="chatScroll">
+        <!-- onboarding injected here, or messages -->
+      </div>
+      <div class="composer-wrap">
+        <div class="ctx-bar" id="ctxBar" style="display:none"></div>
+        <div class="composer">
+          <textarea id="composer" rows="1" placeholder="Describe a game to build…"></textarea>
+          <div class="composer-bar">
+            <div class="mode-seg" id="modeSeg">
+              <button data-mode="new" class="on">New</button>
+              <button data-mode="edit">Edit</button>
+            </div>
+            <span class="hint" id="composerHint">Build a brand-new game</span>
+            <button class="send" id="sendBtn" title="Send (↵)">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12h14M13 6l6 6-6 6"/></svg>
+            </button>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===================== WORKSPACE ===================== -->
+    <section class="pane-work">
+      <div class="work-tabs" id="workTabs">
+        <button class="tab on" data-tab="projects">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></svg>
+          Projects <span class="count" id="projCount">0</span>
+        </button>
+        <button class="tab" data-tab="play">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M8 5.5v13l11-6.5-11-6.5Z"/></svg>
+          Play
+        </button>
+        <button class="tab" data-tab="files">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 5a2 2 0 0 1 2-2h6l2 2h6a0 0 0 0 1 0 0v0M4 5v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2H4Z"/></svg>
+          Files
+        </button>
+        <button class="tab" data-tab="assets">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3" y="3" width="18" height="18" rx="2.5"/><circle cx="8.5" cy="8.5" r="1.8"/><path d="M21 15l-5-5L5 21"/></svg>
+          Assets
+        </button>
+        <button class="tab" data-tab="skills">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 3l2.5 5.5L20 9l-4 4 1 6-5-3-5 3 1-6-4-4 5.5-.5L12 3Z"/></svg>
+          Skills <span class="count" id="skillCount">0</span>
+        </button>
+      </div>
+      <div class="work-body">
+        <!-- PROJECTS -->
+        <div class="panel on" data-panel="projects">
+          <div class="gallery">
+            <div class="gallery-head">
+              <div>
+                <h2>Your games</h2>
+                <p id="galleryP">Built locally, owned by you — real Godot projects.</p>
+              </div>
+            </div>
+            <div class="grid" id="projGrid"></div>
+          </div>
+        </div>
+        <!-- PLAY -->
+        <div class="panel" data-panel="play">
+          <div class="play-wrap">
+            <div class="play-top">
+              <span class="now" id="nowPlaying" style="display:none">
+                <span class="eq"><i style="height:5px"></i><i style="height:9px"></i><i style="height:6px"></i></span>
+                Now playing
+              </span>
+              <div class="title" id="playTitle">No game selected</div>
+              <div style="flex:1"></div>
+              <div class="menu-wrap">
+                <button class="btn sm" id="dlBtn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 3v12M7 11l5 5 5-5M5 21h14"/></svg>Download</button>
+                <div class="dropdown" id="dlMenu">
+                  <div class="dh">Real desktop game</div>
+                  <button data-target="linux">Linux build<small>.zip</small></button>
+                  <button data-target="windows">Windows build<small>.zip</small></button>
+                  <button data-target="mac">macOS build<small>.zip</small></button>
+                </div>
+              </div>
+              <button class="btn sm" id="playFilesBtn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 5a2 2 0 0 1 2-2h6l2 2h6M4 5v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2H4Z"/></svg>View code</button>
+              <button class="btn sm" id="restartBtn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 12a8 8 0 1 1 2.3 5.6M4 18v-4h4"/></svg>Restart</button>
+            </div>
+            <div class="play-stage" id="playStage">
+              <iframe id="gameFrame" title="game" allow="autoplay; fullscreen; gamepad" sandbox="allow-scripts allow-same-origin allow-pointer-lock"></iframe>
+              <div class="play-overlay" id="playOverlay">
+                <div class="poster" id="playPoster">
+                  <button class="big-play" id="bigPlay"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7L8 5Z"/></svg></button>
+                  <div>
+                    <div class="pt" id="posterTitle">Pick a game to play</div>
+                    <div class="ps" id="posterSub">Exports to HTML5 and runs right here</div>
+                  </div>
+                </div>
+              </div>
+              <div class="play-hud" id="playHud" style="display:none">
+                <div class="score">Coins <b id="coinScore">0</b> / <span id="coinTotal">6</span></div>
+              </div>
+              <div class="play-controls" id="playControls" style="display:none">
+                <span class="kbd"><span class="k">←</span><span class="k">→</span> move</span>
+                <span class="kbd"><span class="k">space</span> jump</span>
+              </div>
+            </div>
+          </div>
+        </div>
+        <!-- FILES -->
+        <div class="panel" data-panel="files">
+          <div class="files-wrap">
+            <div class="tree" id="fileTree"></div>
+            <div class="code-view">
+              <div class="code-head">
+                <span class="fp" id="codeFp">—</span>
+                <span class="sz" id="codeSz"></span>
+              </div>
+              <div class="code-body"><pre class="code" id="codeBody"></pre></div>
+            </div>
+          </div>
+        </div>
+        <!-- ASSETS -->
+        <div class="panel" data-panel="assets">
+          <div class="gen">
+            <h2>Assets &amp; Art</h2>
+            <p class="lead">Generate sprites and backgrounds with a prompt, then apply them to the active game.</p>
+            <div class="asset-gen">
+              <div class="row">
+                <input id="assetPrompt" placeholder="e.g. a cute ninja frog sprite, 32×32, side view" />
+                <button class="btn primary" id="genAssetBtn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 3v4M3 5h4M6 17v4M4 19h4M13 3l2.5 6.5L22 12l-6.5 2.5L13 21l-2.5-6.5L4 12l6.5-2.5L13 3Z"/></svg>Generate</button>
+              </div>
+              <div class="kinds" id="assetKinds">
+                <button data-k="sprite" class="on">Sprite</button>
+                <button data-k="background">Background</button>
+                <button data-k="tileset">Tileset</button>
+              </div>
+            </div>
+            <div class="asset-grid" id="assetGrid"></div>
+          </div>
+        </div>
+        <!-- SKILLS -->
+        <div class="panel" data-panel="skills">
+          <div class="gen">
+            <h2>Skills</h2>
+            <p class="lead">Game genres the agent can build with. Install community skills or use the trusted built-ins.</p>
+            <div class="skill-grid" id="skillGrid"></div>
+          </div>
+        </div>
+      </div>
+    </section>
+  </div>
+</div>
+
+  <!-- ===================== SETTINGS / MODELS MODAL ===================== -->
+  <div class="modal-back" id="settingsBack">
+    <div class="modal">
+      <div class="modal-head">
+        <div>
+          <h3>Models &amp; Providers</h3>
+          <p>Pick a model, paste a key, or download one locally — saved for next time.</p>
+        </div>
+        <button class="x" id="settingsClose" title="Close">✕</button>
+      </div>
+      <div class="modal-body" id="settingsBody"></div>
+      <div class="modal-foot">
+        <span class="note" id="settingsNote"></span>
+        <span class="sp"></span>
+        <button class="btn" id="settingsCancel">Cancel</button>
+        <button class="btn primary" id="settingsSave">Use this model</button>
       </div>
     </div>
-  </section>
-  <section class="panel">
-    <div class="tabs">
-      <button data-tab="projects" class="active">Projects</button>
-      <button data-tab="files">Files</button>
-      <button data-tab="play">Play</button>
-      <button data-tab="skills">Skills</button>
-    </div>
-    <div class="tabbody" id="tabbody"></div>
-  </section>
-</main>
+  </div>
+  <div class="toast-wrap" id="toastWrap"></div>
+
 <script>
-const $ = (s)=>document.querySelector(s);
-const stream = $("#stream"), tabbody = $("#tabbody");
-let current = null;        // selected project name
-let activeTab = "projects";
-let busy = false;
+/* ============================================================
+   PLAYSMITH — live web app (wired to the FastAPI backend)
+   REST: /api/config, /api/skills, /api/projects, .../files,
+         /api/models (+ POST /api/config), .../export, .../asset
+   WS:   /ws (build stream), /ws/pull (model download)
+   ============================================================ */
+const $ = s=>document.querySelector(s);
+const $$ = s=>[...document.querySelectorAll(s)];
 
-function scroll(){ stream.scrollTop = stream.scrollHeight; }
-function add(el){ stream.appendChild(el); scroll(); return el; }
-function elem(cls, html){ const d=document.createElement("div"); d.className=cls; if(html!=null) d.innerHTML=html; return d; }
-function esc(s){ return (s??"").toString().replace(/[&<>]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;"}[c])); }
-function shortArgs(a){ return Object.entries(a||{}).map(([k,v])=>`${k}=${esc((""+v).slice(0,42))}`).join(", "); }
+const I = {
+  read:'<path d="M4 5a2 2 0 0 1 2-2h6l2 2h6M4 5v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2H4Z"/>',
+  write:'<path d="M12 20h9M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4 12.5-12.5Z"/>',
+  patch:'<path d="M9 3v6l-6 6 3 3 6-6h6M14 9l3-3-3-3"/>',
+  list:'<path d="M8 6h13M8 12h13M8 18h13M3 6h.01M3 12h.01M3 18h.01"/>',
+  run:'<path d="M8 5v14l11-7L8 5Z"/>',
+  verify:'<path d="M9 12l2 2 4-4M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z"/>',
+  screenshot:'<rect x="3" y="6" width="18" height="14" rx="2"/><circle cx="12" cy="13" r="3.5"/><path d="M8 6l1.5-2.5h5L16 6"/>',
+  asset:'<rect x="3" y="3" width="18" height="18" rx="2.5"/><path d="M3 15l5-5 4 4 3-3 6 6"/><circle cx="8.5" cy="8.5" r="1.5"/>',
+  done:'<path d="M9 12l2 2 4-4M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z"/>',
+  spark:'<path d="M12 3l2 6 6 2-6 2-2 6-2-6-6-2 6-2 2-6Z"/>',
+  route:'<path d="M6 3v6a4 4 0 0 0 4 4h8M18 9l3 4-3 4"/>',
+  file:'<path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8l-5-5Z"/><path d="M14 3v5h5"/>',
+  code:'<path d="M16 18l4-6-4-6M8 6l-4 6 4 6"/>',
+  folder:'<path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V7Z"/>',
+  download:'<path d="M12 3v12M7 11l5 5 5-5M5 21h14"/>',
+};
+function svg(p,s){return '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="'+(s||1.8)+'" stroke-linecap="round" stroke-linejoin="round">'+p+'</svg>';}
+const toolMeta = {
+  read_file:{i:I.read,v:'Read'}, write_file:{i:I.write,v:'Wrote'},
+  apply_patch:{i:I.patch,v:'Patched'}, list_dir:{i:I.list,v:'Listed'},
+  run_engine:{i:I.run,v:'Ran engine'}, verify_game:{i:I.verify,v:'Verified'},
+  screenshot:{i:I.screenshot,v:'Captured'}, generate_asset:{i:I.asset,v:'Generated'},
+  list_assets:{i:I.asset,v:'Listed assets'}, task_complete:{i:I.done,v:'Done'}
+};
+function escapeHtml(s){return String(s==null?'':s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));}
 
-// ---- WebSocket ----
-let ws, turn=null;
-function connect(){
-  ws = new WebSocket((location.protocol==="https:"?"wss":"ws")+"://"+location.host+"/ws");
-  ws.onmessage = (e)=>onEvent(JSON.parse(e.data));
-  ws.onclose = ()=>{ setTimeout(connect, 1200); };
-}
-function onEvent(ev){
-  if(ev.type==="start"){
-    add(elem("msg user", esc(ev.prompt)));
-    turn = add(elem("turn", `<div class="phase">● working…</div>`));
-  } else if(ev.type==="phase"){
-    if(turn) turn.appendChild(elem("phase", "● "+esc(ev.text)));
-  } else if(ev.type==="tool"){
-    if(turn) turn.appendChild(elem("tool", "→ "+esc(ev.name)+"("+shortArgs(ev.args)+")"));
-  } else if(ev.type==="observe"){
-    const first=(ev.text||"").trim().split("\n")[0]||"";
-    if(turn) turn.appendChild(elem("obs", esc(first.slice(0,200))));
-  } else if(ev.type==="error"){
-    if(turn) turn.appendChild(elem("card err", "⚠ "+esc(ev.text)));
-    finish();
-  } else if(ev.type==="done"){
-    const ok = ev.runs_clean;
-    const chips = Object.entries(ev.assertions||{}).map(([k,v])=>`<span class="chip ${v?"pass":"fail"}">${k}</span>`).join("");
-    const card = elem("card "+(ok?"ok":"warn"));
-    card.innerHTML = `<h4>${ok?"✓ The game runs and all checks pass":"⚠ Built with some checks failing"}</h4>`
-      + (ev.summary?`<div class="hint">${esc(ev.summary)}</div>`:"")
-      + `<div class="chips">${chips}</div>`
-      + `<div style="margin-top:8px"><button onclick="openProject('${esc(ev.project)}')">Open in panel ▸</button></div>`;
-    if(turn) turn.appendChild(card);
-    finish(); loadProjects();
-  }
-  scroll();
-}
-function setBusy(b){ busy=b; $("#send").disabled=b; $("#status").textContent = b?"building…":"idle"; }
-function finish(){ setBusy(false); turn=null; }
+/* ---- API helpers ---- */
+async function getJSON(path){const r=await fetch(path);return r.json();}
+async function postJSON(path,body){const r=await fetch(path,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body||{})});return r.json();}
+function wsURL(path){return (location.protocol==='https:'?'wss':'ws')+'://'+location.host+path;}
 
-function send(){
-  const prompt = $("#prompt").value.trim();
-  const action = $("#mode").value;
-  if(!prompt || busy) return;
-  if(action==="edit" && !current){ alert("Select a project in the Projects tab first."); return; }
-  ws.send(JSON.stringify({action, prompt, project: current}));
-  $("#prompt").value=""; setBusy(true);
+/* striped placeholder thumbnail (fallback when a game has no art yet) */
+const stripe=(h1,h2,label)=>`<div class="stripe-ph"><svg width="100%" height="100%" viewBox="0 0 320 200" preserveAspectRatio="xMidYMid slice">
+  <defs><pattern id="p${label.replace(/\W/g,'')}" width="16" height="16" patternTransform="rotate(45)" patternUnits="userSpaceOnUse">
+  <rect width="16" height="16" fill="${h1}"/><rect width="8" height="16" fill="${h2}"/></pattern></defs>
+  <rect width="320" height="200" fill="url(#p${label.replace(/\W/g,'')})"/>
+  <text x="160" y="104" font-family="JetBrains Mono,monospace" font-size="11" fill="rgba(255,255,255,.5)" text-anchor="middle">${escapeHtml(label)}</text></svg></div>`;
+const GENRE_C={Platformer:['#1b3a2e','#16302a'],Runner:['#2a1b3a','#241630'],Shooter:['#1b243a','#161e30'],
+  Roguelike:['#3a2a1b','#302416'],Puzzle:['#1b343a','#163030'],Racing:['#3a1b24','#30161e'],Game:['#221e30','#1b1827']};
+function thumbHTML(p){
+  if(p.has_thumb) return `<img class="ph" src="/api/projects/${encodeURIComponent(p.name)}/thumb" style="width:100%;height:100%;object-fit:cover" alt="">`;
+  const c=GENRE_C[p.genre]||GENRE_C.Game; return stripe(c[0],c[1],(p.genre||'game').toLowerCase());
 }
-$("#send").onclick = send;
-$("#prompt").addEventListener("keydown", e=>{ if(e.key==="Enter" && (e.metaKey||e.ctrlKey)) send(); });
+function slug(s){return String(s).toLowerCase().replace(/[^a-z0-9]+/g,'-').replace(/^-|-$/g,'').split('-').slice(0,4).join('-')||'game';}
 
-// ---- Panel tabs ----
-document.querySelectorAll(".tabs button").forEach(b=>b.onclick=()=>{
-  document.querySelectorAll(".tabs button").forEach(x=>x.classList.remove("active"));
-  b.classList.add("active"); activeTab=b.dataset.tab; renderTab();
-});
-function renderTab(){
-  if(activeTab==="projects") loadProjects();
-  else if(activeTab==="files") loadFiles();
-  else if(activeTab==="play") renderPlay();
-  else if(activeTab==="skills") loadSkills();
+/* ============================================================ STATE */
+const S={mode:'new',editTarget:null,building:false,hasConversation:false,
+  config:{},skills:[],projects:[],filesCache:{},activeProject:null,activeFile:null,
+  assetKind:'sprite',pendingAsset:false,playing:false,buildSock:null,curBuild:null};
+
+/* ============================================================ INIT */
+function init(){
+  wireComposer();wireTabs();wirePlay();wireAssets();wireMobile();wireSettings();
+  renderOnboarding();
+  loadConfig();loadSkills();loadProjects();
 }
-async function loadProjects(){
-  const list = await (await fetch("/api/projects")).json();
-  if(activeTab!=="projects") return;
-  if(!list.length){ tabbody.innerHTML=`<div class="empty">No games yet. Build one on the left.</div>`; return; }
-  const wrap = elem("plist");
-  list.forEach(p=>{
-    const it = elem("item");
-    it.innerHTML = `<b>${esc(p.name)}</b><div class="meta">${esc(p.skill||"")} ${p.has_build?"· built":""}</div>`;
-    it.onclick=()=>openProject(p.name);
-    wrap.appendChild(it);
-  });
-  tabbody.innerHTML=""; tabbody.appendChild(wrap);
-}
-function openProject(name){ current=name; gotoTab("files"); }
-function gotoTab(t){ document.querySelectorAll(".tabs button").forEach(x=>x.classList.toggle("active", x.dataset.tab===t)); activeTab=t; renderTab(); }
-async function loadFiles(){
-  if(!current){ tabbody.innerHTML=`<div class="empty">Select a project first.</div>`; return; }
-  const data = await (await fetch(`/api/projects/${current}/files`)).json();
-  const box = elem("files");
-  const tree = elem("tree"); const code = document.createElement("pre"); code.className="code"; code.textContent="Select a file…";
-  data.files.forEach(f=>{
-    const row=elem(""); row.textContent=f.path; row.onclick=()=>{
-      tree.querySelectorAll("div").forEach(d=>d.classList.remove("active")); row.classList.add("active");
-      code.textContent = f.text || `(${f.size} bytes — binary or large)`;
-    }; tree.appendChild(row);
-  });
-  box.appendChild(tree); box.appendChild(code);
-  tabbody.innerHTML=`<div class="hint" style="margin-bottom:8px">${esc(current)} — ${data.files.length} files</div>`;
-  tabbody.appendChild(box);
-}
-async function renderPlay(){
-  if(!current){ tabbody.innerHTML=`<div class="empty">Select a project first.</div>`; return; }
-  const box=elem("play");
-  box.innerHTML=`<div class="row" style="display:flex;gap:8px;align-items:center">
-    <button class="primary" id="exp">Export web & play ▸</button>
-    <span class="hint">Builds an HTML5 version and runs it below.</span></div>
-    <div id="frame" class="empty">Click “Export web & play”.</div>`;
-  tabbody.innerHTML=""; tabbody.appendChild(box);
-  $("#exp").onclick=async()=>{
-    $("#frame").innerHTML=`<div class="empty">Exporting…</div>`;
-    const r = await (await fetch(`/api/projects/${current}/export`,{method:"POST"})).json();
-    if(r.ok){ $("#frame").outerHTML=`<iframe id="frame" src="${r.play}" allow="autoplay; fullscreen"></iframe>`; }
-    else { $("#frame").innerHTML=`<pre class="code">Export failed (need HTML5 export templates).\n\n${esc(r.logs||r.error||"")}</pre>`; }
-  };
+async function loadConfig(){
+  try{S.config=await getJSON('/api/config');}catch{S.config={model:'—',where:'local'};}
+  $('#cfgModel').textContent=S.config.model||'—';
+  $('#cfgWhere').textContent=S.config.where||'local';
+  if(S.config.workspace)$('#folderBtn').title=S.config.workspace;
 }
 async function loadSkills(){
-  const list = await (await fetch("/api/skills")).json();
-  const wrap=elem("plist");
-  list.forEach(s=>{ const it=elem("item"); it.innerHTML=`<b>${esc(s.name)}</b> <span class="hint">${s.trusted?s.source:"untrusted"}</span><div class="meta">${esc((s.description||"").slice(0,120))}</div>`; wrap.appendChild(it); });
-  tabbody.innerHTML=""; tabbody.appendChild(wrap);
+  try{S.skills=await getJSON('/api/skills');}catch{S.skills=[];}
+  $('#skillCount').textContent=S.skills.length;renderSkills();
+}
+async function loadProjects(){
+  try{S.projects=await getJSON('/api/projects');}catch{S.projects=[];}
+  $('#projCount').textContent=S.projects.length;renderProjects();
 }
 
-(async function init(){
-  try{ const c=await (await fetch("/api/config")).json(); $("#cfg").textContent=`${c.model} · ${c.where}`; }catch(e){ $("#cfg").textContent="config error"; }
-  connect(); loadProjects();
-})();
+/* ---------- onboarding ---------- */
+const EXAMPLES=[
+  {emo:'🐸',t:'A 2D platformer where a ninja frog collects coins'},
+  {emo:'🚀',t:'A space shooter — dodge asteroids and blast enemy ships'},
+  {emo:'🏃',t:'An endless runner that speeds up the longer you survive'},
+  {emo:'🗝️',t:'A top-down dungeon crawler with procedural rooms'},
+];
+function renderOnboarding(){
+  $('#chatScroll').classList.remove('chat-scroll');
+  $('#chatScroll').innerHTML=`
+  <div class="onboard">
+    <div class="halo">${svg(I.spark,1.6)}</div>
+    <div>
+      <h1>Describe a game.<br>Watch it get <em>built &amp; verified.</em></h1>
+      <p class="sub">Type a plain idea — Playsmith generates a real, editable Godot project, runs it, checks it actually plays, and lets you play it right here. It's yours, locally.</p>
+    </div>
+    <div class="examples">
+      <span class="lbl">Try one</span>
+      ${EXAMPLES.map((x,i)=>`<button class="ex-chip" data-ex="${i}"><span class="emo">${x.emo}</span><span>${x.t}</span><span class="arr">${svg('<path d="M5 12h14M13 6l6 6-6 6"/>',2)}</span></button>`).join('')}
+    </div>
+  </div>`;
+  $$('.ex-chip').forEach(b=>b.onclick=()=>{const x=EXAMPLES[+b.dataset.ex];startNew(x.t);});
+}
+
+/* ============================================================ COMPOSER */
+function wireComposer(){
+  const ta=$('#composer'),send=$('#sendBtn');
+  const autosize=()=>{ta.style.height='auto';ta.style.height=Math.min(ta.scrollHeight,160)+'px';};
+  ta.addEventListener('input',()=>{autosize();send.disabled=!ta.value.trim()||S.building;});
+  ta.addEventListener('keydown',e=>{if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();submit();}});
+  send.disabled=true;send.onclick=submit;
+  $$('#modeSeg button').forEach(b=>b.onclick=()=>setMode(b.dataset.mode));
+  $('#clearBtn').onclick=resetConversation;
+  function submit(){
+    const v=ta.value.trim();if(!v||S.building)return;
+    if(S.mode==='edit'){
+      if(!S.editTarget){flashHint('Pick a project to edit first ↘');openTab('projects');return;}
+      startEdit(S.editTarget,v);
+    }else{startNew(v);}
+    ta.value='';autosize();send.disabled=true;
+  }
+}
+function setMode(m){
+  S.mode=m;
+  $$('#modeSeg button').forEach(b=>b.classList.toggle('on',b.dataset.mode===m));
+  $('#modeSeg button[data-mode="edit"]').classList.toggle('edit',m==='edit');
+  const ta=$('#composer');
+  if(m==='edit'){
+    $('#composerHint').textContent=S.editTarget?'':'Select a game, then describe a change';
+    ta.placeholder=S.editTarget?`Change "${S.editTarget}"… e.g. make the player jump higher`:'Describe a change to a game…';
+  }else{
+    S.editTarget=null;
+    $('#composerHint').textContent='Build a brand-new game';
+    ta.placeholder='Describe a game to build…';
+  }
+  renderCtxBar();
+}
+function renderCtxBar(){
+  const bar=$('#ctxBar');
+  if(S.mode==='edit'&&S.editTarget){
+    bar.style.display='flex';
+    bar.innerHTML=`<span class="pill">${svg(I.patch,1.8)} Editing <b style="color:#fff;margin-left:2px">${escapeHtml(S.editTarget)}</b>
+      <span class="x" title="Cancel edit">${svg('<path d="M6 6l12 12M18 6L6 18"/>',2)}</span></span>`;
+    bar.querySelector('.x').onclick=()=>{S.editTarget=null;setMode('new');};
+  }else{bar.style.display='none';bar.innerHTML='';}
+}
+function flashHint(t){const h=$('#composerHint');const o=h.textContent;h.textContent=t;h.style.color='var(--work)';setTimeout(()=>{h.textContent=o;h.style.color='';},2200);}
+
+/* ============================================================ CONVERSATION */
+function ensureConversation(){
+  if(!S.hasConversation){
+    S.hasConversation=true;
+    $('#chatScroll').innerHTML='';
+    $('#chatScroll').classList.add('chat-scroll');
+    $('#clearBtn').style.display='';
+  }
+}
+function resetConversation(){
+  if(S.building)return;
+  S.hasConversation=false;
+  $('#clearBtn').style.display='none';
+  renderOnboarding();
+}
+function addUserMsg(prompt,kind){
+  const d=document.createElement('div');d.className='msg user';
+  d.innerHTML=`<div class="bubble"><div class="kind">${escapeHtml(kind)}</div>${escapeHtml(prompt)}</div>`;
+  $('#chatScroll').appendChild(d);scrollChat();
+}
+function scrollChat(){const s=$('#chatScroll');s.scrollTop=s.scrollHeight;}
+
+/* ============================================================ LIVE BUILD (WS /ws) */
+function buildSocket(){
+  if(S.buildSock&&S.buildSock.readyState<=1)return S.buildSock;
+  const sock=new WebSocket(wsURL('/ws'));
+  sock.onmessage=e=>{let ev;try{ev=JSON.parse(e.data);}catch{return;}if(S.curBuild)S.curBuild(ev);};
+  sock.onclose=()=>{if(S.building&&S.curBuild)S.curBuild({type:'error',text:'Connection closed before the build finished.'});};
+  S.buildSock=sock;return sock;
+}
+function startNew(prompt){ensureConversation();setMode('new');addUserMsg(prompt,'New game');runBuildLive({action:'new',prompt});}
+function startEdit(project,prompt){ensureConversation();addUserMsg(prompt,'Edit · '+project);runBuildLive({action:'edit',project,prompt});}
+function runBuildLive(msg){
+  S.building=true;$('#sendBtn').disabled=true;
+  const card=document.createElement('div');card.className='msg';
+  card.innerHTML=`<div class="build">
+    <div class="build-head">
+      <div class="av">${svg(I.spark,1.6)}</div>
+      <div class="t">Building your game<small id="bh-sub">starting up the agent…</small></div>
+      <div class="live"><span class="pulse"></span>Live</div>
+    </div>
+    <div class="build-body"></div>
+  </div>`;
+  $('#chatScroll').appendChild(card);scrollChat();
+  const body=card.querySelector('.build-body');
+  const head=card.querySelector('.build-head');
+  let lastStep=null;
+  S.curBuild=(ev)=>{
+    if(ev.type==='start'){
+      head.querySelector('#bh-sub').textContent=ev.action==='edit'?'editing '+(ev.project||S.editTarget||''):'understanding your idea…';
+    }else if(ev.type==='phase'){
+      const p=document.createElement('div');p.className='phase';
+      p.innerHTML=svg(I.route,1.8)+'<span>'+escapeHtml(ev.text)+'</span>';
+      body.appendChild(p);head.querySelector('#bh-sub').textContent=ev.text;
+    }else if(ev.type==='tool'){
+      finalizeStep(lastStep);
+      const m=toolMeta[ev.name]||{i:I.code,v:ev.name};
+      const step=document.createElement('div');step.className='step';
+      const fileTxt=ev.args&&ev.args.path?`<span class="file">${escapeHtml(ev.args.path)}</span>`:'';
+      step.innerHTML=`<div class="ico">${svg(m.i,1.8)}</div>
+        <div class="body"><div class="label"><span class="verb">${escapeHtml(m.v)}</span>${fileTxt}</div></div>
+        <div class="stat"><div class="spin"></div></div>`;
+      body.appendChild(step);lastStep=step;
+    }else if(ev.type==='observe'){
+      if(lastStep){
+        const ok=ev.ok||/\b(PASS|OK|saved|clean|0 errors|spawned)\b/i.test(ev.text||'');
+        const ob=document.createElement('div');ob.className='observe'+(ok?' ok':'');
+        ob.textContent=ev.text;lastStep.querySelector('.body').appendChild(ob);
+      }
+    }else if(ev.type==='error'){
+      finalizeStep(lastStep,true);
+      const c=document.createElement('div');c.className='callout-err';
+      c.innerHTML=svg('<path d="M12 9v4M12 17h.01M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0Z"/>',1.8)+'<span>'+escapeHtml(ev.text)+'</span>';
+      body.appendChild(c);
+      head.querySelector('.live').innerHTML='<span class="pulse"></span>Failed';
+      endBuild();
+    }else if(ev.type==='done'){
+      finalizeStep(lastStep);
+      renderResult(body,ev);
+      const live=head.querySelector('.live');live.classList.add('done');
+      live.innerHTML='<span class="pulse"></span>Done';
+      head.querySelector('.t').firstChild.textContent='Game ready';
+      head.querySelector('#bh-sub').textContent=(ev.skill||'')+(ev.runs_clean?' · runs clean':'');
+      loadProjects();
+      endBuild();
+    }
+    scrollChat();
+  };
+  const sock=buildSocket();
+  const send=()=>{try{sock.send(JSON.stringify(msg));}catch{setTimeout(send,250);}};
+  if(sock.readyState===0)sock.addEventListener('open',send,{once:true});else send();
+}
+function endBuild(){S.building=false;S.curBuild=null;$('#sendBtn').disabled=!$('#composer').value.trim();}
+function finalizeStep(step,failed){
+  if(!step)return;const stat=step.querySelector('.stat');if(!stat)return;
+  stat.innerHTML=failed
+    ? svg('<path d="M18 6 6 18M6 6l12 12"/>',2.2).replace('stroke="currentColor"','stroke="var(--fail)"')
+    : '<svg class="tick" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12l4.5 4.5L19 7"/></svg>';
+}
+function renderResult(body,ev){
+  const chips=Object.entries(ev.assertions||{}).map(([k,v])=>
+    `<span class="achip ${v?'pass':'fail'}">${v?svg('<path d="M5 12l4.5 4.5L19 7"/>',2.4):svg('<path d="M18 6 6 18M6 6l12 12"/>',2.4)}${escapeHtml(k)}</span>`).join('');
+  const ok=ev.runs_clean!==false;
+  const r=document.createElement('div');r.className='result';
+  r.innerHTML=`
+    <div class="rh">
+      <div class="badge">${svg(I.verify,1.9)}</div>
+      <div class="t">${ok?'It runs!':'Built (needs a look)'} <small>${escapeHtml(ev.summary||'')}</small></div>
+    </div>
+    <div class="assert-row">${chips}</div>
+    <div class="actions">
+      <button class="btn primary" data-act="play">${svg(I.run,2)}Play it</button>
+      <button class="btn" data-act="files">${svg(I.code,1.8)}Open files</button>
+      <button class="btn ghost" data-act="edit">${svg(I.patch,1.8)}Iterate</button>
+    </div>`;
+  body.appendChild(r);
+  r.querySelector('[data-act="play"]').onclick=()=>{selectProject(ev.project);openTab('play');startGame();};
+  r.querySelector('[data-act="files"]').onclick=()=>{selectProject(ev.project);openTab('files');};
+  r.querySelector('[data-act="edit"]').onclick=()=>{S.editTarget=ev.project;setMode('edit');$('#composer').focus();};
+}
+
+/* ============================================================ TABS */
+function wireTabs(){$$('.tab').forEach(t=>t.onclick=()=>openTab(t.dataset.tab));}
+function openTab(name){
+  $$('.tab').forEach(t=>t.classList.toggle('on',t.dataset.tab===name));
+  $$('.panel').forEach(p=>p.classList.toggle('on',p.dataset.panel===name));
+  if(name==='assets')renderAssets();
+  if(name==='files'&&S.activeProject)loadFiles(S.activeProject);
+  if(window.innerWidth<=920){$('#body').className='body show-work';syncMobile('work');}
+}
+
+/* ============================================================ PROJECTS */
+function renderProjects(){
+  const grid=$('#projGrid');
+  grid.innerHTML=S.projects.map(p=>projCard(p)).join('')+`
+    <button class="card new-tile" id="newTile">
+      <div class="plus">${svg('<path d="M12 5v14M5 12h14"/>',2)}</div>
+      <div style="font-size:13.5px;font-weight:600">New game</div>
+      <div style="font-size:11.5px;color:var(--faint)">Describe it in the chat →</div>
+    </button>`;
+  $('#newTile').onclick=()=>{setMode('new');$('#composer').focus();if(window.innerWidth<=920){$('#body').className='body show-chat';syncMobile('chat');}};
+  $$('#projGrid .card[data-proj]').forEach(c=>{
+    const n=c.dataset.proj;
+    const playIt=e=>{e.stopPropagation();selectProject(n);openTab('play');const p=S.projects.find(p=>p.name===n);if(p&&p.playable)startGame();};
+    c.querySelector('.hover-play').onclick=playIt;
+    c.querySelector('[data-qa="play"]').onclick=playIt;
+    c.querySelector('[data-qa="edit"]').onclick=e=>{e.stopPropagation();S.editTarget=n;setMode('edit');if(window.innerWidth<=920){$('#body').className='body show-chat';syncMobile('chat');}$('#composer').focus();};
+    c.querySelector('[data-qa="files"]').onclick=e=>{e.stopPropagation();selectProject(n);openTab('files');};
+    c.onclick=()=>{selectProject(n);openTab('play');};
+  });
+}
+function projCard(p){
+  const badge=p.playable
+    ?`<span class="play-badge">${svg('<path d="M5 12l4.5 4.5L19 7"/>',2.4)}Playable</span>`
+    :`<span class="play-badge draft">${svg('<path d="M12 6v6l4 2"/><circle cx="12" cy="12" r="9"/>',1.8)}Draft</span>`;
+  return `<div class="card" data-proj="${escapeHtml(p.name)}">
+    <div class="thumb">
+      ${thumbHTML(p)}
+      <span class="genre">${escapeHtml(p.genre||'Game')}</span>
+      ${badge}
+      <div class="hover-play"><div class="pbtn">${svg('<path d="M8 5v14l11-7L8 5Z"/>',0).replace('fill="none"','fill="currentColor"')}</div></div>
+    </div>
+    <div class="card-meta">
+      <div class="nm">${escapeHtml(p.name)}</div>
+      <p class="pr">${escapeHtml(p.prompt||'')}</p>
+      <div class="card-actions">
+        <button class="qa main" data-qa="play">${svg('<path d="M8 5v14l11-7L8 5Z"/>',0).replace('fill="none"','fill="currentColor"')}Play</button>
+        <button class="qa" data-qa="edit" title="Iterate">${svg(I.patch,1.8)}</button>
+        <button class="qa" data-qa="files" title="Files">${svg(I.code,1.8)}</button>
+      </div>
+    </div>
+  </div>`;
+}
+async function selectProject(name){
+  S.activeProject=name;S.playing=false;
+  $('#playTitle').textContent=name;
+  $('#nowPlaying').style.display='none';
+  $('#playControls').style.display='none';
+  const f=$('#gameFrame');if(f)f.removeAttribute('src');
+  $('#playOverlay').classList.remove('hidden');
+  renderPoster();
+  await loadFiles(name);
+  renderAssets();
+}
+function renderPoster(opts){
+  opts=opts||{};
+  const p=S.activeProject?S.projects.find(x=>x.name===S.activeProject):null;
+  const title=opts.title||(p?p.name:'Pick a game to play');
+  const sub=opts.sub||(p?(p.playable?'Press play to export + run the real game here':'This draft needs to finish building first'):'Exports to HTML5 and runs right here');
+  $('#playPoster').innerHTML=`
+    <button class="big-play" id="bigPlay"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7L8 5Z"></path></svg></button>
+    <div><div class="pt">${escapeHtml(title)}</div><div class="ps">${escapeHtml(sub)}</div></div>`;
+}
+
+/* ============================================================ PLAY (real HTML5 build in an iframe) */
+function wirePlay(){
+  $('#playOverlay').addEventListener('click',e=>{
+    if(e.target.closest('#bigPlay')){if(!S.activeProject){openTab('projects');return;}startGame();}
+  });
+  $('#restartBtn').onclick=()=>{const f=$('#gameFrame');if(f&&f.getAttribute('src'))f.src=f.src.split('?')[0]+'?t='+Date.now();};
+  $('#playFilesBtn').onclick=()=>openTab('files');
+  const dl=$('#dlBtn');if(dl){
+    dl.onclick=e=>{e.stopPropagation();$('#dlMenu').classList.toggle('on');};
+    document.addEventListener('click',()=>{const m=$('#dlMenu');if(m)m.classList.remove('on');});
+    $$('#dlMenu [data-target]').forEach(b=>b.onclick=()=>downloadNative(b.dataset.target));
+  }
+}
+async function startGame(){
+  const p=S.projects.find(p=>p.name===S.activeProject);
+  if(!p){openTab('projects');return;}
+  $('#playOverlay').classList.remove('hidden');
+  $('#playPoster').innerHTML=`<div class="exporting"><div class="bar"><i></i></div><div style="font-size:13px">Exporting the game…</div></div>`;
+  let res;try{res=await postJSON(`/api/projects/${encodeURIComponent(p.name)}/export`,{target:'web'});}catch{res=null;}
+  if(res&&res.ok&&res.play){
+    const f=$('#gameFrame');f.src=res.play+'?t='+Date.now();
+    $('#playOverlay').classList.add('hidden');
+    $('#nowPlaying').style.display='';$('#playControls').style.display='';
+    S.playing=true;setTimeout(()=>{try{f.focus();}catch{}},200);
+  }else{
+    renderPoster({title:'Export failed',sub:'Make sure Godot web export templates are installed'});
+    toast('Web export failed — see server logs','err');
+  }
+}
+async function downloadNative(target){
+  const m=$('#dlMenu');if(m)m.classList.remove('on');
+  if(!S.activeProject){toast('Pick a game first','err');return;}
+  const t=toast(`Building the ${target} game… this can take a minute`,'work',true);
+  let res;try{res=await postJSON(`/api/projects/${encodeURIComponent(S.activeProject)}/export`,{target});}catch{res=null;}
+  t.remove();
+  if(res&&res.ok&&res.download){toast(`${target} build ready — downloading`,'ok');window.location=res.download;}
+  else{toast(res&&res.hint?res.hint:`${target} export failed — install Godot export templates`,'err');}
+}
+
+/* ============================================================ FILES */
+async function loadFiles(name){
+  if(!S.filesCache[name]){
+    try{const d=await getJSON(`/api/projects/${encodeURIComponent(name)}/files`);S.filesCache[name]=d.files||[];}
+    catch{S.filesCache[name]=[];}
+  }
+  renderFileTree();
+}
+function renderFileTree(){
+  const tree=$('#fileTree');const proj=S.activeProject;const files=S.filesCache[proj];
+  if(!proj||!files||!files.length){tree.innerHTML='<div class="proj">No project selected</div>';$('#codeFp').textContent='—';$('#codeBody').innerHTML='';$('#codeSz').textContent='';return;}
+  const code=files.filter(f=>f.text!==undefined&&f.text!=='');
+  const show=code.length?code:files;
+  tree.innerHTML=`<div class="proj">${svg(I.folder,1.8)} ${escapeHtml(proj)}</div>`+
+    show.map(f=>`<div class="tnode" data-f="${escapeHtml(f.path)}">${svg(I.file,1.6)}<span>${escapeHtml(f.path)}</span><span class="ext">${escapeHtml(f.path.split('.').pop())}</span></div>`).join('');
+  tree.querySelectorAll('.tnode[data-f]').forEach(n=>n.onclick=()=>openFile(n.dataset.f));
+  openFile(show[0].path);
+}
+function openFile(path){
+  const proj=S.activeProject;const f=(S.filesCache[proj]||[]).find(x=>x.path===path);
+  if(!f)return;S.activeFile=path;
+  $$('#fileTree .tnode').forEach(n=>n.classList.toggle('on',n.dataset.f===path));
+  $('#codeFp').textContent=proj+'/'+path;
+  $('#codeSz').textContent=(f.size!=null?f.size+' B':'');
+  $('#codeBody').innerHTML=f.text?highlight(f.text,path):'<span class="ln">1</span><span style="color:var(--faint)">(binary or large file — open it in Godot)</span>';
+}
+function highlight(code,path){
+  const gd=path.endsWith('.gd');
+  const KW=gd
+    ?'extends|class_name|var|const|func|signal|enum|match|if|elif|else|for|while|return|and|or|not|in|pass|break|continue|true|false|null|void|float|int|bool|String'
+    :'config_version|true|false';
+  const re=new RegExp('(#[^\\n]*|;[^\\n]*)'+'|("(?:[^"\\\\]|\\\\.)*")'+'|\\b('+KW+')\\b'+'|([A-Za-z_]\\w*)(?=\\s*\\()'+'|\\b(\\d+\\.?\\d*)\\b','g');
+  const esc=s=>s.replace(/[&<>]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]));
+  return code.split('\n').map((line,i)=>{
+    let out='',last=0,m;re.lastIndex=0;
+    while((m=re.exec(line))){
+      out+=esc(line.slice(last,m.index));
+      if(m[1])out+='<span class="tok-com">'+esc(m[1])+'</span>';
+      else if(m[2])out+='<span class="tok-str">'+esc(m[2])+'</span>';
+      else if(m[3])out+='<span class="tok-kw">'+esc(m[3])+'</span>';
+      else if(m[4])out+='<span class="tok-fn">'+esc(m[4])+'</span>';
+      else if(m[5])out+='<span class="tok-num">'+esc(m[5])+'</span>';
+      last=re.lastIndex;
+      if(m.index===re.lastIndex)re.lastIndex++;
+    }
+    out+=esc(line.slice(last));
+    return '<span class="ln">'+(i+1)+'</span>'+out;
+  }).join('\n');
+}
+
+/* ============================================================ ASSETS */
+function wireAssets(){
+  $$('#assetKinds button').forEach(b=>b.onclick=()=>{S.assetKind=b.dataset.k;$$('#assetKinds button').forEach(x=>x.classList.toggle('on',x===b));});
+  $('#genAssetBtn').onclick=genAsset;
+  $('#assetPrompt').addEventListener('keydown',e=>{if(e.key==='Enter')genAsset();});
+}
+function renderAssets(){
+  const grid=$('#assetGrid');
+  if(!S.activeProject){grid.innerHTML='<div class="empty-hint">Pick or build a game first — generated art applies to the active game.</div>';return;}
+  const files=S.filesCache[S.activeProject]||[];
+  const imgs=files.filter(f=>/(^|\/)assets\/.+\.png$/.test(f.path));
+  let html=S.pendingAsset?`<div class="asset"><div class="pv"><div class="shimmer"></div><div style="font-family:var(--mono);font-size:11px;color:var(--faint)">generating…</div></div><div class="am"><div class="an">new asset</div><div class="ad">${escapeHtml(S.assetKind)}</div></div></div>`:'';
+  html+=imgs.map(f=>{
+    const fname=f.path.split('/').pop();
+    return `<div class="asset"><div class="pv">
+      <img src="/api/projects/${encodeURIComponent(S.activeProject)}/asset-file/${encodeURIComponent(fname)}" style="width:100%;height:100%;object-fit:cover" alt="">
+      <span class="applied">${svg('<path d="M5 12l4.5 4.5L19 7"/>',2.4)}in game</span>
+    </div><div class="am"><div class="an">${escapeHtml(fname)}</div><div class="ad">asset</div></div></div>`;
+  }).join('');
+  grid.innerHTML=html||'<div class="empty-hint">No art yet — generate a sprite or background above.</div>';
+}
+async function genAsset(){
+  if(!S.activeProject){toast('Pick or build a game first','err');openTab('projects');return;}
+  const inp=$('#assetPrompt');const v=inp.value.trim();if(!v)return;
+  inp.value='';S.pendingAsset=true;renderAssets();
+  let res;try{res=await postJSON(`/api/projects/${encodeURIComponent(S.activeProject)}/asset`,{prompt:v,kind:S.assetKind});}catch{res=null;}
+  S.pendingAsset=false;
+  if(res&&res.ok){delete S.filesCache[S.activeProject];await loadFiles(S.activeProject);renderAssets();toast('Art generated + applied','ok');}
+  else{renderAssets();toast(res&&res.error?res.error:'Generation failed','err');}
+}
+
+/* ============================================================ SKILLS */
+function renderSkills(){
+  const EMO={Platformer:'🦿',Runner:'🏃',Shooter:'🚀',Roguelike:'🗝️',Puzzle:'💎',Racing:'🏎️',Game:'🎮'};
+  $('#skillGrid').innerHTML=S.skills.map(s=>{
+    const builtin=s.source==='builtin';
+    const trust=s.trusted
+      ?`<span class="badge-trust">${svg('<path d="M12 3l7 3v6c0 4.5-3 7.5-7 9-4-1.5-7-4.5-7-9V6l7-3Z"/>',1.8)}trusted</span>`
+      :`<span class="badge-trust un">${svg('<path d="M12 9v4M12 17h.01M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0Z"/>',1.8)}untrusted</span>`;
+    return `<div class="skill">
+      <div class="sh"><div class="si">${EMO[s.genre]||'🎮'}</div>
+        <div><div class="snm">${escapeHtml(s.name)} ${builtin?'<span class="badge-builtin">built-in</span>':''}</div>
+        <div class="src">${escapeHtml(s.source||'')}</div></div></div>
+      <div class="sd">${escapeHtml(s.description||'')}</div>
+      <div class="sf">${trust}<button class="btn sm" style="margin-left:auto" data-use="${escapeHtml(s.name)}">${svg(I.spark,1.8)}Use</button></div>
+    </div>`;
+  }).join('')||'<div class="empty-hint">No skills found.</div>';
+  $$('#skillGrid [data-use]').forEach(b=>b.onclick=()=>{
+    setMode('new');$('#composer').focus();
+    $('#composer').placeholder=`Describe a ${b.dataset.use} game…`;
+    if(window.innerWidth<=920){$('#body').className='body show-chat';syncMobile('chat');}
+  });
+}
+
+/* ============================================================ SETTINGS / MODELS */
+let MODELS=null,selProvider='openai',selModel=null,pullSock=null;
+function wireSettings(){
+  $('#cfgChip').onclick=openSettings;
+  $('#settingsBtn').onclick=openSettings;
+  $('#settingsClose').onclick=closeSettings;
+  $('#settingsCancel').onclick=closeSettings;
+  $('#settingsSave').onclick=saveSettings;
+  $('#settingsBack').addEventListener('click',e=>{if(e.target.id==='settingsBack')closeSettings();});
+}
+async function openSettings(){
+  $('#settingsBack').classList.add('on');
+  $('#settingsBody').innerHTML='<div class="empty-hint">Discovering providers &amp; models…</div>';
+  try{MODELS=await getJSON('/api/models');}catch{MODELS={active:{},providers:[]};}
+  selProvider=(MODELS.active&&MODELS.active.provider)||(MODELS.providers[0]&&MODELS.providers[0].id)||'openai';
+  if(!(MODELS.providers||[]).some(p=>p.id===selProvider))selProvider=(MODELS.providers[0]||{}).id||'openai';
+  selModel=(MODELS.active&&MODELS.active.model)||null;
+  renderSettings();
+}
+function closeSettings(){$('#settingsBack').classList.remove('on');if(pullSock){try{pullSock.close();}catch{}pullSock=null;}}
+function provById(id){return (MODELS.providers||[]).find(x=>x.id===id)||{};}
+function renderSettings(){
+  const provs=MODELS.providers||[];
+  const seg=provs.map(p=>{
+    const up=p.kind==='local'?p.running:p.has_key;
+    return `<button data-prov="${p.id}" class="${p.id===selProvider?'on':''}"><span class="pdot ${up?'up':''}"></span>${escapeHtml(p.label)}</button>`;
+  }).join('');
+  const p=provById(selProvider);let inner='';
+  if(p.needs_key){
+    inner+=`<div class="field"><label>API key${p.key_url?` <a href="${p.key_url}" target="_blank" rel="noopener">Get a key ↗</a>`:''}</label>
+      <input id="apiKey" type="password" autocomplete="off" placeholder="${p.has_key?'•••••• saved — leave blank to keep':'paste your '+escapeHtml(p.label)+' API key'}"></div>`;
+  }
+  if(selProvider==='custom'){
+    inner+=`<div class="field"><label>Base URL (OpenAI-compatible /v1)</label><input id="baseUrl" placeholder="http://localhost:8000/v1" value="${escapeHtml(p.base_url||'')}"></div>
+      <div class="field"><label>Model name</label><input id="customModel" placeholder="model id" value="${escapeHtml(selModel||'')}"></div>`;
+  }
+  if(selProvider==='ollama'){
+    inner+=`<div class="empty-hint">${p.running?'Ollama is running — pick an installed model or download one below.':'Ollama isn\\'t reachable at '+escapeHtml(p.base_url||'')+'. <a href="'+(p.key_url||'#')+'" target="_blank" rel="noopener">Install Ollama ↗</a>, then start it.'}</div>`;
+    inner+=`<div class="sub-h">Installed</div><div class="model-list" id="modelList">`+
+      ((p.installed||[]).length?p.installed.map(m=>modelRow(m)).join(''):'<div class="empty-hint">No models installed yet.</div>')+`</div>`;
+    const dl=(p.suggested||[]).filter(s=>!(p.installed||[]).includes(s.name));
+    if(dl.length)inner+=`<div class="sub-h">Download a model</div><div class="model-list">`+dl.map(s=>suggestRow(s)).join('')+`</div>`;
+  }else if(selProvider!=='custom'){
+    const models=p.models||[];
+    inner+=`<div class="sub-h">Models</div><div class="model-list" id="modelList">`+
+      (models.length?models.map(m=>modelRow(m)).join(''):'<div class="empty-hint">Add an API key above, then reopen to list models.</div>')+`</div>`;
+  }
+  $('#settingsBody').innerHTML=`<div class="prov-seg">${seg}</div>${inner}`;
+  $('#settingsNote').textContent=p.kind==='local'?'Local — runs on your machine, no key needed.':'Cloud — needs an API key.';
+  $$('#settingsBody .prov-seg button').forEach(b=>b.onclick=()=>{selProvider=b.dataset.prov;selModel=(MODELS.active&&MODELS.active.provider===selProvider)?MODELS.active.model:null;renderSettings();});
+  $$('#settingsBody .model-row[data-model]').forEach(r=>r.onclick=()=>{selModel=r.dataset.model;$$('#settingsBody .model-row').forEach(x=>x.classList.remove('on'));r.classList.add('on');const cm=$('#customModel');if(cm)cm.value=selModel;});
+  $$('#settingsBody [data-pull]').forEach(b=>b.onclick=()=>pullModel(b.dataset.pull,b));
+}
+function modelRow(m){
+  const active=MODELS.active&&MODELS.active.model===m&&MODELS.active.provider===selProvider;
+  return `<div class="model-row ${m===selModel?'on':''}" data-model="${escapeHtml(m)}"><span class="mn">${escapeHtml(m)}</span>${active?'<span class="mtag">active</span>':''}</div>`;
+}
+function suggestRow(s){
+  return `<div class="model-row"><span class="mn">${escapeHtml(s.name)}</span><span class="mtag" title="${escapeHtml(s.note||'')}">${escapeHtml(s.size||'')}</span>
+    <button class="pull" data-pull="${escapeHtml(s.name)}">${svg(I.download,2)}Download</button></div>`;
+}
+function pullModel(model,btn){
+  const row=btn.closest('.model-row');
+  btn.outerHTML='<span class="installed-tag">starting…</span>';
+  const bar=document.createElement('div');bar.className='pull-bar';bar.innerHTML='<i></i>';row.appendChild(bar);
+  const tag=row.querySelector('.installed-tag');
+  const sock=new WebSocket(wsURL('/ws/pull'));pullSock=sock;
+  sock.onopen=()=>sock.send(JSON.stringify({model}));
+  sock.onmessage=e=>{let m;try{m=JSON.parse(e.data);}catch{return;}
+    if(tag&&m.status)tag.textContent=m.status;
+    if(m.percent!=null)bar.querySelector('i').style.width=m.percent+'%';
+    if(m.error){if(tag){tag.textContent='failed';tag.style.color='var(--fail)';}toast('Download failed: '+m.error,'err');try{sock.close();}catch{}}
+    if(m.done||m.installed){bar.querySelector('i').style.width='100%';if(tag)tag.textContent='installed ✓';toast(model+' downloaded','ok');try{sock.close();}catch{}setTimeout(openSettings,400);}
+  };
+  sock.onerror=()=>{if(tag){tag.textContent='unreachable';tag.style.color='var(--fail)';}toast('Ollama not reachable','err');};
+}
+async function saveSettings(){
+  const p=provById(selProvider);
+  let model=selModel,base=null,key=null;
+  if(selProvider==='custom'){const cm=$('#customModel');model=cm?cm.value.trim():'';const bu=$('#baseUrl');base=bu?bu.value.trim():'';}
+  const keyEl=$('#apiKey');if(keyEl&&keyEl.value.trim())key=keyEl.value.trim();
+  if(!model){toast('Pick or enter a model first','err');return;}
+  if(p.needs_key&&!p.has_key&&!key){toast('This provider needs an API key','err');return;}
+  $('#settingsSave').textContent='Saving…';
+  let res;try{res=await postJSON('/api/config',{provider:selProvider,model,api_key:key,base_url:base});}catch{res=null;}
+  $('#settingsSave').textContent='Use this model';
+  if(res&&res.ok){
+    S.config.model=res.model;S.config.where=res.where;
+    $('#cfgModel').textContent=res.model;$('#cfgWhere').textContent=res.where;
+    toast('Model set: '+res.model,'ok');closeSettings();loadConfig();
+  }else toast(res&&res.error?res.error:'Could not save settings','err');
+}
+
+/* ============================================================ TOAST */
+function toast(text,kind,persist){
+  let wrap=$('#toastWrap');
+  if(!wrap){wrap=document.createElement('div');wrap.id='toastWrap';wrap.className='toast-wrap';document.body.appendChild(wrap);}
+  const t=document.createElement('div');t.className='toast'+(kind==='err'?' err':kind==='ok'?' ok':'');
+  t.innerHTML=(kind==='work'?'<div class="spin"></div>':'')+`<span>${escapeHtml(text)}</span>`;
+  wrap.appendChild(t);
+  if(!persist)setTimeout(()=>t.remove(),3400);
+  return t;
+}
+
+/* ============================================================ MOBILE */
+function wireMobile(){
+  $$('#mobileSwitch button').forEach(b=>b.onclick=()=>{$('#body').className='body show-'+b.dataset.m;syncMobile(b.dataset.m);});
+}
+function syncMobile(m){$$('#mobileSwitch button').forEach(b=>b.classList.toggle('on',b.dataset.m===m));}
+
+init();
+
 </script>
 </body>
 </html>

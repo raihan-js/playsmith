@@ -18,13 +18,16 @@ RUN wget -q "https://github.com/godotengine/godot/releases/download/${GODOT_VERS
     && chmod +x /usr/local/bin/godot \
     && rm /tmp/godot.zip
 
-# HTML5 export templates (only the web ones) so the web UI can export + play in the browser.
-# The full .tpz is large but transient — we keep just web_* (~30MB) in the final layer.
-ARG WITH_WEB_TEMPLATES=true
-RUN if [ "$WITH_WEB_TEMPLATES" = "true" ]; then \
+# Export templates: web (in-browser Play) + linux/windows/macos (real desktop "Download as game").
+# The full .tpz is large but transient — we keep web + desktop templates in the final layer.
+ARG WITH_EXPORT_TEMPLATES=true
+RUN if [ "$WITH_EXPORT_TEMPLATES" = "true" ]; then \
         wget -q "https://github.com/godotengine/godot/releases/download/${GODOT_VERSION}/Godot_v${GODOT_VERSION}_export_templates.tpz" -O /tmp/tpl.tpz \
         && mkdir -p /root/.local/share/godot/export_templates/4.3.stable \
-        && unzip -q -j /tmp/tpl.tpz "templates/web*" "templates/version.txt" -d /root/.local/share/godot/export_templates/4.3.stable/ \
+        && unzip -q -j /tmp/tpl.tpz \
+            "templates/web*" "templates/linux*" "templates/windows*" "templates/macos*" \
+            "templates/version.txt" \
+            -d /root/.local/share/godot/export_templates/4.3.stable/ \
         && rm -f /tmp/tpl.tpz ; \
     fi
 

@@ -37,3 +37,44 @@ def test_projects_endpoint_returns_list() -> None:
 
 def test_unknown_project_files_404() -> None:
     assert _client().get("/api/projects/does-not-exist-xyz/files").status_code == 404
+
+
+def test_index_is_wired_live_not_mock() -> None:
+    # The shipped UI must talk to the real backend, not the design's MOCK layer.
+    html = _client().get("/").text
+    assert "const MOCK" not in html
+    assert "/ws/pull" in html and "/api/models" in html and "gameFrame" in html
+
+
+def test_skills_include_genre() -> None:
+    skills = _client().get("/api/skills").json()
+    plat = next(s for s in skills if s["name"] == "2d-platformer")
+    assert plat["genre"] == "Platformer"
+
+
+def test_models_endpoint_shape(monkeypatch) -> None:
+    # Stub discovery so the test never touches the network.
+    from playsmith.web import server
+
+    monkeypatch.setattr(
+        server.model_catalog,
+        "catalog",
+        lambda cfg: {"active": {"provider": "openai", "model": "gpt-4o"},
+                     "providers": [{"id": "openai"}, {"id": "ollama"}]},
+    )
+    data = _client().get("/api/models").json()
+    assert data["active"]["model"] == "gpt-4o"
+    assert {p["id"] for p in data["providers"]} == {"openai", "ollama"}
+
+
+def test_set_config_requires_provider_and_model() -> None:
+    assert _client().post("/api/config", json={"provider": "openai"}).status_code == 400
+
+
+def test_export_unknown_project_404() -> None:
+    r = _client().post("/api/projects/nope-xyz/export", json={"target": "web"})
+    assert r.status_code == 404
+
+
+def test_download_unknown_project_404() -> None:
+    assert _client().get("/api/projects/nope-xyz/download/linux").status_code == 404

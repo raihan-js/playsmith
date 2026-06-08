@@ -13,6 +13,9 @@ build/
 # NOTE: .gitignore does NOT support inline comments — keep patterns on their own lines.
 # local config (copy from the example):
 config/playsmith.yaml
+# UI-managed settings + secrets (provider/model/API keys) written by the web Settings panel:
+config/playsmith.runtime.yaml
+playsmith.runtime.yaml
 # generated games live in workspace_dir, never the repo:
 playsmith-games/
 /workspace/
@@ -27,3 +30,4 @@ playsmith-games/
 
 # Docker secrets
 .env
+docs/design

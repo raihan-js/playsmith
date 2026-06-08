@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import pytest
 
-from playsmith.config import Config, ConfigError, load_config
+from playsmith.config import Config, ConfigError, load_config, save_runtime_patch
 
 
 def test_loads_example_config_by_default() -> None:
@@ -54,3 +54,37 @@ def test_non_mapping_root_raises(tmp_path) -> None:
     bad.write_text("- just\n- a\n- list\n")
     with pytest.raises(ConfigError):
         load_config(bad)
+
+
+def test_runtime_override_merges_and_persists(tmp_path) -> None:
+    base = tmp_path / "playsmith.yaml"
+    base.write_text("llm:\n  provider: openai\n  model: gpt-4o\n  num_ctx: 16384\n")
+    assert load_config(base).llm.model == "gpt-4o"
+
+    out = save_runtime_patch({"llm": {"model": "gpt-4o-mini"}}, config_path=base)
+    assert out == tmp_path / "playsmith.runtime.yaml"
+    assert out.exists()
+
+    cfg = load_config(base)
+    assert cfg.llm.model == "gpt-4o-mini"  # overridden
+    assert cfg.llm.provider == "openai"  # untouched, deep-merged
+
+    # A second patch is merged, not clobbered.
+    save_runtime_patch({"llm": {"api_key": "sk-xyz"}}, config_path=base)
+    cfg2 = load_config(base)
+    assert cfg2.llm.model == "gpt-4o-mini"
+    assert cfg2.llm.api_key == "sk-xyz"
+
+
+def test_config_patch_for_providers() -> None:
+    from playsmith.llm.catalog import config_patch_for
+
+    openai = config_patch_for("openai", "gpt-4o", "sk-test", None)
+    assert openai["llm"]["provider"] == "openai"
+    assert openai["llm"]["base_url"].endswith("openai.com/v1")
+    assert openai["assets"]["openai_api_key"] == "sk-test"  # OpenAI key also powers art gen
+
+    ollama = config_patch_for("ollama", "qwen2.5-coder:7b", None, None)
+    assert "api_key" not in ollama["llm"]  # local needs no key
+    assert "11434" in ollama["llm"]["base_url"]
+    assert "assets" not in ollama
