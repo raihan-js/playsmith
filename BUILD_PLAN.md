@@ -1,190 +1,155 @@
 # Build Plan — start here
 
-This is the step-by-step order to build Playsmith with **Claude Code**. Each step is a prompt
-you can paste, plus a checkpoint that tells you when it's done. Build in order — every step
-ends in something runnable. Don't jump ahead; the reality loop (step 6) is the heart of the
-product and everything before it exists to enable it.
+> Re-founded **2026-06-09** to **Unreal-first**. The Godot/2D build order is gone. This is the
+> concrete, ordered, start-here step list to execute the roadmap — Stage 1 first, then the
+> immediate next steps of Stages 2–3. Read `CLAUDE.md` (§0 the re-founding, §4 the feedback
+> loop) and `docs/ARCHITECTURE.md` first; `docs/ROADMAP.md` is the matching phased view.
 
-> **How to use this file:** open this repo in Claude Code. Claude Code will read `CLAUDE.md`
-> automatically. Then paste the prompts below one at a time, verify the checkpoint, commit,
-> and move on. The prompts are deliberately small so the model stays accurate and you stay
-> in control.
-
----
-
-## Prerequisites (do these once, before Claude Code)
-
-1. **Install Godot 4.x** (the standard build is fine; you'll also want the export templates
-   for HTML5/desktop later). Confirm `godot --version` prints a 4.x version.
-2. **Install a local model runner.** Easiest is **Ollama**:
-   ```bash
-   # install Ollama (see ollama.com), then pull a coding model:
-   ollama pull qwen2.5-coder:7b      # modest hardware
-   # or, for a stronger machine:
-   ollama pull qwen3-coder           # larger, agentic-tuned, big context
-   ```
-   Ollama serves an OpenAI-compatible endpoint at `http://localhost:11434/v1`.
-   > ⚠️ Set a large context window when you call it (16K–32K). The 4K default will break
-   > agentic file editing. We handle this in the LLM Gateway config (`num_ctx`).
-3. **Python 3.11+** and **git**. (`pip`, `venv`.)
-4. **(Optional, for later) butler** (itch.io CLI) and **ComfyUI** — not needed for Phase 0.
-5. Open this folder in **Claude Code**.
+Each step is a small unit of work that **ends in something runnable or verifiable**. Build in
+order. Verify the checkpoint, commit, then move on. The non-negotiable rule throughout:
+**build ON a shipping UE template; never assemble a level from primitives.** Today's
+`unreal new` still builds primitives — replacing that is Step 1.
 
 ---
 
-## The build, step by step
+## Prerequisites (do these once)
 
-### Step 0 — Orient Claude Code
-**Paste:**
-> Read `CLAUDE.md`, `docs/ARCHITECTURE.md`, and `docs/ROADMAP.md` in full. Summarize back to
-> me, in 5 bullets, what we're building and the Phase 0 Definition of Done. Then list the
-> module files you expect to create for Phase 0. Don't write any code yet.
+1. **Unreal Engine 5.7.4** built at `~/UnrealEngine`. Confirm the editor exists:
+   `~/UnrealEngine/Engine/Binaries/Linux/UnrealEditor-Cmd -version`.
+2. **A frontier model** for the director/critic: set `ANTHROPIC_API_KEY` (Claude, native
+   `/v1/messages`). The router falls back to / uses **local** (Ollama, OpenAI-compatible `/v1`)
+   for cheap sub-steps and **warns** on every local→cloud crossing.
+3. **Python 3.11+** + git. `python -m venv .venv && source .venv/bin/activate && pip install -e ".[dev]"`.
+4. Copy `config/playsmith.example.yaml` → `config/playsmith.yaml`; set `engine.unreal.editor_cmd`
+   and a `workspace_dir` (generated games live there, **never** in this repo).
+5. Sanity-check the skeleton: `pytest -q && ruff check` (green), then `playsmith config-check`
+   and `playsmith unreal check` (finds your editor; Remote Control likely "not reachable" until
+   Stage 2 — that's expected).
 
-**Checkpoint:** the summary matches the docs and the file list lines up with `playsmith/`'s
-subfolders. If it drifts (e.g. suggests a cloud backend, or Godot 3.x), correct it now.
-
----
-
-### Step 1 — Repo skeleton + config + license
-**Paste:**
-> Set up the Python package skeleton for Playsmith: `pyproject.toml` (package name
-> `playsmith`, Python 3.11+, deps: a minimal HTTP client, `typer`, `rich`, `pyyaml`, `pytest`,
-> `ruff`), an Apache-2.0 `LICENSE`, a `.gitignore`, and `config/playsmith.example.yaml` with a
-> documented LLM provider config (provider, base_url, model, api_key optional, num_ctx) plus
-> a `workspace_dir` for generated games. Add empty `__init__.py` files in each `playsmith/`
-> subpackage. Wire `ruff` and a trivial `pytest` that passes. Don't implement features yet.
-
-**Checkpoint:** `pip install -e .` works, `ruff check` passes, `pytest` passes, and copying
-the example to `config/playsmith.yaml` gives a readable config.
+> A baseline already exists: `playsmith unreal new "<name>"` scaffolds + verifies a basic
+> playable level **headless** (the `PLAYSMITH_ASSERT` reality loop). It builds primitives, so
+> Step 1 swaps that foundation for a real template clone.
 
 ---
 
-### Step 2 — LLM Gateway (any model via OpenAI-compatible /v1)
-**Paste:**
-> Implement `playsmith/llm/` per `docs/ARCHITECTURE.md` §1. A `LLMGateway.chat(messages,
-> tools=None, task=GENERAL)` that calls an OpenAI-compatible `/v1/chat/completions` endpoint,
-> reading provider/model/base_url/api_key/num_ctx from `config/playsmith.yaml`. Support tool
-> (function) calling in the request/response shape. Add a `playsmith models` CLI command that
-> sends a one-line "say hi" to the configured model and prints the reply, so I can confirm my
-> local Ollama model responds. Keep a clean seam for a future model router; don't build the
-> router yet. Add unit tests with the HTTP layer mocked.
+## Stage 1 — Template foundation (do this first)
 
-**Checkpoint:** with Ollama running, `playsmith models` gets a real reply from your local model.
-This proves the whole "any local model" foundation works.
+### Step 1 — Clone the third-person template instead of building primitives
+**Goal:** `playsmith unreal new` clones **`TP_ThirdPersonBP`** into the workspace — already a
+playable, lit, animated scene — rather than assembling a floor + pawn from scratch.
 
----
+- In `playsmith/engines/unreal/`, add a clone path (e.g. `templates.clone_template(...)` +
+  an adapter `create_from_template(genre)`), driven via the UE Python API / template API.
+- **Handle the gotcha:** the template folder is **not self-contained** — no mannequin /
+  prototyping meshes. Either instantiate via UE's **template API**, or also copy
+  `~/UnrealEngine/Templates/TemplateResources/High/{Characters,LevelPrototyping}` plus the
+  relevant `FeaturePacks/*.upack` so the clone actually has its character + blockout meshes.
+- Keep everything behind `EngineAdapter`; don't leak UE paths into the agent loop.
 
-### Step 3 — Godot adapter v1 (create / write / run / screenshot / export)
-**Paste:**
-> Implement `playsmith/engines/` with the `EngineAdapter` interface from `docs/ARCHITECTURE.md`
-> §3, and a `GodotAdapter` for Godot 4.x that drives the `godot` CLI: `create_project` (writes
-> a minimal `project.godot`), `write_scene`/`write_script` (write `.tscn`/`.gd` files under the
-> workspace), `run(headless, timeout_s)` (runs the project, captures stdout/stderr, returns a
-> RunResult with logs + exit code), `screenshot(out_path)`, and `export(target, out_path)` for
-> the "Web" target. Enforce the Godot 4 conventions in `CLAUDE.md` §6. Generated games go in
-> `workspace_dir`, never in this repo. Add a CLI smoke test `playsmith engine-check` that
-> creates a trivial empty project and runs it headless to confirm Godot is wired up. Tests
-> with the Godot binary mocked.
+**Checkpoint:** `playsmith unreal new "third person test"` produces a cloned template project in
+`workspace_dir`. Open it in the editor (`UnrealEditor <proj>.uproject`) — you walk around an
+already-playable, lit scene **with the mannequin present** (not an empty box).
 
-**Checkpoint:** `playsmith engine-check` creates a tiny Godot project in your workspace dir and
-runs it headless without errors. You can open that project in the Godot editor.
+### Step 2 — Verify the cloned template (extend the headless reality loop)
+**Goal:** prove the clone is real, headless, before trusting it.
 
----
+- Extend `verify()` checks for a template clone: `level_loads`, `player_exists`, character mesh
+  present, lighting present. Add any new keys to `engines/base.py::KNOWN_ASSERTIONS`.
+- Wire it into `unreal new` so a clone that fails verification reports which assert failed.
 
-### Step 4 — Skills engine v1 (load + route SKILL.md)
-**Paste:**
-> Implement `playsmith/skills/` per `docs/ARCHITECTURE.md` §5: a loader that scans
-> `game-skills/` for `SKILL.md` files, parses the YAML frontmatter (name, description), and
-> implements progressive disclosure (metadata always available; body loaded only when a skill
-> is selected; bundled `scripts/` paths exposed but not loaded until needed). Add a router that,
-> given a user prompt, asks the LLM Gateway to pick the best-matching skill by its description
-> (return the skill name). Add `playsmith skills` (list installed skills) and make routing
-> testable. Use the existing `game-skills/genres/2d-platformer/SKILL.md` as the test fixture.
+**Checkpoint:** `playsmith unreal new "third person test"` ends in a `PLAYSMITH_ASSERT` table that
+is **all PASS**, headless (`-nullrhi`), with no manual editor step.
 
-**Checkpoint:** `playsmith skills` lists the 2d-platformer skill, and routing a prompt like
-"a jump-and-run game with a fox" selects `2d-platformer`.
+### Step 3 — First-person + top-down on the same rails
+**Goal:** the other two genres clone + verify with the **same** machinery, no special-casing.
+
+- Genre→template map: third-person → `TP_ThirdPersonBP`, first-person → `TP_FirstPersonBP`,
+  top-down → `TP_TopDownBP`. The skill selects the genre; the adapter clones the matching template.
+- Each genre needs its own minimal verify expectations (e.g. camera/pawn type).
+
+**Checkpoint:** `unreal new` against a first-person and a top-down prompt each produce a cloned,
+verified, openable project. **Stage 1 done** when all three pass on the shared path.
 
 ---
 
-### Step 5 — Agent loop v1 (plan → act → observe → iterate, with diff approval)
-**Paste:**
-> Implement `playsmith/agent/` per `docs/ARCHITECTURE.md` §2: an agentic loop that takes a goal
-> (a skill body) plus the tools `read_file`, `write_file`, `apply_patch`, `list_dir`,
-> `run_engine` (via the EngineAdapter), `screenshot`, and `read_logs`. The loop: send goal +
-> tool schemas to the LLM Gateway, execute returned tool calls, feed results back, repeat until
-> the model signals done or a max-iteration cap. Confine all file ops to the workspace dir.
-> Show me each file write as a diff and require approval before applying (with a `--yes` flag to
-> auto-approve). Don't build the asset pipeline yet — assets are placeholders.
+## Stage 2 — Editor-in-the-loop + real rendering (next)
 
-**Checkpoint:** you can hand the agent a tiny goal ("create a file hello.gd that prints hello,
-then run it") and watch it write, run, and report the output — asking for diff approval first.
+### Step 4 — Boot the editor with the GPU and keep it warm
+**Goal:** stop being blind — render for real.
 
----
+- Add an adapter mode that launches the **full editor with the GPU** (drop `-nullrhi`) and keeps
+  a warm, reusable session. Do **not** `pkill -9` UE between calls (it churns the shader DDC).
+- Surface a clean start/stop so the agent reuses one editor across a build.
 
-### Step 6 — Wire it end to end: `playsmith new` + the reality loop ⭐
-This is the milestone that makes Playsmith real. **Paste:**
-> Implement the `playsmith new "<prompt>"` command that ties everything together: route the
-> prompt to a skill (Step 4), load its body, run the agent loop (Step 5) with the GodotAdapter
-> (Step 3) to scaffold and build the game following the skill's steps. Critically, implement
-> the **reality loop** from `CLAUDE.md` §4 and the 2d-platformer SKILL.md step 9: after writing
-> code, the agent must `run_engine()` headless, `read_logs()`, take a `screenshot()`, evaluate
-> whether it actually worked (no parse/runtime errors; player on ground; can jump), and
-> **fix-and-rerun** until it does, up to a cap. Then print where the project is and how to open
-> it in Godot. Use the bundled `scripts/player.gd` as the movement template.
+**Checkpoint:** Playsmith starts a GPU editor session on the cloned project and you can confirm
+it's up (e.g. `playsmith unreal check` shows Remote Control **reachable**).
 
-**Checkpoint (this is the Phase 0 win):**
-```bash
-playsmith new "a 2D platformer where a cat collects fish and avoids spikes"
-```
-produces a real Godot 4 project in your workspace that **runs**, the screenshot shows the
-player standing on ground, and you can open and edit it in the Godot editor. If the model
-struggles, see "If a local model struggles" below.
+### Step 5 — Pin a UE MCP as the authoring/inspection surface
+**Goal:** a stable tool surface for the director to drive.
 
----
+- Pin a UE MCP (e.g. `remiphilippe/mcp-unreal`, ~49 tools, port 8090) **behind the adapter** —
+  pin the exact version (the MCP ecosystem moves fast; note it in `docs/ARCHITECTURE.md`).
+- Expose a thin set of adapter calls (inspect actors, place/move, set properties) over it.
 
-### Step 7 — Run + export commands
-**Paste:**
-> Add `playsmith run` (run the current/most-recent generated project windowed so I can play it)
-> and `playsmith export --target web` (headless HTML5 export to a `build/` dir using the
-> GodotAdapter). Confirm the exported `index.html` opens and the game is playable in a browser.
+**Checkpoint:** from Playsmith, list and tweak an actor in the live cloned level through the MCP,
+and the change is visible in the running editor.
 
-**Checkpoint:** you can play the generated game in a window and open the exported HTML5 build
-in a browser. **Phase 0 Definition of Done is now met** (`CLAUDE.md` §7). Record a 60s demo.
+### Step 6 — Real rendered screenshot + a real PIE session
+**Goal:** produce the exact inputs the critic will score.
+
+- Capture a **real rendered** screenshot of the loaded level (HighResShot via the editor — not a
+  placeholder/headless stub).
+- Run a **real PIE** session and collect machine-readable metrics (player spawned, moved,
+  framerate, objective reachable) the agent can read back.
+
+**Checkpoint:** one command yields (a) an honest PNG of the scene and (b) a PIE metrics blob.
+**Stage 2 done.**
 
 ---
 
-### Step 8 — First polish + commit the demo
-**Paste:**
-> Tighten error messages and the CLI UX with Rich. Write a short `docs/QUICKSTART.md` that
-> matches what actually works now. Update the Phase 0 checkboxes in `docs/ROADMAP.md`. Suggest
-> the 3 highest-leverage things to do next from Phase 1.
+## Stage 3 — Director + Critic loop (then)
 
-**Checkpoint:** a newcomer could follow QUICKSTART and make a game. You're ready to plan the
-Phase 1 push toward a public launch.
+### Step 7 — Director: plan the slice and dress the template
+**Goal:** turn the cloned template into the *requested* game.
+
+- Director = **frontier model** (`ANTHROPIC_API_KEY`) via the tiered gateway. From the prompt it
+  plans the slice — objective, layout, mechanics, asset choices — and emits MCP actions that
+  **dress/tune** the clone (place geometry/props, set objective, tune the existing pawn).
+- Use **local** models for cheap sub-steps; keep the local→cloud warning.
+
+**Checkpoint:** a prompt produces a recognizably *dressed* third-person level (clearly themed,
+with an objective) that still verifies headless and renders in Stage 2.
+
+### Step 8 — Critic: score renders + PIE against a rubric, and close the loop
+**Goal:** hold the output to a real bar, automatically.
+
+- Critic agent scores the Stage-2 rendered screenshot + PIE metrics against a third-person
+  **quality rubric** (content density, playability, framing, objective reachable).
+- **Close the loop:** the critic sends structured feedback to the director; iterate until the
+  rubric passes — layered on top of the structural `PLAYSMITH_ASSERT` asserts (structural first).
+
+**Checkpoint:** `playsmith unreal new "<prompt>"` runs director→build→render→critic
+autonomously and stops only when **both** the structural asserts and the critic's bar pass.
+**Stage 3 done** — this is the heart of the product.
 
 ---
 
-## If a local model struggles (expected, not a failure)
+## Then: Stage 4 (polish one genre to "actually fun" + package/export)
 
-Small local models (7B) can be unreliable at multi-step tool-calling. Tactics, in order:
-1. **Raise `num_ctx`** to 16K–32K in your config — this is the most common fix.
-2. **Use a stronger local model** (e.g. `qwen3-coder`) if your hardware allows.
-3. **Lean on the skill's bundled scripts** — deterministic scaffolding (like `player.gd`)
-   reduces what the model has to invent.
-4. **Temporarily point the config at a cloud model** to confirm the *pipeline* is correct,
-   then return to local. (The model router in Phase 2 automates choosing per task.)
-5. **Shrink the step** — give the agent smaller sub-goals.
-
-The goal of Phase 0 is to prove the architecture end-to-end; perfect local reliability is a
-Phase 2 concern.
+Per `docs/ROADMAP.md` Stage 4: raise the third-person rubric toward "fun," add the UE-native
+`RunUAT BuildCookRun` package/export path, and surface compliance helpers (Unreal royalty —
+calculator exists; store rules; AI-content disclosure — guided, never auto-spam). The
+**Definition of Done** is a **polished third-person vertical slice that opens & edits in the
+Unreal editor**, packaged into a playable build (`CLAUDE.md` §7).
 
 ---
 
-## Working rhythm with Claude Code
+## Working rhythm
 
-- One step at a time; verify the checkpoint; `git commit`; then next step.
-- If Claude Code proposes a big rewrite or a new dependency, ask it to justify the license and
-  the boundary it's crossing (see `CLAUDE.md` §5–6) before approving.
-- Keep generated games out of this repo (they belong in `workspace_dir`).
-- When a step reveals a better design, update `docs/ARCHITECTURE.md` **and** `CLAUDE.md`
-  together so the docs stay the source of truth.
+- One step at a time; verify the checkpoint; `git commit`; then next step. Keep `pytest`+`ruff` green.
+- UE editor boots are slow (~60s warm) and source-built — be patient; never `pkill -9` in a loop.
+- `print()`/`unreal.log()` aren't captured on the pythonscript commandlet's stdout — write
+  results to `$PLAYSMITH_UE_OUT` and read the file back (see the adapter's `_run_python`).
+- Maps/assets are binary (`.umap`/`.uasset`) — author via the editor / UE Python / MCP, never text writes.
+- Keep engine specifics behind `EngineAdapter`; keep all LLM calls in `playsmith/llm/`.
+- When a step reveals a better design, update `docs/ARCHITECTURE.md` **and** `CLAUDE.md` together.

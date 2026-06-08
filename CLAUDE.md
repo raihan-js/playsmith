@@ -193,12 +193,13 @@ Keep this list honest. Prove it on **third-person first**, then first-person and
 
 ## 9. Pointers
 
-- Public overview & quickstart: `README.md` *(still pre-pivot in places — update as you touch it)*
-- Architecture & interfaces: `docs/ARCHITECTURE.md` *(pre-pivot — needs an Unreal-first rewrite)*
-- Phased plan & milestones: `docs/ROADMAP.md` *(pre-pivot — needs rewrite)*
+- Public overview: `README.md`
+- Get up and running: `docs/QUICKSTART.md`
+- Architecture & interfaces: `docs/ARCHITECTURE.md`
+- Phased plan & milestones: `docs/ROADMAP.md`; start-here build order: `BUILD_PLAN.md`
 - Skill spec & contributing: `docs/SKILL_SPEC.md`, `docs/CONTRIBUTING_SKILLS.md`
-- Strategy: `WHY.md` *(pre-pivot framing — flag/update as you touch it)*
+- Strategy / why this won't be another failed AI tool: `WHY.md`
 
-> **Docs debt from the re-founding:** the code/config are Unreal-only and green, but several docs
-> (`README`, `docs/ARCHITECTURE`, `docs/ROADMAP`, `WHY`, the `BUILD_PLAN*` files, `QUICKSTART`,
-> `LAUNCH`) still describe the Godot/2D era. Rewrite them to Unreal-first as part of stage 0/1.
+All docs were rewritten Unreal-first in the 2026-06-09 re-founding (stage 0). The obsolete Godot-era
+planning docs (`docs/BUILD_PLAN_PHASE1..3.md`, `docs/BUILD_PLANS.md`, `docs/LAUNCH.md`, `docs/DOCKER.md`)
+were removed.
