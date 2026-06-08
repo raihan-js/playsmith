@@ -3,15 +3,16 @@
 Command surface:
   version       — print version
   config-check  — show the resolved configuration (providers, routes, fallback)
-  models        — show the route table + round-trip the default model
+  models        — route table + round-trip the default model (--eval for reliability)
   engine-check  — create + run a trivial Godot project headless
-  skills        — list installed game-generation skills
+  skills        — list / search / install / remove game-generation skills (marketplace)
   new           — prompt -> scaffold -> generate -> assertion-verify
   edit          — apply a natural-language change to the latest project, then re-verify
-  assets        — import <file> | generate "<prompt>" — game art (optional)
+  assets        — import <file> | generate "<prompt>" — 2D sprites or 3D meshes (optional)
   run           — run the latest generated project in a window
   export        — headless HTML5 export of the generated game
   publish       — publish to itch.io via butler (with a compliance reminder)
+  unreal        — EXPERIMENTAL Unreal track (royalty calculator, availability check)
 """
 
 from __future__ import annotations

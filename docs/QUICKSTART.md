@@ -126,6 +126,30 @@ commented examples there). The router picks a provider per task; whenever it cro
 
 ---
 
+## 8. Going further (Phase 2): 3D, community skills, Unreal
+
+```bash
+# 3D games (Godot) — same flow, just ask for 3D:
+playsmith new "a simple 3D platformer where a robot collects orbs"
+playsmith assets generate "a low-poly tree" --kind mesh   # needs a mesh backend; else primitives
+
+# Community skills (marketplace) — installs are integrity-checked and never auto-run:
+playsmith skills search rpg
+playsmith skills install <name>                # untrusted skills need --allow-untrusted
+playsmith skills remove <name>
+
+# Router maturity — measure tool-call reliability and get a fallback recommendation:
+playsmith models --eval
+
+# Unreal track (EXPERIMENTAL; Godot is the default, tested engine):
+playsmith unreal royalty 2000000               # Epic charges 5% above $1M/product; Godot charges 0
+playsmith unreal check                         # editor + Remote Control availability
+```
+
+> Community skills are *code you're trusting* — their scripts end up in your game and their
+> instructions drive the agent. Playsmith verifies a checksum, refuses untrusted skills unless you
+> opt in, never executes anything on install, and shows you every file diff. Prefer the curated index.
+
 ## Troubleshooting
 
 - **Model is flaky / gives up mid-build.** Raise `num_ctx` (16K → 32K), use a stronger model

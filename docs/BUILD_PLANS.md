@@ -7,10 +7,10 @@ step-by-step, paste-a-prompt build plan.
 | Phase | The one question it answers | Build plan | Status |
 |---|---|---|---|
 | **0** | Can the plumbing turn a prompt into a real Godot project? | [`BUILD_PLAN.md`](../BUILD_PLAN.md) | ✅ code-complete (live run needs local Godot + model) |
-| **1** | Can a local model make **one** 2D genre that's genuinely *good* and shippable? | [`docs/BUILD_PLAN_PHASE1.md`](BUILD_PLAN_PHASE1.md) | ▶ next |
-| **launch** | Is it worth showing the world? | [`docs/LAUNCH.md`](LAUNCH.md) | after Phase 1 DoD |
-| **2** | Can we add breadth (3D, a 2nd engine, a marketplace) without breaking the discipline? | [`docs/BUILD_PLAN_PHASE2.md`](BUILD_PLAN_PHASE2.md) | gated on Phase 1 |
-| **3** | Can a user ship to the big stores **responsibly**? | [`docs/BUILD_PLAN_PHASE3.md`](BUILD_PLAN_PHASE3.md) | gated on Phase 2 |
+| **1** | Can a local model make **one** 2D genre that's genuinely *good* and shippable? | [`docs/BUILD_PLAN_PHASE1.md`](BUILD_PLAN_PHASE1.md) | ✅ code-complete (live demo pending installs) |
+| **launch** | Is it worth showing the world? | [`docs/LAUNCH.md`](LAUNCH.md) | after the live Phase 1 demo |
+| **2** | Can we add breadth (3D, a 2nd engine, a marketplace) without breaking the discipline? | [`docs/BUILD_PLAN_PHASE2.md`](BUILD_PLAN_PHASE2.md) | ✅ code-complete (GUI deferred) |
+| **3** | Can a user ship to the big stores **responsibly**? | [`docs/BUILD_PLAN_PHASE3.md`](BUILD_PLAN_PHASE3.md) | ▶ next |
 | **beyond** | How does it *last*? | tail of [`BUILD_PLAN_PHASE3.md`](BUILD_PLAN_PHASE3.md) | community + curation + quality |
 
 ## The through-line

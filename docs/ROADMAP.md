@@ -66,17 +66,27 @@ local **or** cloud model, with the cloud route an optional fallback, not a requi
 
 ## Phase 2 — 3D + Unreal track + skill marketplace
 
-**Goal:** breadth — 3D, a second engine, and community-authored skills.
+**Goal:** breadth — 3D, a second engine, and community-authored skills. Full plan:
+`docs/BUILD_PLAN_PHASE2.md`.
 
-- [ ] **Asset pipeline (3D)**: Hunyuan3D/TRELLIS client; Blender cleanup hooks; clear quality caveats.
-- [ ] **Godot 3D genre skills**: 3D platformer, simple FPS.
-- [ ] **Unreal adapter** (power-user track): MCP integration, headless build, royalty calculator surfaced.
-- [ ] **Model router**: per-task local/cloud selection with user-facing fallback warnings.
-- [ ] **Skill marketplace/registry**: install community skills via CLI; curated + open submission.
-- [ ] (Optional) **GUI**: Tauri/Electron front-end for non-coders.
+> **Status:** code-complete and tested (120 tests, `ruff` + `pytest` green). 3D/Unreal live runs
+> need Godot/UE installed; the marketplace needs a published index. GUI intentionally deferred.
 
-**Definition of Done:** a user generates a basic 3D game in Godot, an advanced user runs the
-Unreal track, and anyone can install a third-party skill with one command.
+- [x] **Asset pipeline (3D)**: Hunyuan3D/TRELLIS client; optional Blender cleanup hook; loud quality caveats.
+- [x] **Godot 3D genre skill**: `3d-platformer` (the engine abstraction held — interface unchanged). FPS deferred.
+- [x] **Unreal adapter** (experimental power-user track): Remote Control API + headless run, royalty calculator surfaced.
+- [x] **Model router maturity**: shipped in Phase 1; Phase 2 adds the `models --eval` reliability harness.
+- [x] **Skill marketplace/registry**: `skills search/install/remove` from a curated index, with **security** (integrity, untrusted-by-default, no auto-exec, provenance).
+- [ ] (Optional, deferred) **GUI**: Tauri/Electron front-end for non-coders — `playsmith edit` covers ~80% at the CLI.
+
+**Definition of Done:** a user generates a basic 3D Godot game, an advanced user runs the Unreal
+track, and anyone installs a third-party skill with one command — safely. (Code-complete; live
+3D/Unreal/marketplace runs pending the respective installs + a published index.)
+
+**Next 3 (Phase 3 kickoff, per `docs/BUILD_PLAN_PHASE3.md`):**
+1. **Desktop export targets** (Win/macOS/Linux) — the store-packaging foundation.
+2. **Steam publishing** (SteamPipe) + the AI-content disclosure helper.
+3. **Compliance suite** (`publish --check`) — Apple 4.2.6 / Google repetitive-content / age rating.
 
 ---
 
