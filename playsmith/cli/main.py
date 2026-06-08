@@ -21,6 +21,7 @@ from playsmith.config import Config, ConfigError, load_config
 from playsmith.engines import EngineError, EngineNotFoundError, GodotAdapter, SceneSpec
 from playsmith.engines.godot import templates as godot_templates
 from playsmith.llm import LLMError, LLMGateway, Message
+from playsmith.skills import SkillLoader
 
 app = typer.Typer(
     name="playsmith",
@@ -131,6 +132,22 @@ def engine_check(
         for line in result.error_lines():
             console.print(f"  [red]{line}[/]")
         raise typer.Exit(code=1)
+
+
+@app.command()
+def skills() -> None:
+    """List the installed game-generation skills."""
+    found = SkillLoader().discover()
+    if not found:
+        console.print("[yellow]No skills found under game-skills/.[/]")
+        return
+    table = Table(title="Installed skills", show_header=True, header_style="bold")
+    table.add_column("Name", style="cyan", no_wrap=True)
+    table.add_column("Description", style="white")
+    for skill in found:
+        desc = skill.description
+        table.add_row(skill.name, desc if len(desc) <= 90 else desc[:87] + "...")
+    console.print(table)
 
 
 def main() -> None:
