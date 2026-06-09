@@ -147,3 +147,11 @@ def test_ensure_render_settings_is_idempotent_and_preserves(tmp_path) -> None:
     assert "r.DynamicGlobalIlluminationMethod=1" in first  # nextgen added
     template_clone.ensure_render_settings(tmp_path)
     assert ini.read_text() == first  # not appended twice
+
+
+def test_ensure_render_settings_handles_readonly_ini(tmp_path) -> None:
+    ini = tmp_path / "DefaultEngine.ini"
+    ini.write_text("[/Script/EngineSettings.GameMapsSettings]\nGameDefaultMap=/Game/X\n")
+    ini.chmod(0o444)  # read-only, like the engine template's copied config
+    template_clone.ensure_render_settings(tmp_path)  # must not raise PermissionError
+    assert "r.DynamicGlobalIlluminationMethod=1" in ini.read_text()

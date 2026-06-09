@@ -108,6 +108,11 @@ def ensure_render_settings(config_dir: Path) -> Path:
     config_dir = Path(config_dir)
     config_dir.mkdir(parents=True, exist_ok=True)
     ini = config_dir / "DefaultEngine.ini"
+    if ini.exists():
+        try:  # engine template .ini files are copied read-only; make it writable first
+            ini.chmod(ini.stat().st_mode | 0o200)
+        except OSError:
+            pass
     text = ini.read_text(errors="ignore") if ini.exists() else ""
     if _RENDER_MARKER in text:
         return ini
@@ -211,6 +216,13 @@ def clone_template(
         shutil.copytree(template_root / "Config", dest_config, dirs_exist_ok=True)
         for ignored in _TEMPLATE_ONLY_CONFIG:
             (dest_config / ignored).unlink(missing_ok=True)
+        # Engine template files are read-only; make the project's config writable so we (and the
+        # editor) can update DefaultEngine.ini / DefaultGame.ini etc.
+        for cfg_file in dest_config.glob("*.ini"):
+            try:
+                cfg_file.chmod(cfg_file.stat().st_mode | 0o200)
+            except OSError:
+                pass
     ensure_render_settings(dest_config)  # next-gen rendering (Lumen / VSM / TSR) — see roadmap
 
     # 3. Shared content packs (mannequin, level-prototyping, input, cursor, ...) merged in by hand.
