@@ -17,6 +17,7 @@ import re
 import shutil
 import subprocess
 import time
+from collections.abc import Callable
 from pathlib import Path
 
 import httpx
@@ -121,6 +122,14 @@ def _resolve_editor(editor_cmd: str) -> str:
         if path.exists():
             return str(path)
     return editor_cmd  # leave as-is; _invoke raises a clear EngineNotFoundError if missing
+
+
+def _first_png(directory: Path) -> Path | None:
+    """The first PNG under ``directory`` (UE writes HighResShots into a platform subfolder)."""
+    if not directory.exists():
+        return None
+    pngs = sorted(directory.rglob("*.png"))
+    return pngs[0] if pngs else None
 
 
 class UnrealAdapter:
@@ -254,7 +263,9 @@ class UnrealAdapter:
         cmd = [self.editor_cmd, *args]
         run_env = {**os.environ, **(env or {})}
         if done_file is not None:
-            return self._invoke_until_done(cmd, run_env, timeout_s=timeout_s, done_file=done_file)
+            return self._invoke_until_done(
+                cmd, run_env, timeout_s=timeout_s, is_ready=done_file.exists
+            )
         try:
             proc = subprocess.run(
                 cmd, capture_output=True, text=True, timeout=timeout_s, env=run_env
@@ -277,13 +288,18 @@ class UnrealAdapter:
         )
 
     def _invoke_until_done(
-        self, cmd: list[str], run_env: dict[str, str], *, timeout_s: int, done_file: Path
+        self,
+        cmd: list[str],
+        run_env: dict[str, str],
+        *,
+        timeout_s: int,
+        is_ready: Callable[[], bool],
     ) -> RunResult:
-        """Run UE headless but stop as soon as it writes ``done_file``.
+        """Run UE headless but stop as soon as ``is_ready()`` is true (the artifact has landed).
 
-        UE source-build editors reliably do their work (and write the harness's result file) and
-        then HANG on shutdown — so a plain blocking run burns the whole timeout. We poll for the
-        result file and terminate the editor once it appears; the result is already on disk.
+        UE source-build editors reliably do their work (write the harness's result file, save a
+        screenshot) and then HANG on shutdown — so a plain blocking run burns the whole timeout.
+        We poll for the expected artifact and terminate the editor once it appears.
         """
         saved = self.project_dir / "Saved"
         saved.mkdir(parents=True, exist_ok=True)
@@ -307,9 +323,9 @@ class UnrealAdapter:
             while True:
                 if proc.poll() is not None:
                     break  # exited on its own
-                if done_file.exists():
+                if is_ready():
                     early = True
-                    time.sleep(1.0)  # let the harness flush its last write
+                    time.sleep(1.0)  # let the editor finish flushing the artifact
                     break
                 if time.monotonic() > deadline:
                     timed_out = True
@@ -399,6 +415,57 @@ class UnrealAdapter:
         except EngineError as exc:
             return RunResult(command=["remote", "HighResShot"], returncode=1, stderr=str(exc))
         return RunResult(command=["remote", "HighResShot"], returncode=0, stdout=str(out))
+
+    def render_screenshot(
+        self,
+        out_path: str | os.PathLike[str],
+        *,
+        scene: str | None = None,
+        width: int = 1280,
+        height: int = 720,
+        timeout_s: int = 600,
+    ) -> RunResult:
+        """Render a REAL frame of the level on the GPU, headless, and save it to ``out_path``.
+
+        Editor-in-the-loop rendering (CLAUDE.md §0 Stage 2): boots UE in ``-game -RenderOffscreen``
+        (Vulkan, no window/display) and captures a queued HighResShot, terminating the editor the
+        moment the PNG lands. The FIRST render compiles the render shaders (slow — minutes — and
+        the frame may show default materials); once the DDC is warm, renders are fast and clean.
+        The captured PNG is copied to ``out_path`` (absent if nothing was captured). This is the
+        rendered evidence the critic loop scores (Stage 3).
+        """
+        out = Path(out_path).expanduser()
+        out.parent.mkdir(parents=True, exist_ok=True)
+        shot_dir = self.project_dir / "Saved" / "Screenshots"
+        shutil.rmtree(shot_dir, ignore_errors=True)
+        args = [str(self._uproject_path())]
+        if scene:
+            args.append(scene)
+        args += [
+            "-game",
+            "-RenderOffscreen",  # GPU render to an offscreen buffer — no display/window needed
+            f"-ResX={width}",
+            f"-ResY={height}",
+            f"-ExecCmds=HighResShot {width}x{height}",
+            "-unattended",
+            "-nosound",
+            "-nopause",
+            "-nosplash",
+            "-stdout",
+            "-NoLogTimes",
+            "-notrace",
+            "-noxgecontroller",
+        ]
+        result = self._invoke_until_done(
+            [self.editor_cmd, *args],
+            {**os.environ},
+            timeout_s=timeout_s,
+            is_ready=lambda: _first_png(shot_dir) is not None,
+        )
+        png = _first_png(shot_dir)
+        if png is not None:
+            shutil.copyfile(png, out)
+        return result
 
     def import_assets(self) -> RunResult:
         """Unreal imports assets through the editor/Interchange pipeline, not a CLI flag."""

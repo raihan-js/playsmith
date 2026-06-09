@@ -352,6 +352,49 @@ def unreal_new(
         raise typer.Exit(code=1)
 
 
+@unreal_app.command("shot")
+def unreal_shot(
+    name: str = typer.Argument(..., help="The project (workspace folder) to render."),
+    genre: str = typer.Option(
+        "third-person", "--genre", "-g", help="Which template's level to render."
+    ),
+    out: str = typer.Option(None, "--out", "-o", help="Output PNG path (default: preview.png)."),
+    config: str = typer.Option(None, "--config", "-c", help="Path to a config YAML."),
+) -> None:
+    """Render a real screenshot of a project's level on the GPU (headless, offscreen).
+
+    Editor-in-the-loop rendering (Stage 2). The FIRST render compiles shaders (slow); once the
+    DDC is warm, renders are fast. This is the rendered evidence the critic loop will score.
+    """
+    cfg = load_config(config)
+    spec = template_clone.TEMPLATES.get(genre.lower())
+    if spec is None:
+        console.print(
+            f"[bold red]Unknown genre:[/] {genre}. "
+            f"Choose: {', '.join(sorted(template_clone.TEMPLATES))}."
+        )
+        raise typer.Exit(code=1)
+    slug = re.sub(r"[^a-z0-9]+", "-", name.lower()).strip("-") or "unreal-game"
+    project_dir = cfg.workspace_dir.expanduser() / slug
+    if not project_dir.is_dir():
+        console.print(f"[bold red]No project at[/] {project_dir}.")
+        console.print(f'Run `playsmith unreal new "{name}"` first.')
+        raise typer.Exit(code=1)
+    adapter = UnrealAdapter(project_dir, editor_cmd=cfg.engine.unreal.editor_cmd)
+    out_path = Path(out).expanduser() if out else project_dir / "preview.png"
+    console.print("Rendering on the GPU (first render compiles shaders — slow) ...")
+    try:
+        adapter.render_screenshot(out_path, scene=spec.map_path)
+    except EngineNotFoundError as exc:
+        console.print(f"[bold red]{exc}[/]")
+        raise typer.Exit(code=1) from exc
+    if out_path.exists():
+        console.print(f"[bold green]✓ Rendered[/] {out_path} ({out_path.stat().st_size:,} bytes)")
+    else:
+        console.print("[yellow]No frame captured — the render may need a longer timeout.[/]")
+        raise typer.Exit(code=1)
+
+
 def main() -> None:
     """Console-script entrypoint."""
     app()

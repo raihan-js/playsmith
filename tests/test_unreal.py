@@ -114,6 +114,29 @@ def test_verify_parses_file_based_assertions(tmp_path, monkeypatch) -> None:
     assert result.ok
 
 
+def test_render_screenshot_copies_captured_png(tmp_path, monkeypatch) -> None:
+    adapter = UnrealAdapter(tmp_path / "proj")
+    adapter.create_project("G")
+    shot_dir = adapter.project_dir / "Saved" / "Screenshots" / "LinuxEditor"
+    captured: dict = {}
+
+    def fake_until_done(cmd, run_env, *, timeout_s, is_ready):
+        captured["cmd"] = cmd
+        shot_dir.mkdir(parents=True, exist_ok=True)
+        (shot_dir / "HighresScreenshot00000.png").write_bytes(b"\x89PNG\r\n\x1a\nDATA")
+        assert is_ready()  # the readiness predicate finds the captured frame
+        return RunResult(command=cmd, returncode=0)
+
+    monkeypatch.setattr(adapter, "_invoke_until_done", fake_until_done)
+    out = tmp_path / "preview.png"
+    adapter.render_screenshot(out, scene="/Game/X/Map", width=640, height=360)
+    assert out.read_bytes().startswith(b"\x89PNG")  # the captured frame was copied to out_path
+    # The recipe renders offscreen on the GPU and issues a HighResShot of the requested scene.
+    assert "-RenderOffscreen" in captured["cmd"]
+    assert any("HighResShot 640x360" in str(a) for a in captured["cmd"])
+    assert "/Game/X/Map" in captured["cmd"]
+
+
 def test_write_scene_refused_binary(tmp_path) -> None:
     from playsmith.engines.base import SceneSpec
 
