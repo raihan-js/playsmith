@@ -71,7 +71,30 @@ def test_plan_dressing_parses_llm_json_via_reasoning_route() -> None:
 
 def test_plan_dressing_falls_back_on_garbage() -> None:
     out = director.plan_dressing("anything", "third-person", _FakeGateway("no json here"))
-    assert out == director.default_dressing()
+    # Same as the safe default, except the title is derived from the prompt.
+    assert out["placements"] == director.default_dressing()["placements"]
+    assert out["title"] == "Anything"
+
+
+def test_ask_includes_hints_and_requests_a_title() -> None:
+    q = director._ask("a parkour run", "third-person", {"vibe": "spooky", "difficulty": "hard"})
+    assert "spooky" in q and "hard" in q and '"title"' in q
+
+
+def test_sanitize_keeps_title() -> None:
+    out = director._sanitize({"title": "  Neon Drift  ", "placements": []})
+    assert out["title"] == "Neon Drift"
+
+
+def test_plan_dressing_uses_llm_title_then_prompt_fallback() -> None:
+    gw = _FakeGateway('{"title":"Sky Temple","placements":'
+                      '[{"kind":"target","x":0,"y":0,"z":100,"role":"goal"}]}')
+    assert director.plan_dressing("explore a temple", "third-person", gw)["title"] == "Sky Temple"
+    # No title in the JSON -> fall back to a Title-Cased prompt, not the generic default.
+    gw2 = _FakeGateway('{"placements":[{"kind":"target","x":0,"y":0,"z":100,"role":"goal"}]}')
+    assert director.plan_dressing("haunted castle escape", "first-person", gw2)["title"] == (
+        "Haunted Castle Escape"
+    )
 
 
 def test_dress_level_script_is_additive_and_uses_real_assets() -> None:

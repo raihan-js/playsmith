@@ -22,6 +22,7 @@ from __future__ import annotations
 import asyncio
 import json
 import re
+import shutil
 from pathlib import Path
 
 from fastapi import FastAPI, Request, WebSocket, WebSocketDisconnect
@@ -56,6 +57,24 @@ def _slug(name: str) -> str:
 
 def _proj_name(name: str) -> str:
     return re.sub(r"[^A-Za-z0-9]", "", name or "")[:40] or "Game"
+
+
+def _pretty(slug: str) -> str:
+    """A readable fallback title from a project slug (when no manifest title exists)."""
+    return " ".join(w.capitalize() for w in slug.replace("-", " ").split()) or slug
+
+
+# Structured composer fields the studio can pass so a prompt is more directive than one text line.
+_HINT_KEYS = ("theme", "vibe", "difficulty", "size")
+
+
+def _hints(req: dict) -> dict:
+    out: dict[str, str] = {}
+    for key in _HINT_KEYS:
+        value = req.get(key)
+        if isinstance(value, str) and value.strip():
+            out[key] = value.strip()[:60]
+    return out
 
 
 def _infer_genre(prompt: str) -> str:
@@ -100,6 +119,7 @@ def _list_projects(workspace: Path) -> list[dict]:
                 out.append(
                     {
                         "name": p.name,
+                        "title": m.get("title") or _pretty(p.name),
                         "genre": m.get("genre", "third-person"),
                         "playable": bool(m.get("playable", True)),
                         "prompt": m.get("objective") or m.get("prompt") or p.name,
@@ -213,6 +233,23 @@ def api_projects() -> JSONResponse:
     return JSONResponse({"projects": _list_projects(cfg.workspace_dir.expanduser())})
 
 
+@app.delete("/api/projects/{name}")
+def api_delete_project(name: str) -> JSONResponse:
+    """Delete a generated UE project from the workspace (workspace-scoped, real-project only)."""
+    cfg = load_config()
+    workspace = cfg.workspace_dir.expanduser().resolve()
+    target = (workspace / _slug(name)).resolve()
+    # Safety: only a direct child of the workspace that is a real UE project may be removed.
+    if (
+        target.parent != workspace
+        or not target.is_dir()
+        or next(target.glob("*.uproject"), None) is None
+    ):
+        return JSONResponse({"error": f"No such project: {name}"}, status_code=404)
+    shutil.rmtree(target, ignore_errors=True)
+    return JSONResponse({"ok": True, "deleted": target.name})
+
+
 @app.get("/api/files/{name}")
 def api_files(name: str) -> JSONResponse:
     cfg = load_config()
@@ -268,7 +305,7 @@ async def _handle(sock: WebSocket, req: dict) -> None:
     if action == "build":
         prompt = (req.get("prompt") or "").strip() or "a third person adventure"
         genre = (req.get("genre") or _infer_genre(prompt)).lower()
-        await _build(sock, cfg, workspace, prompt, genre)
+        await _build(sock, cfg, workspace, prompt, genre, _hints(req))
         return
 
     if action == "dress":
@@ -279,7 +316,7 @@ async def _handle(sock: WebSocket, req: dict) -> None:
             return
         prompt = (req.get("prompt") or "").strip() or name
         genre = (_read_manifest(project_dir).get("genre") or _infer_genre(prompt)).lower()
-        await _dress(sock, cfg, project_dir, name, prompt, genre)
+        await _dress(sock, cfg, project_dir, name, prompt, genre, _hints(req))
         return
 
     if action == "render":
@@ -293,7 +330,7 @@ async def _handle(sock: WebSocket, req: dict) -> None:
     await _send(sock, type="error", text=f"Unknown action: {action}")
 
 
-async def _build(sock, cfg, workspace, prompt: str, genre: str) -> None:
+async def _build(sock, cfg, workspace, prompt: str, genre: str, hints: dict | None = None) -> None:
     tspec = template_clone.TEMPLATES.get(genre)
     if tspec is None:
         await _send(sock, type="error", text=f"Unknown genre: {genre}")
@@ -313,49 +350,53 @@ async def _build(sock, cfg, workspace, prompt: str, genre: str) -> None:
     v = await asyncio.to_thread(adapter.verify_template, tspec)
     await _send(sock, type="observe", name="verify_game", text=_fmt(v.assertions), ok=v.ok)
 
-    dressing = await _do_dressing(sock, cfg, adapter, prompt, genre, tspec)
+    dressing = await _do_dressing(sock, cfg, adapter, prompt, genre, tspec, hints)
 
     playable = bool(v.ok)
     _write_manifest(
-        project_dir, genre=genre, prompt=prompt, objective=dressing.get("objective"),
-        theme=dressing.get("theme"), playable=playable,
+        project_dir, genre=genre, prompt=prompt, title=dressing.get("title"),
+        objective=dressing.get("objective"), theme=dressing.get("theme"), playable=playable,
     )
     assertions = {**dict(v.assertions), "objects_placed": True}
     summary = f"{dressing.get('theme', '')} — {dressing.get('objective', '')}".strip(" —")
     await _send(
         sock, type="done", done=True, runs_clean=playable, project=name, skill=genre,
-        assertions=assertions, summary=summary, preview=f"/preview/{name}", playable=playable,
+        title=dressing.get("title"), assertions=assertions, summary=summary,
+        preview=f"/preview/{name}", playable=playable,
     )
 
 
-async def _dress(sock, cfg, project_dir, name: str, prompt: str, genre: str) -> None:
+async def _dress(
+    sock, cfg, project_dir, name: str, prompt: str, genre: str, hints: dict | None = None
+) -> None:
     tspec = template_clone.TEMPLATES.get(genre)
     if tspec is None:
         await _send(sock, type="error", text=f"Unknown genre: {genre}")
         return
     adapter = UnrealAdapter(project_dir, editor_cmd=cfg.engine.unreal.editor_cmd)
     await _send(sock, type="start", action="edit", prompt=prompt, project=name)
-    dressing = await _do_dressing(sock, cfg, adapter, prompt, genre, tspec)
+    dressing = await _do_dressing(sock, cfg, adapter, prompt, genre, tspec, hints)
     _write_manifest(
         project_dir,
         prompt=prompt,
+        title=dressing.get("title"),
         objective=dressing.get("objective"),
         theme=dressing.get("theme"),
     )
     summary = f"{dressing.get('theme', '')} — {dressing.get('objective', '')}".strip(" —")
     await _send(
         sock, type="done", done=True, runs_clean=True, project=name, skill=genre,
-        assertions={"objects_placed": True}, summary=summary, preview=f"/preview/{name}",
-        playable=True,
+        title=dressing.get("title"), assertions={"objects_placed": True}, summary=summary,
+        preview=f"/preview/{name}", playable=True,
     )
 
 
-async def _do_dressing(sock, cfg, adapter, prompt: str, genre: str, tspec) -> dict:
+async def _do_dressing(sock, cfg, adapter, prompt: str, genre: str, tspec, hints=None) -> dict:
     """Plan + apply a dressing, streaming director events. Returns the dressing spec."""
     await _send(sock, type="phase", text="Directing the level from your prompt")
     await _send(sock, type="tool", name="generate_asset", args={})
     gateway = LLMGateway.from_config(cfg)
-    dressing = await asyncio.to_thread(director.plan_dressing, prompt, genre, gateway)
+    dressing = await asyncio.to_thread(director.plan_dressing, prompt, genre, gateway, hints=hints)
     n = len(dressing.get("placements", []))
     await _send(
         sock, type="observe", name="generate_asset",

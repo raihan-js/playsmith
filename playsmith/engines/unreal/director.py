@@ -40,17 +40,43 @@ PALETTE: dict[str, tuple[str, str]] = {
 
 _SYSTEM = "You are a 3D level designer. Reply with STRICT JSON only — no prose, no code fences."
 
+# Structured hint fields the studio composer can pass through (all optional, free-text-ish).
+_HINT_LABELS = (
+    ("theme", "Theme"),
+    ("vibe", "Mood / vibe"),
+    ("difficulty", "Difficulty"),
+    ("size", "Level size"),
+)
 
-def _ask(prompt: str, genre: str) -> str:
+
+def _hint_lines(hints: dict | None) -> str:
+    """Render the player's structured choices into a prompt block the director must honor."""
+    if not hints:
+        return ""
+    parts = [f"{label}: {hints[key]}" for key, label in _HINT_LABELS if hints.get(key)]
+    if not parts:
+        return ""
+    return "PLAYER'S CHOICES (honor these):\n- " + "\n- ".join(parts) + "\n\n"
+
+
+def fallback_title(prompt: str) -> str:
+    """A readable game title from the raw prompt, for when the LLM gives none (Title Case)."""
+    words = re.findall(r"[A-Za-z0-9']+", prompt or "")
+    return " ".join(w.capitalize() for w in words[:4]) or "Untitled Game"
+
+
+def _ask(prompt: str, genre: str, hints: dict | None = None) -> str:
     kinds = ", ".join(sorted(PALETTE))
     return (
         f"You are dressing an existing, already-playable {genre} Unreal level (it has a floor, a "
         "player character, and a PlayerStart at the origin). ADD gameplay objects to turn it into "
         "this game; do not remove what's there.\n\n"
         f"GAME: {prompt}\n\n"
+        f"{_hint_lines(hints)}"
         f"Place objects from this palette ONLY (kind must be one of): {kinds}.\n"
         "Return STRICT JSON exactly like:\n"
         "{\n"
+        '  "title": "<a catchy 2-4 word game title>",\n'
         '  "theme": "<short theme>",\n'
         '  "objective": "<one sentence: what the player does to win>",\n'
         '  "sun": {"color": [r,g,b], "intensity": <2-10>, "pitch": <-80..-10>},\n'
@@ -80,6 +106,7 @@ def _place(kind, x, y, z, role, sx=1.0, sy=1.0, sz=1.0) -> dict:
 def default_dressing() -> dict:
     """A safe, playable dressing when no LLM spec is available: a short obstacle course + a goal."""
     return {
+        "title": "Prototype Course",
         "theme": "prototype course",
         "objective": "Reach the target at the far end of the course.",
         "sun": {"color": [1.0, 0.95, 0.85], "intensity": 6.0, "pitch": -45.0},
@@ -97,6 +124,8 @@ def default_dressing() -> dict:
 def _sanitize(spec: dict) -> dict:
     """Clamp everything to safe, reachable ranges; drop unknown asset kinds. Never raises."""
     out = default_dressing()
+    if isinstance(spec.get("title"), str) and spec["title"].strip():
+        out["title"] = spec["title"].strip()[:48]
     if isinstance(spec.get("theme"), str) and spec["theme"].strip():
         out["theme"] = spec["theme"].strip()[:60]
     if isinstance(spec.get("objective"), str) and spec["objective"].strip():
@@ -131,21 +160,33 @@ def _sanitize(spec: dict) -> dict:
     return out
 
 
-def plan_dressing(prompt: str, genre: str, gateway: LLMGateway) -> dict:
-    """Ask the (frontier) LLM for a themed dressing spec; fall back to a safe default on failure."""
+def plan_dressing(
+    prompt: str, genre: str, gateway: LLMGateway, *, hints: dict | None = None
+) -> dict:
+    """Ask the (frontier) LLM for a themed dressing spec; fall back to a safe default on failure.
+
+    ``hints`` carries the studio composer's structured choices (theme/vibe/difficulty/size) so the
+    player can be more directive than a single free-text line. A safe title is always present.
+    """
+    out = default_dressing()
+    out["title"] = fallback_title(prompt)
     try:
         resp = gateway.chat(
-            [Message.system(_SYSTEM), Message.user(_ask(prompt, genre))],
+            [Message.system(_SYSTEM), Message.user(_ask(prompt, genre, hints))],
             task=TaskType.REASONING,
         )
         match = re.search(r"\{.*\}", resp.content or "", re.DOTALL)
         if match:
             parsed = json.loads(match.group(0))
             if isinstance(parsed, dict):
-                return _sanitize(parsed)
+                spec = _sanitize(parsed)
+                # If the model gave no title, sanitize used the generic default — prefer the prompt.
+                if spec["title"] == default_dressing()["title"]:
+                    spec["title"] = fallback_title(prompt)
+                return spec
     except Exception:  # noqa: BLE001 - direction must never break a build
         pass
-    return default_dressing()
+    return out
 
 
 def dress_level_script(spec: dict, map_path: str) -> str:
