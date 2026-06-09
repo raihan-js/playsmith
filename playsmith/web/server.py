@@ -675,7 +675,7 @@ async def _direct(
         png = adapter.project_dir / "preview.png"
         vis = None
         try:
-            await asyncio.to_thread(adapter.render_screenshot, png, scene=tspec.map_path)
+            await asyncio.to_thread(adapter.render_establishing, png, tspec)
             vis = await asyncio.to_thread(critic.score_render, str(png), result.spec, gateway)
         except (EngineError, OSError):
             vis = None
@@ -732,10 +732,8 @@ async def _render(sock, cfg, workspace, name: str) -> None:
         return
     name = project_dir.name
     adapter = UnrealAdapter(project_dir, editor_cmd=cfg.engine.unreal.editor_cmd)
-    await _send(sock, type="phase", text="Rendering a preview (first render compiles shaders)")
-    await asyncio.to_thread(
-        adapter.render_screenshot, project_dir / "preview.png", scene=tspec.map_path
-    )
+    await _send(sock, type="phase", text="Rendering an establishing shot (first render is slow)")
+    await asyncio.to_thread(adapter.render_establishing, project_dir / "preview.png", tspec)
     ok = (project_dir / "preview.png").exists()
     await _send(
         sock, type="observe", name="screenshot",

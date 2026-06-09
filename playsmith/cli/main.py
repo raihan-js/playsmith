@@ -41,6 +41,20 @@ app = typer.Typer(
 console = Console()
 
 
+def _slug(name: str) -> str:
+    """A short workspace-folder slug. UE truncates project names ~63 chars (and a too-long name
+    segfaults the editor), so keep both the folder and the .uproject short — matches the web flow.
+    """
+    s = re.sub(r"[^a-z0-9]+", "-", (name or "").lower()).strip("-")
+    s = "-".join(s.split("-")[:6])
+    return s[:48] or "unreal-game"
+
+
+def _proj_name(name: str) -> str:
+    """A short, UE-safe project name (alphanumeric, capped well under UE's ~63-char limit)."""
+    return re.sub(r"[^A-Za-z0-9]", "", name or "")[:40] or "Game"
+
+
 @app.command()
 def version() -> None:
     """Print the Playsmith version."""
@@ -324,8 +338,8 @@ def unreal_new(
             f"Choose: {', '.join(sorted(template_clone.TEMPLATES))}."
         )
         raise typer.Exit(code=1)
-    slug = re.sub(r"[^a-z0-9]+", "-", name.lower()).strip("-") or "unreal-game"
-    proj_name = re.sub(r"[^A-Za-z0-9]", "", name) or "Game"
+    slug = _slug(name)
+    proj_name = _proj_name(name)
     project_dir = cfg.workspace_dir.expanduser() / slug
     adapter = UnrealAdapter(project_dir, editor_cmd=cfg.engine.unreal.editor_cmd)
 
@@ -444,7 +458,7 @@ def unreal_dress(
     if tspec is None:
         console.print(f"[bold red]Unknown genre:[/] {genre}.")
         raise typer.Exit(code=1)
-    slug = re.sub(r"[^a-z0-9]+", "-", name.lower()).strip("-") or "unreal-game"
+    slug = _slug(name)
     project_dir = cfg.workspace_dir.expanduser() / slug
     if not project_dir.is_dir():
         console.print(f"[bold red]No project at[/] {project_dir}.")
@@ -473,7 +487,7 @@ def unreal_play(
     if tspec is None:
         console.print(f"[bold red]Unknown genre:[/] {genre}.")
         raise typer.Exit(code=1)
-    slug = re.sub(r"[^a-z0-9]+", "-", name.lower()).strip("-") or "unreal-game"
+    slug = _slug(name)
     project_dir = cfg.workspace_dir.expanduser() / slug
     if not project_dir.is_dir():
         console.print(f"[bold red]No project at[/] {project_dir}.")
@@ -497,12 +511,18 @@ def unreal_shot(
         "third-person", "--genre", "-g", help="Which template's level to render."
     ),
     out: str = typer.Option(None, "--out", "-o", help="Output PNG path (default: preview.png)."),
+    establishing: bool = typer.Option(
+        True,
+        "--establishing/--player-view",
+        help="Elevated establishing shot of the level (default) vs. the raw player-camera view.",
+    ),
     config: str = typer.Option(None, "--config", "-c", help="Path to a config YAML."),
 ) -> None:
     """Render a real screenshot of a project's level on the GPU (headless, offscreen).
 
-    Editor-in-the-loop rendering (Stage 2). The FIRST render compiles shaders (slow); once the
-    DDC is warm, renders are fast. This is the rendered evidence the critic loop will score.
+    Editor-in-the-loop rendering (Stage 2). By default an elevated *establishing shot* framing the
+    whole level (an auto-activating preview camera the render captures, then removes); pass
+    ``--player-view`` for the raw player-camera view. The FIRST render compiles shaders (slow).
     """
     cfg = load_config(config)
     spec = template_clone.TEMPLATES.get(genre.lower())
@@ -512,7 +532,7 @@ def unreal_shot(
             f"Choose: {', '.join(sorted(template_clone.TEMPLATES))}."
         )
         raise typer.Exit(code=1)
-    slug = re.sub(r"[^a-z0-9]+", "-", name.lower()).strip("-") or "unreal-game"
+    slug = _slug(name)
     project_dir = cfg.workspace_dir.expanduser() / slug
     if not project_dir.is_dir():
         console.print(f"[bold red]No project at[/] {project_dir}.")
@@ -522,7 +542,10 @@ def unreal_shot(
     out_path = Path(out).expanduser() if out else project_dir / "preview.png"
     console.print("Rendering on the GPU (first render compiles shaders — slow) ...")
     try:
-        adapter.render_screenshot(out_path, scene=spec.map_path)
+        if establishing:
+            adapter.render_establishing(out_path, spec)
+        else:
+            adapter.render_screenshot(out_path, scene=spec.map_path)
     except EngineNotFoundError as exc:
         console.print(f"[bold red]{exc}[/]")
         raise typer.Exit(code=1) from exc

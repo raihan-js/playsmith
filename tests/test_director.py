@@ -149,6 +149,7 @@ def test_character_script_discovers_assets_and_asserts() -> None:
     )
     assert "list_assets" in s and "SkeletalMesh" in s  # discovers what actually ships (no bad refs)
     assert "/Game/Characters" in s and "/Game/X/BP_Char" in s
+    assert "SubobjectDataSubsystem" in s  # reliable headless access to BP component templates
     assert "skeletal_mesh_asset" in s  # variant swap
     # persistent theme tint via a MaterialInstanceConstant (not a runtime-only dynamic material)
     assert "MaterialInstanceConstant" in s

@@ -31,7 +31,7 @@ from playsmith.engines.base import (
     VerifyResult,
     parse_assert_lines,
 )
-from playsmith.engines.unreal import assets, director, template_clone, templates
+from playsmith.engines.unreal import assets, director, render, template_clone, templates
 
 # Epic's Unreal EULA royalty terms (surfaced so users can plan for the cost).
 _ROYALTY_THRESHOLD = 1_000_000.0
@@ -526,6 +526,38 @@ class UnrealAdapter:
         png = _first_png(shot_dir)
         if png is not None:
             shutil.copyfile(png, out)
+        return result
+
+    def render_establishing(
+        self,
+        out_path: str | os.PathLike[str],
+        tspec: template_clone.TemplateSpec,
+        *,
+        width: int = 1280,
+        height: int = 720,
+        timeout_s: int = 600,
+    ) -> RunResult:
+        """Render an elevated establishing shot of the whole level (not the player's spawn view).
+
+        Three safe steps (each terminated only after its artifact lands — never killed mid-save):
+        place an auto-activating preview camera framed on the dressing, render the GPU frame (which
+        captures that camera), then remove the camera so interactive play is unchanged. Returns the
+        render's :class:`RunResult`; the PNG is at ``out_path`` (absent if nothing was captured).
+        """
+        out_file = self.project_dir / "Saved" / "playsmith_assert.txt"
+        if out_file.exists():
+            out_file.unlink()
+        self._run_python(
+            render.place_camera_script(tspec.map_path), timeout_s=timeout_s, out_file=out_file
+        )
+        result = self.render_screenshot(
+            out_path, scene=tspec.map_path, width=width, height=height, timeout_s=timeout_s
+        )
+        if out_file.exists():
+            out_file.unlink()
+        self._run_python(
+            render.cleanup_camera_script(tspec.map_path), timeout_s=timeout_s, out_file=out_file
+        )
         return result
 
     def play(self, *, scene: str | None = None, width: int = 1280, height: int = 720) -> int:
