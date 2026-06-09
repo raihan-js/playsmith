@@ -32,7 +32,7 @@ from playsmith.config import load_config, save_runtime_patch
 from playsmith.engines.base import EngineError
 from playsmith.engines.unreal import critic, director, refine, template_clone
 from playsmith.engines.unreal.adapter import UnrealAdapter
-from playsmith.llm import LLMGateway
+from playsmith.llm import LLMGateway, imagegen
 from playsmith.llm import catalog as model_catalog
 
 _STATIC = Path(__file__).parent / "static"
@@ -93,6 +93,20 @@ def _infer_genre(prompt: str) -> str:
     if any(w in p for w in ("top down", "top-down", "twin stick", "twin-stick", "strategy", "rts")):
         return "top-down"
     return "third-person"
+
+
+def _art_dir(project_dir: Path) -> Path:
+    """Where generated art lands inside a project (a real UE project the user owns)."""
+    return project_dir / "Saved" / "Playsmith" / "art"
+
+
+def _safe_asset_name(prompt: str, art_dir: Path) -> str:
+    """A unique, filesystem-safe ``<slug>-<n>.png`` for a generated art prompt."""
+    base = re.sub(r"[^a-z0-9]+", "-", (prompt or "art").lower()).strip("-")[:32] or "art"
+    i = 1
+    while (art_dir / f"{base}-{i}.png").exists():
+        i += 1
+    return f"{base}-{i}.png"
 
 
 def _manifest_path(project_dir: Path) -> Path:
@@ -178,6 +192,7 @@ def api_config() -> JSONResponse:
             "provider": cfg.llm.provider,
             "where": "local" if cfg.llm.is_local else "cloud",
             "workspace": str(cfg.workspace_dir),
+            "art_enabled": imagegen.resolve_image_provider(cfg) is not None,
         }
     )
 
@@ -267,6 +282,74 @@ def api_files(name: str) -> JSONResponse:
     if not project_dir.is_dir():
         return JSONResponse({"files": []})
     return JSONResponse({"files": _project_files(project_dir)})
+
+
+@app.get("/api/projects/{name}/assets")
+def api_assets(name: str) -> JSONResponse:
+    """List the art generated into a project (newest first)."""
+    cfg = load_config()
+    art_dir = _art_dir(cfg.workspace_dir.expanduser() / _slug(name))
+    out: list[dict] = []
+    if art_dir.is_dir():
+        for png in sorted(art_dir.glob("*.png"), reverse=True):
+            sidecar = art_dir / (png.name + ".txt")
+            out.append(
+                {
+                    "name": png.name,
+                    "prompt": sidecar.read_text(errors="ignore") if sidecar.exists() else "",
+                    "file": f"/api/projects/{_slug(name)}/asset-file/{png.name}",
+                }
+            )
+    enabled = imagegen.resolve_image_provider(cfg) is not None
+    return JSONResponse({"assets": out, "enabled": enabled})
+
+
+@app.post("/api/projects/{name}/asset")
+async def api_gen_asset(name: str, request: Request) -> JSONResponse:
+    """Generate art from a prompt and save it into the project for import in the UE editor."""
+    cfg = load_config()
+    project_dir = cfg.workspace_dir.expanduser() / _slug(name)
+    if not (project_dir.is_dir() and next(project_dir.glob("*.uproject"), None)):
+        return JSONResponse({"error": f"No such project: {name}"}, status_code=404)
+    provider = imagegen.resolve_image_provider(cfg)
+    if provider is None:
+        return JSONResponse(
+            {"error": "Art generation is off. Set OPENAI_API_KEY (e.g. in .env) to enable it."},
+            status_code=503,
+        )
+    try:
+        body = await request.json()
+    except (json.JSONDecodeError, ValueError):
+        body = {}
+    prompt = (body.get("prompt") or "").strip()
+    if not prompt:
+        return JSONResponse({"error": "An art prompt is required."}, status_code=400)
+    try:
+        data = await asyncio.to_thread(
+            imagegen.generate_image, provider, prompt, size=body.get("size") or "1024x1024"
+        )
+    except imagegen.ImageGenError as exc:
+        return JSONResponse({"error": str(exc)}, status_code=502)
+    art_dir = _art_dir(project_dir)
+    art_dir.mkdir(parents=True, exist_ok=True)
+    fname = _safe_asset_name(prompt, art_dir)
+    (art_dir / fname).write_bytes(data)
+    (art_dir / (fname + ".txt")).write_text(prompt)  # remember the prompt for the gallery
+    return JSONResponse(
+        {"ok": True, "name": fname, "prompt": prompt,
+         "file": f"/api/projects/{_slug(name)}/asset-file/{fname}"}
+    )
+
+
+@app.get("/api/projects/{name}/asset-file/{fname}")
+def api_asset_file(name: str, fname: str):
+    """Serve a generated art PNG (path-traversal safe)."""
+    cfg = load_config()
+    art_dir = _art_dir(cfg.workspace_dir.expanduser() / _slug(name)).resolve()
+    target = (art_dir / Path(fname).name).resolve()
+    if art_dir not in target.parents or not target.is_file():
+        return JSONResponse({"error": "no such asset"}, status_code=404)
+    return FileResponse(target, media_type="image/png")
 
 
 @app.get("/preview/{name}")
