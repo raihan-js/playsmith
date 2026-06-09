@@ -412,6 +412,40 @@ def unreal_dress(
     console.print(f"[dim]Open it in the editor: UnrealEditor {uproj}[/]")
 
 
+@unreal_app.command("play")
+def unreal_play(
+    name: str = typer.Argument(..., help="The project (workspace folder) to play."),
+    genre: str = typer.Option("third-person", "--genre", "-g", help="Which template's level."),
+    config: str = typer.Option(None, "--config", "-c", help="Path to a config YAML."),
+) -> None:
+    """Launch the game in a window so you can walk around and play (WASD + mouse).
+
+    Opens the dressed level on the GPU. The first launch compiles shaders (slow); playing renders
+    many frames, so the full level (objects + materials) streams in — what the quick preview can't
+    show. Needs a graphical display. Close the game window to quit.
+    """
+    cfg = load_config(config)
+    tspec = template_clone.TEMPLATES.get(genre.lower())
+    if tspec is None:
+        console.print(f"[bold red]Unknown genre:[/] {genre}.")
+        raise typer.Exit(code=1)
+    slug = re.sub(r"[^a-z0-9]+", "-", name.lower()).strip("-") or "unreal-game"
+    project_dir = cfg.workspace_dir.expanduser() / slug
+    if not project_dir.is_dir():
+        console.print(f"[bold red]No project at[/] {project_dir}.")
+        console.print(f'Run `playsmith unreal new "{name}"` first.')
+        raise typer.Exit(code=1)
+    adapter = UnrealAdapter(project_dir, editor_cmd=cfg.engine.unreal.editor_cmd)
+    console.print("Launching the game (first launch compiles shaders — be patient) …")
+    console.print("[dim]Walk around with WASD + mouse; Space to jump. Close the window to quit.[/]")
+    try:
+        pid = adapter.play(scene=tspec.map_path)
+    except EngineNotFoundError as exc:
+        console.print(f"[bold red]{exc}[/]")
+        raise typer.Exit(code=1) from exc
+    console.print(f"[bold green]✓ Game launched[/] (pid {pid}).")
+
+
 @unreal_app.command("shot")
 def unreal_shot(
     name: str = typer.Argument(..., help="The project (workspace folder) to render."),

@@ -45,5 +45,7 @@ def test_ws_reports_errors_without_touching_unreal() -> None:
         assert json.loads(ws.receive_text())["type"] == "error"
         ws.send_text(json.dumps({"action": "build", "genre": "no-such-genre"}))
         assert json.loads(ws.receive_text())["type"] == "error"
+        ws.send_text(json.dumps({"action": "play", "name": "nope", "genre": "third-person"}))
+        assert json.loads(ws.receive_text())["type"] == "error"
         ws.send_text(json.dumps({"action": "bogus"}))
         assert json.loads(ws.receive_text())["type"] == "error"

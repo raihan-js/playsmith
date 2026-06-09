@@ -485,6 +485,39 @@ class UnrealAdapter:
             shutil.copyfile(png, out)
         return result
 
+    def play(self, *, scene: str | None = None, width: int = 1280, height: int = 720) -> int:
+        """Launch the game in a real window for interactive play (WASD + mouse); non-blocking.
+
+        Runs ``-game`` windowed on the GPU (no ``-nullrhi``/``-RenderOffscreen``) so a window opens
+        and you actually walk around the dressed level. Because play renders many frames, World
+        Partition streams everything in and materials resolve — so you see the REAL result (unlike
+        the single-frame preview). Detached: returns the PID immediately; the game runs until you
+        close its window. Needs a graphical display (``$DISPLAY``).
+        """
+        args = [str(self._uproject_path())]
+        if scene:
+            args.append(scene)
+        args += [
+            "-game",
+            "-windowed",
+            f"-ResX={width}",
+            f"-ResY={height}",
+            "-nosplash",
+            "-notrace",
+            "-noxgecontroller",
+        ]
+        try:
+            proc = subprocess.Popen(  # noqa: S603 - detached interactive game session
+                [self.editor_cmd, *args],
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+                start_new_session=True,  # outlive the launching process (e.g. the web request)
+                env={**os.environ},
+            )
+        except FileNotFoundError as exc:
+            raise EngineNotFoundError(self._NOT_FOUND.format(cmd=self.editor_cmd)) from exc
+        return proc.pid
+
     def import_assets(self) -> RunResult:
         """Unreal imports assets through the editor/Interchange pipeline, not a CLI flag."""
         return RunResult(command=["unreal", "import"], returncode=0)

@@ -163,6 +163,23 @@ async def _handle(sock: WebSocket, req: dict) -> None:
         await _send(sock, type="done", project=name, preview=f"/preview/{name}", ok=ok)
         return
 
+    if action == "play":
+        name = _slug(req.get("name") or "")
+        project_dir = workspace / name
+        if not (project_dir.is_dir() and next(project_dir.glob("*.uproject"), None)):
+            await _send(sock, type="error", text=f"No such project: {name}")
+            return
+        adapter = UnrealAdapter(project_dir, editor_cmd=cfg.engine.unreal.editor_cmd)
+        await _send(
+            sock,
+            type="log",
+            text="Launching the game window — WASD + mouse (first launch is slow) …",
+        )
+        pid = await asyncio.to_thread(adapter.play, scene=tspec.map_path)
+        await _send(sock, type="log", text=f"✓ Game launched (pid {pid}).")
+        await _send(sock, type="done", project=name, preview=f"/preview/{name}", ok=True)
+        return
+
     await _send(sock, type="error", text=f"Unknown action: {action}")
 
 

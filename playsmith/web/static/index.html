@@ -330,7 +330,15 @@
   .note strong { color: #fff; }
   .note .sub { display: block; margin-top: 6px; color: #aab6ee; font-size: 12.5px; }
 
-  .preview-actions { margin-top: 14px; display: flex; gap: 10px; }
+  .preview-actions { margin-top: 14px; display: flex; gap: 10px; align-items: stretch; }
+  .preview-actions .play-btn { flex: 1; }
+  .preview-actions .btn-ghost { flex: none; white-space: nowrap; }
+  .play-hint {
+    margin: 9px 0 0;
+    font-size: 12.5px;
+    line-height: 1.5;
+    color: var(--text-mute);
+  }
 </style>
 </head>
 <body>
@@ -418,10 +426,16 @@
       </div>
 
       <div class="preview-actions">
+        <button class="btn-primary play-btn" id="playBtn" disabled>
+          <span class="spinner"></span>
+          <span class="label">&#9654; Play &mdash; walk around</span>
+        </button>
         <button class="btn-ghost" id="renderBtn" disabled>
           <span>Render preview</span>
         </button>
       </div>
+
+      <p class="play-hint" id="playHint">Play opens the game in a native Unreal window (WASD + mouse, Space to jump) &mdash; the first launch compiles shaders and can take a few minutes. True in-browser play (Pixel Streaming) is a future feature.</p>
 
       <div class="note" id="note"></div>
     </section>
@@ -458,6 +472,7 @@
     placeholderText: document.getElementById("placeholderText"),
     previewSel:  document.getElementById("previewSel"),
     renderBtn:   document.getElementById("renderBtn"),
+    playBtn:     document.getElementById("playBtn"),
     note:        document.getElementById("note"),
   };
 
@@ -489,6 +504,7 @@
     busy = on;
     el.buildBtn.disabled = on;
     el.buildBtn.classList.toggle("working", on);
+    if (!on) el.playBtn.classList.remove("working");
     updateRenderBtn();
 
     if (on) {
@@ -505,7 +521,9 @@
   }
 
   function updateRenderBtn() {
-    el.renderBtn.disabled = busy || !selected || !wsReady;
+    var locked = busy || !selected || !wsReady;
+    el.renderBtn.disabled = locked;
+    el.playBtn.disabled = locked;
   }
 
   // ---------------- websocket ----------------
@@ -604,10 +622,11 @@
   // ---------------- note ----------------
   function showNote() {
     el.note.innerHTML =
-      "<strong>Open the project in the Unreal editor to play the full dressed level.</strong>" +
-      "<span class='sub'>The quick preview render may not show every placed object yet — " +
-      "World Partition streams them in the editor. Also note: the first render compiles shaders " +
-      "and can take a few minutes.</span>";
+      "<strong>Built! Hit &#9654; Play above to walk around your level.</strong>" +
+      "<span class='sub'>Or open the project in the Unreal editor to play the full dressed level. " +
+      "The quick preview render may not show every placed object yet — " +
+      "World Partition streams them in the editor. Also note: the first render or launch compiles " +
+      "shaders and can take a few minutes.</span>";
     el.note.classList.add("show");
   }
 
@@ -773,9 +792,28 @@
     if (sent) setBusy(true, "Rendering on the GPU (first render compiles shaders — slow)…");
   }
 
+  function doPlay() {
+    if (busy || !selected) return;
+    if (!wsReady) {
+      logLine("Not connected yet — waiting for the server.", "err");
+      return;
+    }
+    logLine("→ Play requested for “" + selected + "” (opens a native Unreal window)", "sys");
+    var sent = send({
+      action: "play",
+      name: selected,
+      genre: el.genre.value,
+    });
+    if (sent) {
+      el.playBtn.classList.add("working");
+      setBusy(true, "Launching Unreal (first launch compiles shaders — slow)…");
+    }
+  }
+
   // ---------------- wire up ----------------
   el.buildBtn.addEventListener("click", doBuild);
   el.renderBtn.addEventListener("click", doRender);
+  el.playBtn.addEventListener("click", doPlay);
 
   // Ctrl/Cmd+Enter in the prompt triggers a build
   el.prompt.addEventListener("keydown", function (e) {

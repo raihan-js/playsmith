@@ -137,6 +137,29 @@ def test_render_screenshot_copies_captured_png(tmp_path, monkeypatch) -> None:
     assert "/Game/X/Map" in captured["cmd"]
 
 
+def test_play_launches_windowed_game_detached(tmp_path, monkeypatch) -> None:
+    adapter = UnrealAdapter(tmp_path / "proj")
+    adapter.create_project("G")
+    captured: dict = {}
+
+    class _FakeProc:
+        pid = 4242
+
+    def fake_popen(cmd, **kwargs):
+        captured["cmd"] = cmd
+        captured["kwargs"] = kwargs
+        return _FakeProc()
+
+    monkeypatch.setattr(subprocess, "Popen", fake_popen)
+    pid = adapter.play(scene="/Game/X/Map")
+    assert pid == 4242
+    # Windowed GPU play — NOT the headless/offscreen capture path.
+    assert "-game" in captured["cmd"] and "-windowed" in captured["cmd"]
+    assert "-nullrhi" not in captured["cmd"] and "-RenderOffscreen" not in captured["cmd"]
+    assert "/Game/X/Map" in captured["cmd"]
+    assert captured["kwargs"].get("start_new_session") is True  # outlives the launcher
+
+
 def test_write_scene_refused_binary(tmp_path) -> None:
     from playsmith.engines.base import SceneSpec
 
