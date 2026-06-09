@@ -20,7 +20,7 @@ from rich.table import Table
 from playsmith import __version__
 from playsmith.config import Config, ConfigError, load_config
 from playsmith.engines import EngineError, EngineNotFoundError
-from playsmith.engines.unreal import UnrealAdapter, royalty_estimate, template_clone
+from playsmith.engines.unreal import UnrealAdapter, director, royalty_estimate, template_clone
 from playsmith.llm import LLMError, LLMGateway, Message
 from playsmith.llm.eval import evaluate_targets
 from playsmith.skills import SkillLoader, SkillRegistry, SkillRegistryError
@@ -296,14 +296,18 @@ def unreal_new(
         "-g",
         help="Which UE template to build on: third-person | first-person | top-down.",
     ),
+    dress: bool = typer.Option(
+        True, "--dress/--no-dress", help="Have the director dress the level from your prompt."
+    ),
     config: str = typer.Option(None, "--config", "-c", help="Path to a config YAML."),
 ) -> None:
-    """Clone a shipping UE template into a real, playable project, then verify it.
+    """Clone a shipping UE template into a real, playable project, verify it, and dress it.
 
     Build-on-template (CLAUDE.md §0): copies a built-in UE template — already a playable, lit,
-    animated game — plus its shared content packs into your workspace, then verifies headless that
-    the level loads and the player character resolved. The director (Stage 3) dresses it next.
-    Set engine.unreal.editor_cmd to your UnrealEditor-Cmd path.
+    animated game — plus its shared content packs, verifies it headless, then the director (Stage 3)
+    dresses the level from your prompt (gameplay objects + lighting). Live LLM direction uses your
+    configured frontier model (ANTHROPIC_API_KEY); without one it applies a safe default course.
+    Use --no-dress for clone-only. Set engine.unreal.editor_cmd to your UnrealEditor-Cmd path.
     """
     cfg = load_config(config)
     genre = genre.lower()
@@ -339,17 +343,73 @@ def unreal_new(
     for key, value in result.assertions.items():
         table.add_row(key, "[green]PASS[/]" if value else "[red]FAIL[/]")
     console.print(table)
-    if result.ok:
-        uproj = next(project_dir.glob("*.uproject"), None)
-        console.print(f"[bold green]✓ Real, verified Unreal project[/] at [dim]{project_dir}[/]")
-        console.print(f"[dim]Open it in the editor: UnrealEditor {uproj}[/]")
-        console.print("[dim]Next: the director (Stage 3) dresses this into your game.[/]")
-    else:
+    if not result.ok:
         console.print("[yellow]Some checks failed — see the table above.[/]")
         if not result.assertions:
             for line in result.run.error_lines()[:8]:
                 console.print(f"  [red]{line}[/]")
         raise typer.Exit(code=1)
+
+    if dress:
+        _direct_level(adapter, spec, name, genre, cfg)
+
+    uproj = next(project_dir.glob("*.uproject"), None)
+    console.print(f"[bold green]✓ Real, verified Unreal project[/] at [dim]{project_dir}[/]")
+    console.print(f"[dim]Open it in the editor: UnrealEditor {uproj}[/]")
+
+
+def _direct_level(
+    adapter: UnrealAdapter, tspec: template_clone.TemplateSpec, prompt: str, genre: str, cfg: Config
+) -> None:
+    """Plan a dressing from the prompt (frontier LLM if configured) and apply it to the level."""
+    console.print("Directing the level from your prompt (frontier LLM if configured) ...")
+    gateway = LLMGateway.from_config(cfg, console=console)
+    dressing = director.plan_dressing(prompt, genre, gateway)
+    console.print(
+        f"  theme: [cyan]{dressing['theme']}[/] · "
+        f"objective: [cyan]{dressing['objective']}[/] · {len(dressing['placements'])} objects"
+    )
+    console.print("Applying the dressing in-engine (UE headless) ...")
+    try:
+        res = adapter.dress_from_spec(dressing, tspec.map_path)
+    except EngineNotFoundError as exc:
+        console.print(f"[bold red]{exc}[/]")
+        raise typer.Exit(code=1) from exc
+    if res.ok:
+        console.print(f"[bold green]✓ Directed[/] (theme: [cyan]{dressing['theme']}[/])")
+    else:
+        console.print("[yellow]Dressing applied but verify was incomplete:[/]")
+        for key, value in res.assertions.items():
+            console.print(f"  {key}: {'PASS' if value else 'FAIL'}")
+
+
+@unreal_app.command("dress")
+def unreal_dress(
+    name: str = typer.Argument(..., help="The project (workspace folder) to dress / re-dress."),
+    prompt: str = typer.Option(None, "--prompt", "-p", help="What to make it (default: the name)."),
+    genre: str = typer.Option("third-person", "--genre", "-g", help="Which template's level."),
+    config: str = typer.Option(None, "--config", "-c", help="Path to a config YAML."),
+) -> None:
+    """Re-dress an existing cloned project's level from a prompt (Stage 3 director).
+
+    Iterate on a game without re-cloning. Live LLM direction uses your frontier model
+    (ANTHROPIC_API_KEY); without one a safe default course is applied.
+    """
+    cfg = load_config(config)
+    tspec = template_clone.TEMPLATES.get(genre.lower())
+    if tspec is None:
+        console.print(f"[bold red]Unknown genre:[/] {genre}.")
+        raise typer.Exit(code=1)
+    slug = re.sub(r"[^a-z0-9]+", "-", name.lower()).strip("-") or "unreal-game"
+    project_dir = cfg.workspace_dir.expanduser() / slug
+    if not project_dir.is_dir():
+        console.print(f"[bold red]No project at[/] {project_dir}.")
+        console.print(f'Run `playsmith unreal new "{name}"` first.')
+        raise typer.Exit(code=1)
+    adapter = UnrealAdapter(project_dir, editor_cmd=cfg.engine.unreal.editor_cmd)
+    _direct_level(adapter, tspec, prompt or name, genre.lower(), cfg)
+    uproj = next(project_dir.glob("*.uproject"), None)
+    console.print(f"[dim]Open it in the editor: UnrealEditor {uproj}[/]")
 
 
 @unreal_app.command("shot")
