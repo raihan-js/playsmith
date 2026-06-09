@@ -459,8 +459,8 @@ def dress_level_script(spec: dict, map_path: str) -> str:
         "            eas.destroy_actor(_a)\n"
         "    except Exception:\n"
         "        pass\n"
-        # Re-theme the template's OWN prototyping objects (its demo course) to the structure colour,
-        # so the whole level reads as the theme — not just the objects we add.
+        # Re-theme the template's OWN objects (its demo course) to the structure colour, so the
+        # WHOLE level reads as the theme — every non-Playsmith StaticMeshActor, any mesh path.
         "_struct = _role_mic('cover')\n"
         "if _struct is not None:\n"
         "    for _ta in eas.get_all_level_actors():\n"
@@ -470,10 +470,10 @@ def dress_level_script(spec: dict, map_path: str) -> str:
         "            if _ta.get_actor_label().startswith('PS_'):\n"
         "                continue\n"
         "            _sc = _ta.static_mesh_component\n"
-        "            _sm = _sc.get_static_mesh()\n"
-        "            if _sm is not None and '/Game/LevelPrototyping/' in _sm.get_path_name():\n"
-        "                for _i in range(max(1, _sc.get_num_materials())):\n"
-        "                    _sc.set_material(_i, _struct)\n"
+        "            if _sc.get_static_mesh() is None:\n"
+        "                continue\n"
+        "            for _i in range(max(1, _sc.get_num_materials())):\n"
+        "                _sc.set_material(_i, _struct)\n"
         "        except Exception:\n"
         "            pass\n"
         "placed = 0\n"
