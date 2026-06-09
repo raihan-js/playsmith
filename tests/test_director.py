@@ -211,5 +211,6 @@ def test_dress_level_script_is_additive_and_uses_real_assets() -> None:
     assert "load_blueprint_class" in script  # palette Blueprints (jump pad / target / door)
     assert "save_dirty_packages" in script  # persists spawned World Partition external actors
     assert "destroy_actor" in script and "PS_" in script  # idempotent: clears prior PS_ objects
+    assert "get_actor_bounds" in script  # clears the template's demo course (keeps large floor/walls)
     assert "set_material" in script and "ROLE_COLOR" in script  # role-coloured, themed objects
     assert "PLAYSMITH_ASSERT objects_placed" in script

@@ -502,24 +502,24 @@ def dress_level_script(spec: dict, map_path: str) -> str:
         "            eas.destroy_actor(_a)\n"
         "    except Exception:\n"
         "        pass\n"
-        # Re-theme the template's OWN objects (its demo course) to the structure colour, so the
-        # WHOLE level reads as the theme — every non-Playsmith StaticMeshActor, any mesh path.
-        # (Only for the prototype path; with real assets the template demo isn't grey-tinted.)
-        "_struct = _role_mic('cover') if TINT else None\n"
-        "if _struct is not None:\n"
-        "    for _ta in eas.get_all_level_actors():\n"
-        "        try:\n"
-        "            if not isinstance(_ta, unreal.StaticMeshActor):\n"
-        "                continue\n"
-        "            if _ta.get_actor_label().startswith('PS_'):\n"
-        "                continue\n"
-        "            _sc = _ta.static_mesh_component\n"
-        "            if _sc.get_static_mesh() is None:\n"
-        "                continue\n"
-        "            for _i in range(max(1, _sc.get_num_materials())):\n"
-        "                _sc.set_material(_i, _struct)\n"
-        "        except Exception:\n"
-        "            pass\n"
+        # Clear the template's DEMO course — the UE third-person template ships ~55 prototype blocks
+        # that dominate every level, so every prompt looked like "the same template demo". Remove the
+        # object-sized demo pieces (small bounding box) but KEEP large-bounds actors (the floor +
+        # arena walls) so the level stays playable and the director's dressing becomes what you see.
+        "_template_cleared = 0\n"
+        "for _ta in list(eas.get_all_level_actors()):\n"
+        "    try:\n"
+        "        if not isinstance(_ta, unreal.StaticMeshActor):\n"
+        "            continue\n"
+        "        if _ta.get_actor_label().startswith('PS_'):\n"
+        "            continue\n"
+        "        _bo, _bext = _ta.get_actor_bounds(False)\n"
+        "        if _bext.x < 1500.0 and _bext.y < 1500.0:\n"  # object-sized -> demo, not floor/walls
+        "            eas.destroy_actor(_ta)\n"
+        "            _template_cleared += 1\n"
+        "    except Exception:\n"
+        "        pass\n"
+        "unreal.log('PLAYSMITH cleared %d template demo objects' % _template_cleared)\n"
         "placed = 0\n"
         "def _spawn_mesh(path, x, y, z, sx, sy, sz, tag, label):\n"
         "    mesh = unreal.EditorAssetLibrary.load_asset(path)\n"
