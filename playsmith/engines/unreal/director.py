@@ -168,8 +168,8 @@ def _theme_palette(text: str) -> dict:
     """Match a theme palette from prompt/theme keywords; neutral stone ruins if nothing matches.
 
     Keywords match at a word *start* (``\\bkey``) so a prefix like ``ash`` still matches ``ashfall``
-    but ``ice`` no longer false-matches ``choices``/``voice`` (which is how the dark Ashenveil prompt
-    got themed "frozen").
+    but ``ice`` no longer false-matches ``choices``/``voice`` (which themed the Ashenveil prompt
+    "frozen").
     """
     t = (text or "").lower()
     for theme in _THEMES:
