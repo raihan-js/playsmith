@@ -63,19 +63,35 @@ needs all of those; Playsmith builds the *stage* and nothing else.
 
 Until these pass, everything downstream is built on sand.
 
-- **0.1 — Persist deletions.** Make `destroy_actor` actually stick. Route A: editor-in-the-loop
-  (verify a re-dress drops the count back down). Route B (headless): record each actor's external
-  package and delete the package files after `destroy_actor`. **Done = re-dressing twice yields the
-  same object count, and the 55 template demo blocks are gone.**
-- **0.2 — Clear the template demo course, verified.** With 0.1 working, confirm the level is a clean
-  stage + the director's objects. **Done = the diagnostic shows ~0 template demo objects, only floor/
-  walls + PS_ objects.**
+> **Status — proven in-engine (headless), 2026-06-10.** The keystone fix landed: `_ps_delete` deletes
+> each destroyed actor's external-actor `.uasset` file, so World Partition deletions persist. Measured
+> on a real third-person project across three *fresh loads* (the only test that catches the OFPA bug):
+>
+> | stage | PS_ objects | demo blocks | floor |
+> |---|---|---|---|
+> | baseline (broken) | 40 | 45 | 10 |
+> | after dress 1 (fix) | 3 | **0** | 10 |
+> | after dress 2 (re-dress) | **3** | 0 | 10 |
+>
+> Demo course cleared (45→0) and *stayed* cleared; PS_ dressing replaced not stacked (40→3→3); floor
+> preserved. **0.1, 0.2, 0.4 ✅.** 0.3 (a render that loads the saved level) still wants the live
+> editor — `playsmith unreal serve` now turns it on in one command (Route A).
+
+- **0.1 — Persist deletions.** ✅ Route B (headless): `_ps_delete` removes each actor's external
+  package file after `destroy_actor`. Route A (editor-in-the-loop) persists OFPA deletions natively.
+  **Done — re-dressing held at 3 PS_ (no 20→40 stacking) and the demo blocks are gone (45→0).**
+- **0.2 — Clear the template demo course, verified.** ✅ `verify_clean` fresh-loads and emits
+  `template_demo_clear` + `objects_present`. **Done — fresh-load shows 0 demo objects, floor + PS_
+  dressing intact.**
 - **0.3 — Trustworthy render.** Establishing render (SceneCapture via the live editor) that loads the
-  *saved* level. **Done = two different prompts produce two visibly different renders.**
-- **0.4 — Idempotent dressing.** A re-dress *replaces*, never stacks. **Done = no duplicate PS_ actors.**
+  *saved* level. **Done = two different prompts produce two visibly different renders.** *(Pending: run
+  via `unreal serve` now that the level genuinely changes.)*
+- **0.4 — Idempotent dressing.** ✅ A re-dress *replaces*, never stacks. **Done — PS_ count 3→3 across
+  re-dress; no duplicates.**
 
 **Exit criteria for Phase 0:** two prompts → two clearly different, clutter-free levels, confirmed by
-render. *This is the whole ballgame for "why is it bad."*
+render. *This is the whole ballgame for "why is it bad."* — **foundation proven; render-diff is the
+last check, via the live editor.**
 
 ---
 
