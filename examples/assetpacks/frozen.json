@@ -1,0 +1,38 @@
+{
+  "_README": "Starter asset pack for the FROZEN theme. The paths below are EXAMPLES using Megascans/Bridge naming — replace them with YOUR imported assets' reference paths, then activate (see examples/assetpacks/README.md). Any path you haven't imported is skipped and falls back to a prototype shape for that placement, so a build never breaks.",
+  "_how_to_get_paths": "In the UE editor, right-click an asset → Copy Reference, then paste just the /Game/... path (drop the class prefix and the '.Name' suffix). Or skip manifests entirely: with the editor-in-the-loop on, Playsmith auto-discovers whatever Megascans/Fab content you've installed.",
+  "name": "Nordic Frost (starter)",
+  "theme": "frozen",
+  "source": "megascans",
+  "by_role": {
+    "platform": [
+      "/Game/Megascans/3D_Assets/Snowy_Rock_Ledge_xa/Snowy_Rock_Ledge_xa",
+      "/Game/Megascans/3D_Assets/Ice_Slab_uk/Ice_Slab_uk"
+    ],
+    "obstacle": [
+      "/Game/Megascans/3D_Assets/Nordic_Ice_Cliff_va/Nordic_Ice_Cliff_va",
+      "/Game/Megascans/3D_Assets/Frozen_Rock_Wall_te/Frozen_Rock_Wall_te",
+      "/Game/Megascans/3D_Assets/Glacier_Boulder_sd/Glacier_Boulder_sd"
+    ],
+    "cover": [
+      "/Game/Megascans/3D_Assets/Snow_Drift_rb/Snow_Drift_rb",
+      "/Game/Megascans/3D_Assets/Frozen_Tree_Stump_qa/Frozen_Tree_Stump_qa"
+    ],
+    "hazard": [
+      "/Game/Megascans/3D_Assets/Ice_Spikes_pc/Ice_Spikes_pc",
+      "/Game/Megascans/3D_Assets/Icicle_Cluster_oa/Icicle_Cluster_oa"
+    ],
+    "collectible": [
+      "/Game/Megascans/3D_Assets/Ice_Crystal_Shard_na/Ice_Crystal_Shard_na"
+    ],
+    "goal": [
+      "/Game/Megascans/3D_Assets/Frozen_Shrine_ma/Frozen_Shrine_ma",
+      "/Game/Megascans/3D_Assets/Ice_Obelisk_lb/Ice_Obelisk_lb"
+    ],
+    "prop": [
+      "/Game/Megascans/3D_Assets/Snowy_Rock_Small_kc/Snowy_Rock_Small_kc",
+      "/Game/Megascans/3D_Assets/Ice_Chunk_jd/Ice_Chunk_jd"
+    ]
+  },
+  "ground_material": "/Game/Megascans/Surfaces/Snow_Fresh_ie/MI_Snow_Fresh_ie"
+}

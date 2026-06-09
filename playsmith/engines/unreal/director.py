@@ -534,8 +534,10 @@ def dress_level_script(spec: dict, map_path: str) -> str:
         "for i, p in enumerate(SPEC.get('placements', [])):\n"
         "    role = p.get('role', 'prop')\n"
         "    asset = p.get('asset')\n"
-        "    if asset:\n"
-        "        kind_type, path = 'mesh', asset\n"  # a real mesh chosen by apply_pack
+        # Use the real mesh only if it actually exists — a manifest path you haven't imported yet
+        # falls back to the prototype shape for that placement, so the level is never left empty.
+        "    if asset and unreal.EditorAssetLibrary.does_asset_exist(asset):\n"
+        "        kind_type, path = 'mesh', asset\n"
         "    else:\n"
         "        entry = PALETTE.get(p.get('kind'))\n"
         "        if not entry:\n"

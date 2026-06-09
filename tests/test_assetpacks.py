@@ -4,9 +4,12 @@ from __future__ import annotations
 
 import json
 import types
+from pathlib import Path
 
 from playsmith.engines.unreal import assetpacks, director
 from playsmith.engines.unreal.adapter import UnrealAdapter
+
+_EXAMPLES = Path(__file__).resolve().parent.parent / "examples" / "assetpacks"
 
 
 def test_categorize_buckets_by_keyword() -> None:
@@ -85,6 +88,18 @@ def test_dress_script_spawns_the_real_asset_and_skips_tint() -> None:
     assert "/Game/Megascans/Nordic_Rock" in script  # the real mesh is placed
     assert "GROUND_MATERIAL" in script and "/Game/Megascans/MI_Snow" in script
     assert "p.get('asset')" in script  # the real-asset path branch exists
+    assert "does_asset_exist" in script  # missing real assets fall back to prototype shapes
+
+
+def test_starter_frozen_manifest_loads_and_resolves() -> None:
+    packs = assetpacks.load_manifest_packs(_EXAMPLES)
+    frozen = next((p for p in packs if p.theme == "frozen"), None)
+    assert frozen is not None and frozen.is_real
+    assert frozen.assets_for("goal") and frozen.assets_for("obstacle")  # roles populated
+    assert frozen.ground_material  # a snow surface
+    # a frozen prompt resolves to this pack (over builtin) when it's the available manifest
+    got = assetpacks.resolve_pack("a frozen ruined fortress", discovered={}, manifests=packs)
+    assert got.theme == "frozen" and got.is_real
 
 
 def test_discover_script_content() -> None:
