@@ -81,6 +81,34 @@ def _expand(value: str) -> str:
     return os.path.expanduser(_ENV_PATTERN.sub(_sub, value))
 
 
+def _load_dotenv() -> None:
+    """Load ``KEY=VALUE`` pairs from a local ``.env`` into the environment (no external dep).
+
+    Lets ``${VAR}`` references in the config resolve from a ``.env`` file (e.g. ``NVIDIA_API_KEY``,
+    ``OPENAI_API_KEY``, ``ANTHROPIC_API_KEY``) without exporting them by hand. Real environment
+    variables always win — existing values are never overwritten. The first ``.env`` found
+    (current dir, then the repo root) is used.
+    """
+    for path in (Path.cwd() / ".env", REPO_ROOT / ".env"):
+        if not path.is_file():
+            continue
+        try:
+            for raw in path.read_text().splitlines():
+                line = raw.strip()
+                if not line or line.startswith("#") or "=" not in line:
+                    continue
+                key, _, val = line.partition("=")
+                key = key.strip()
+                if key.startswith("export "):
+                    key = key.split(None, 1)[1].strip()
+                val = val.strip().strip('"').strip("'")
+                if key and key not in os.environ:
+                    os.environ[key] = val
+        except OSError:  # pragma: no cover - a bad .env must never break startup
+            pass
+        return  # first .env found wins
+
+
 @dataclass
 class LLMConfig:
     """A single LLM provider.
@@ -213,6 +241,7 @@ def load_config(path: str | os.PathLike[str] | None = None) -> Config:
 
     Raises ``ConfigError`` if the chosen file does not exist or is not a mapping.
     """
+    _load_dotenv()  # so ${NVIDIA_API_KEY}/${OPENAI_API_KEY}/etc. resolve from a local .env
     config_path = _resolve_config_path(path)
     if not config_path.exists():
         raise ConfigError(

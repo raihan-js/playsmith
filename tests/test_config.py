@@ -2,14 +2,24 @@
 
 from __future__ import annotations
 
+import os
+
 import pytest
 
-from playsmith.config import Config, ConfigError, load_config, save_runtime_patch
+from playsmith.config import (
+    EXAMPLE_CONFIG,
+    Config,
+    ConfigError,
+    _load_dotenv,
+    load_config,
+    save_runtime_patch,
+)
 
 
-def test_loads_example_config_by_default() -> None:
-    # With no local config/playsmith.yaml, the loader falls back to the example file.
-    cfg = load_config()
+def test_loads_example_config() -> None:
+    # The shipped example has sane defaults. Load it explicitly so a developer's local
+    # config/playsmith.yaml (or .env) can't affect the assertion.
+    cfg = load_config(EXAMPLE_CONFIG)
     assert isinstance(cfg, Config)
     assert cfg.llm.provider == "ollama"
     assert cfg.llm.base_url.endswith("/v1")
@@ -74,3 +84,29 @@ def test_runtime_override_merges_and_persists(tmp_path) -> None:
     cfg2 = load_config(base)
     assert cfg2.llm.model == "gpt-4o-mini"
     assert cfg2.llm.api_key == "sk-xyz"
+
+
+def test_load_dotenv_sets_unset_vars_only(tmp_path, monkeypatch) -> None:
+    (tmp_path / ".env").write_text(
+        "# a comment\n"
+        "NVIDIA_API_KEY=nv-from-dotenv\n"
+        'export QUOTED="bar"\n'
+        "EXISTING=should_not_override\n"
+    )
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setenv("EXISTING", "real-env-wins")
+    monkeypatch.delenv("NVIDIA_API_KEY", raising=False)
+    monkeypatch.delenv("QUOTED", raising=False)
+    _load_dotenv()
+    assert os.environ["NVIDIA_API_KEY"] == "nv-from-dotenv"
+    assert os.environ["QUOTED"] == "bar"  # `export ` prefix + quotes stripped
+    assert os.environ["EXISTING"] == "real-env-wins"  # real environment is never overwritten
+
+
+def test_api_key_resolves_from_dotenv(tmp_path, monkeypatch) -> None:
+    (tmp_path / ".env").write_text("MYKEY=secret-from-dotenv\n")
+    cfg_file = tmp_path / "c.yaml"
+    cfg_file.write_text("llm:\n  api_key: ${MYKEY}\n")
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.delenv("MYKEY", raising=False)
+    assert load_config(cfg_file).llm.api_key == "secret-from-dotenv"

@@ -14,7 +14,15 @@ llm:
   model: "qwen2.5-coder:7b"
   api_key: ""            # blank for local; set for cloud providers
   num_ctx: 16384         # IMPORTANT: 16K–32K. The 4K default breaks agentic editing.
-  kind: "openai"         # "openai" (Ollama/LM Studio/vLLM/OpenAI/OpenRouter/Gemini) or "anthropic"
+  kind: "openai"         # "openai" (Ollama/LM Studio/vLLM/OpenAI/OpenRouter/Gemini/NVIDIA) or "anthropic"
+
+  # NVIDIA NIM (OpenAI-compatible) — a great frontier option if you don't have an Anthropic key.
+  # Put NVIDIA_API_KEY in a local .env (auto-loaded) and use, e.g.:
+  #   provider: "nvidia"
+  #   base_url: "https://integrate.api.nvidia.com/v1"
+  #   model: "meta/llama-3.3-70b-instruct"   # vision (for the critic): meta/llama-3.2-90b-vision-instruct
+  #   api_key: "${NVIDIA_API_KEY}"
+  #   kind: "openai"
 
   # TIERED setup (recommended): frontier model as the director/critic, local for cheap sub-steps.
   # routes:
