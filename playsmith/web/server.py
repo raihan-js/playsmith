@@ -574,6 +574,28 @@ async def _direct(
         )
     except (EngineError, OSError) as exc:
         await _send(sock, type="observe", name="character", text=f"skipped: {exc}", ok=False)
+
+    # Vision critic: only when a vision-capable model is configured (rendering is slow). Renders
+    # the final level once, scores the real frame, and blends it with the metrics score 50/50.
+    if model_catalog.model_supports_vision(cfg):
+        await _send(sock, type="phase", text="Critiquing the rendered frame with a vision model")
+        png = adapter.project_dir / "preview.png"
+        vis = None
+        try:
+            await asyncio.to_thread(adapter.render_screenshot, png, scene=tspec.map_path)
+            vis = await asyncio.to_thread(critic.score_render, str(png), result.spec, gateway)
+        except (EngineError, OSError):
+            vis = None
+        if vis is not None:
+            base = result.critique.score if result.critique else vis.score
+            blended = round(0.5 * base + 0.5 * vis.score)
+            if result.critique is not None:
+                result.critique.score = blended
+            await _send(
+                sock, type="critic", iter=result.iterations + 1, score=blended,
+                passed=blended >= critic.DEFAULT_TARGET_SCORE, feedback=vis.feedback,
+                summary=f"Blended with vision — {vis.summary}",
+            )
     return result
 
 

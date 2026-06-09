@@ -221,6 +221,24 @@ def catalog(cfg: Config, *, client: httpx.Client | None = None) -> dict:
     }
 
 
+def model_supports_vision(cfg: Config) -> bool:
+    """True if the active model can see images (so the vision critic is worth calling).
+
+    Uses the curated ``vision`` flag when the model is recognised, else a name heuristic (covers
+    discovered Ollama vision models and custom endpoints). Conservative: defaults to False.
+    """
+    provider = _BY_ID.get(cfg.llm.provider)
+    if provider is not None:
+        for m in provider.models:
+            if m.id == cfg.llm.model:
+                return m.vision
+    name = (cfg.llm.model or "").lower()
+    return any(
+        tag in name
+        for tag in ("vision", "llava", "gpt-4o", "claude-", "bakllava", "moondream", "-vl")
+    )
+
+
 def config_patch_for(
     provider: str,
     model: str,

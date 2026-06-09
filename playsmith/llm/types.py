@@ -35,11 +35,28 @@ class Message:
     tool_calls: list[ToolCall] = field(default_factory=list)
     tool_call_id: str | None = None
     name: str | None = None  # function name for a "tool" role message
+    # Inline images for vision (the critic): each {"data": <base64>, "media_type": "image/png"}.
+    images: list[dict] = field(default_factory=list)
 
     def to_dict(self) -> dict:
         msg: dict = {"role": self.role}
-        # OpenAI requires the key even when content is null for assistant tool-call turns.
-        msg["content"] = self.content
+        if self.images:
+            # OpenAI vision shape: content becomes an array of text + image_url parts.
+            parts: list[dict] = []
+            if self.content:
+                parts.append({"type": "text", "text": self.content})
+            for img in self.images:
+                media = img.get("media_type", "image/png")
+                parts.append(
+                    {
+                        "type": "image_url",
+                        "image_url": {"url": f"data:{media};base64,{img.get('data', '')}"},
+                    }
+                )
+            msg["content"] = parts
+        else:
+            # OpenAI requires the key even when content is null for assistant tool-call turns.
+            msg["content"] = self.content
         if self.tool_calls:
             msg["tool_calls"] = [tc.to_request_dict() for tc in self.tool_calls]
         if self.tool_call_id is not None:
@@ -56,6 +73,15 @@ class Message:
     @classmethod
     def user(cls, content: str) -> Message:
         return cls(role="user", content=content)
+
+    @classmethod
+    def user_with_image(
+        cls, content: str, image_b64: str, media_type: str = "image/png"
+    ) -> Message:
+        """A user turn carrying one inline base64 image (for the vision critic)."""
+        return cls(
+            role="user", content=content, images=[{"data": image_b64, "media_type": media_type}]
+        )
 
     @classmethod
     def assistant(cls, content: str) -> Message:

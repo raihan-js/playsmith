@@ -11,8 +11,12 @@ director feeds back in to make the next pass better — the engine behind "more 
 
 from __future__ import annotations
 
+import base64
+import json
 import math
+import re
 from dataclasses import dataclass, field
+from pathlib import Path
 
 # A "good enough to ship a slice" target. The loop iterates until a dressing clears this.
 DEFAULT_TARGET_SCORE = 70
@@ -152,11 +156,61 @@ def critique(
     )
 
 
-def score_render(image_path: str, spec: dict, gateway: object) -> Critique | None:  # noqa: ARG001
-    """Seam for a future vision critic: score a rendered screenshot with a vision model.
+_VISION_SYSTEM = (
+    "You are an art director reviewing a single rendered screenshot of a 3D game level. "
+    "Reply with STRICT JSON only — no prose, no code fences."
+)
 
-    Not wired yet (the gateway is text-only today). Returns ``None`` so callers fall back to the
-    deterministic :func:`critique`. When vision lands, this scores framing/readability/content
-    density from the actual frame and blends with the structural score.
+
+def score_render(
+    image_path: str, spec: dict, gateway, *, target_score: int = DEFAULT_TARGET_SCORE
+) -> Critique | None:
+    """Score a rendered screenshot with a vision model — the critic's *eyes* (CLAUDE.md §4 step 3).
+
+    Sends the frame to the configured (vision-capable) model and asks for a 0–100 visual-quality
+    score + short feedback. Returns ``None`` on any failure (no image, non-vision model, bad reply)
+    so callers fall back to / keep the deterministic :func:`critique`. Gate the call on
+    ``catalog.model_supports_vision`` to avoid wasting a call on a text-only model.
     """
-    return None
+    from playsmith.llm import Message, TaskType  # local import keeps critic import-light
+
+    try:
+        raw = Path(image_path).read_bytes()
+    except OSError:
+        return None
+    if not raw:
+        return None
+    b64 = base64.b64encode(raw).decode()
+    objective = (spec.get("objective") or "").strip()
+    ask = (
+        "This is a rendered screenshot of a 3D game level"
+        + (f" whose objective is: {objective}. " if objective else ". ")
+        + "Rate its VISUAL quality 0-100 — content density (is it full, not empty?), composition "
+        "and framing, variety, and how deliberately *designed* it looks. Reply STRICT JSON: "
+        '{"score": <0-100 int>, "feedback": ["<short concrete tip>", "..."]}'
+    )
+    try:
+        resp = gateway.chat(
+            [Message.system(_VISION_SYSTEM), Message.user_with_image(ask, b64, "image/png")],
+            task=TaskType.REASONING,
+        )
+        match = re.search(r"\{.*\}", resp.content or "", re.DOTALL)
+        if not match:
+            return None
+        parsed = json.loads(match.group(0))
+    except Exception:  # noqa: BLE001 - the vision pass must never break a build
+        return None
+    if not isinstance(parsed, dict):
+        return None
+    try:
+        score = int(max(0, min(100, float(parsed.get("score", 0)))))
+    except (TypeError, ValueError):
+        return None
+    feedback = [str(f)[:140] for f in (parsed.get("feedback") or []) if str(f).strip()][:4]
+    return Critique(
+        score=score,
+        passed=score >= target_score,
+        dimensions={"vision": score / 100.0},
+        feedback=feedback,
+        summary=f"Vision {score}/100",
+    )

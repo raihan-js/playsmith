@@ -28,6 +28,17 @@ def _content_blocks(message: Message) -> list[dict]:
             }
         ]
     blocks: list[dict] = []
+    for img in message.images:  # vision: Anthropic image blocks (base64 source)
+        blocks.append(
+            {
+                "type": "image",
+                "source": {
+                    "type": "base64",
+                    "media_type": img.get("media_type", "image/png"),
+                    "data": img.get("data", ""),
+                },
+            }
+        )
     if message.content:
         blocks.append({"type": "text", "text": message.content})
     for call in message.tool_calls:
