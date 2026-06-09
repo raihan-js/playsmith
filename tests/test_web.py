@@ -139,6 +139,12 @@ def test_ws_build_streams_clone_verify_critic_done(tmp_path, monkeypatch) -> Non
         def customize_character(self, spec, tspec):
             return SimpleNamespace(ok=True, assertions={"character_customized": True})
 
+        def live_available(self):
+            return False  # no live editor in tests -> builtin prototype pack
+
+        def discover_assets(self, *a, **k):
+            return {}
+
     monkeypatch.setattr(srv, "UnrealAdapter", FakeAdapter)
     monkeypatch.setattr(srv.LLMGateway, "from_config", staticmethod(lambda cfg, **k: object()))
     rich = drct._augment(drct.default_dressing(), size="large")  # passes the critic on pass 1
@@ -188,6 +194,12 @@ def test_ws_improve_streams_and_saves(tmp_path, monkeypatch) -> None:
 
         def customize_character(self, spec, tspec):
             return SimpleNamespace(ok=True, assertions={"character_customized": True})
+
+        def live_available(self):
+            return False  # no live editor in tests -> builtin prototype pack
+
+        def discover_assets(self, *a, **k):
+            return {}
 
     monkeypatch.setattr(srv, "UnrealAdapter", FakeAdapter)
     monkeypatch.setattr(srv.LLMGateway, "from_config", staticmethod(lambda cfg, **k: object()))

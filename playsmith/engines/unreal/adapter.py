@@ -31,7 +31,14 @@ from playsmith.engines.base import (
     VerifyResult,
     parse_assert_lines,
 )
-from playsmith.engines.unreal import assets, director, render, template_clone, templates
+from playsmith.engines.unreal import (
+    assetpacks,
+    assets,
+    director,
+    render,
+    template_clone,
+    templates,
+)
 
 # Epic's Unreal EULA royalty terms (surfaced so users can plan for the cost).
 _ROYALTY_THRESHOLD = 1_000_000.0
@@ -467,6 +474,27 @@ class UnrealAdapter:
     def live_available(self) -> bool:
         """True if a running editor with Remote Control is reachable (editor-in-the-loop is on)."""
         return self.remote.available()
+
+    def discover_assets(self, roots: tuple[str, ...] = assetpacks.MEGASCANS_ROOTS) -> dict:
+        """Discover installed Megascans/Fab assets via the live editor (Phase 1 real assets).
+
+        Runs the discovery script in the running editor (it has the asset registry loaded) and reads
+        back the categorised pack JSON. Returns ``{}`` with no editor or nothing installed —
+        so dressing simply falls back to the builtin prototype pack.
+        """
+        if not self.remote.available():
+            return {}
+        out_json = self.project_dir / "Saved" / "playsmith_assets.json"
+        if out_json.exists():
+            out_json.unlink()
+        af = self.project_dir / "Saved" / "playsmith_assert.txt"
+        self._run_python_live(assetpacks.discover_script(str(out_json), tuple(roots)), out_file=af)
+        if out_json.exists():
+            try:
+                return json.loads(out_json.read_text())
+            except (json.JSONDecodeError, OSError):
+                return {}
+        return {}
 
     def _run_python_live(
         self, script_text: str, *, out_file: Path, timeout_s: int = 600

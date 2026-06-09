@@ -16,7 +16,7 @@ from __future__ import annotations
 import json
 import re
 
-from playsmith.engines.unreal import critic
+from playsmith.engines.unreal import assetpacks, critic
 from playsmith.llm import LLMGateway, Message, TaskType
 
 # UE units are centimetres; keep the playfield bounded and reachable from the template PlayerStart.
@@ -182,6 +182,29 @@ def apply_theme(spec: dict, text: str) -> dict:
     spec["character"] = char
     if not spec.get("theme") or spec["theme"] == default_dressing()["theme"]:
         spec["theme"] = p["name"]
+    return spec
+
+
+def apply_pack(spec: dict, pack: assetpacks.AssetPack) -> dict:
+    """Bind every placement to a REAL asset from the pack (by role) and set ground + tint flag.
+
+    With a real Megascans/Fab pack each placement gets an ``asset`` (a content-path mesh) that the
+    dress script spawns *with its own photoreal material* (no role tint), and the floor gets the
+    pack's ground surface. With the builtin prototype pack, ``tint_objects`` stays on so the grey
+    shapes are role-coloured as before. The director's layout (zones/positions/scale) is unchanged —
+    only what's *placed* gets better.
+    """
+    counters: dict[str, int] = {}
+    for p in spec.get("placements") or []:
+        assets = pack.assets_for(p.get("role", "prop"))
+        if assets:
+            i = counters.get(p["role"] if p.get("role") else "prop", 0)
+            p["asset"] = assets[i % len(assets)]
+            counters[p.get("role", "prop")] = i + 1
+    spec["pack_source"] = pack.source
+    spec["tint_objects"] = not pack.is_real  # real assets keep materials; only proto is tinted
+    if pack.ground_material:
+        spec["ground_material"] = pack.ground_material
     return spec
 
 
@@ -407,6 +430,10 @@ def dress_level_script(spec: dict, map_path: str) -> str:
         f"PALETTE = json.loads(r'''{palette_json}''')\n"
         f"ROLE_COLOR = json.loads(r'''{role_color_json}''')\n"
         'PROP_DEST = "/Game/Playsmith/Props"\n'
+        # Real Megascans/Fab meshes keep their photoreal materials (TINT off); the prototype
+        # fallback is role-coloured (TINT on). GROUND_MATERIAL is an optional surface for the floor.
+        "TINT = SPEC.get('tint_objects', True)\n"
+        "GROUND_MATERIAL = SPEC.get('ground_material')\n"
         'OUT = os.environ.get("PLAYSMITH_UE_OUT", "")\n'
         # A shared param material + one MaterialInstanceConstant per role, so placed meshes are
         # coloured by role (themed + readable) instead of all grey. Cached; persists on save.
@@ -461,7 +488,8 @@ def dress_level_script(spec: dict, map_path: str) -> str:
         "        pass\n"
         # Re-theme the template's OWN objects (its demo course) to the structure colour, so the
         # WHOLE level reads as the theme — every non-Playsmith StaticMeshActor, any mesh path.
-        "_struct = _role_mic('cover')\n"
+        # (Only for the prototype path; with real assets the template demo isn't grey-tinted.)
+        "_struct = _role_mic('cover') if TINT else None\n"
         "if _struct is not None:\n"
         "    for _ta in eas.get_all_level_actors():\n"
         "        try:\n"
@@ -488,7 +516,7 @@ def dress_level_script(spec: dict, map_path: str) -> str:
         "    a.set_actor_label(label)\n"
         "    a.set_mobility(unreal.ComponentMobility.MOVABLE)\n"
         "    a.tags = [unreal.Name(tag)]\n"
-        "    _m = _role_mic(tag)\n"
+        "    _m = _role_mic(tag) if TINT else None\n"  # real assets keep their own material
         "    if _m is not None:\n"
         "        try:\n"
         "            a.static_mesh_component.set_material(0, _m)\n"
@@ -504,12 +532,16 @@ def dress_level_script(spec: dict, map_path: str) -> str:
         "    a.tags = [unreal.Name(tag)]\n"
         "    return True\n"
         "for i, p in enumerate(SPEC.get('placements', [])):\n"
-        "    entry = PALETTE.get(p.get('kind'))\n"
-        "    if not entry:\n"
-        "        continue\n"
-        "    kind_type, path = entry[0], entry[1]\n"
         "    role = p.get('role', 'prop')\n"
-        "    label = 'PS_%s_%d' % (p.get('kind'), i)\n"
+        "    asset = p.get('asset')\n"
+        "    if asset:\n"
+        "        kind_type, path = 'mesh', asset\n"  # a real mesh chosen by apply_pack
+        "    else:\n"
+        "        entry = PALETTE.get(p.get('kind'))\n"
+        "        if not entry:\n"
+        "            continue\n"
+        "        kind_type, path = entry[0], entry[1]\n"
+        "    label = 'PS_%s_%d' % (p.get('kind', 'asset'), i)\n"
         "    try:\n"
         "        if kind_type == 'mesh':\n"
         "            ok = _spawn_mesh(path, p['x'], p['y'], p['z'], "
@@ -520,6 +552,26 @@ def dress_level_script(spec: dict, map_path: str) -> str:
         "            placed += 1\n"
         "    except Exception as e:\n"
         "        unreal.log_warning('PLAYSMITH placement skipped: %s' % e)\n"
+        # Ground surface: lay the pack's floor material on the big flat meshes (the floor).
+        "if GROUND_MATERIAL:\n"
+        "    try:\n"
+        "        _gm = unreal.EditorAssetLibrary.load_asset(GROUND_MATERIAL)\n"
+        "        if _gm is not None:\n"
+        "            for _fa in eas.get_all_level_actors():\n"
+        "                try:\n"
+        "                    if not isinstance(_fa, unreal.StaticMeshActor):\n"
+        "                        continue\n"
+        "                    if _fa.get_actor_label().startswith('PS_'):\n"
+        "                        continue\n"
+        "                    _s = _fa.get_actor_scale3d()\n"
+        "                    if _s.x >= 5.0 or _s.y >= 5.0:  # a large flat ground mesh\n"
+        "                        _fc = _fa.static_mesh_component\n"
+        "                        for _j in range(max(1, _fc.get_num_materials())):\n"
+        "                            _fc.set_material(_j, _gm)\n"
+        "                except Exception:\n"
+        "                    pass\n"
+        "    except Exception as e:\n"
+        "        unreal.log_warning('PLAYSMITH ground surface skipped: %s' % e)\n"
         "# Lighting mood: tune the template's DirectionalLight if present.\n"
         "try:\n"
         "    sun = next((a for a in eas.get_all_level_actors() "

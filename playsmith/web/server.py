@@ -30,7 +30,7 @@ from fastapi.responses import FileResponse, HTMLResponse, JSONResponse
 
 from playsmith.config import load_config, save_runtime_patch
 from playsmith.engines.base import EngineError
-from playsmith.engines.unreal import critic, director, refine, template_clone
+from playsmith.engines.unreal import assetpacks, critic, director, refine, template_clone
 from playsmith.engines.unreal.adapter import UnrealAdapter
 from playsmith.llm import LLMGateway, imagegen
 from playsmith.llm import catalog as model_catalog
@@ -620,10 +620,27 @@ async def _direct(
     gateway = LLMGateway.from_config(cfg)
     size = (hints or {}).get("size")
 
+    # Resolve a real-asset pack for the theme (live discovery + manifests); builtin otherwise.
+    theme_text = " ".join([prompt, (hints or {}).get("theme", ""), (hints or {}).get("vibe", "")])
+    discovered: dict = {}
+    if adapter.live_available():
+        discovered = await asyncio.to_thread(adapter.discover_assets)
+    pack = assetpacks.resolve_pack(
+        theme_text, discovered=discovered,
+        manifests=assetpacks.load_manifest_packs(assetpacks.default_packs_dir()),
+    )
+    if pack.is_real:
+        await _send(
+            sock, type="observe", name="generate_asset",
+            text=f"dressing with real assets — {pack.name}", ok=True,
+        )
+
     def _plan() -> dict:
         return director.plan_dressing(prompt, genre, gateway, hints=hints)
 
     def _apply(spec: dict) -> dict:
+        if pack.is_real:
+            director.apply_pack(spec, pack)
         return dict(adapter.dress_from_spec(spec, tspec.map_path).assertions)
 
     def _critique(spec: dict, assertions: dict | None):

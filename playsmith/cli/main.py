@@ -22,6 +22,7 @@ from playsmith.config import Config, ConfigError, load_config
 from playsmith.engines import EngineError, EngineNotFoundError
 from playsmith.engines.unreal import (
     UnrealAdapter,
+    assetpacks,
     critic,
     director,
     refine,
@@ -415,6 +416,20 @@ def _direct_level(
     gateway = LLMGateway.from_config(cfg, console=console)
     size = None  # CLI has no structured size hint yet; the web composer does
 
+    # Real-asset pack for the theme (live discovery + manifests); builtin prototype otherwise.
+    discovered = adapter.discover_assets() if adapter.live_available() else {}
+    pack = assetpacks.resolve_pack(
+        prompt, discovered=discovered,
+        manifests=assetpacks.load_manifest_packs(assetpacks.default_packs_dir()),
+    )
+    if pack.is_real:
+        console.print(f"  dressing with real assets — [cyan]{pack.name}[/]")
+
+    def _apply(spec: dict) -> dict:
+        if pack.is_real:
+            director.apply_pack(spec, pack)
+        return dict(adapter.dress_from_spec(spec, tspec.map_path).assertions)
+
     def _on_event(ev: dict) -> None:
         kind = ev.get("kind")
         if kind == "planned":
@@ -430,7 +445,7 @@ def _direct_level(
     try:
         result = refine.refine(
             plan=lambda: director.plan_dressing(prompt, genre, gateway),
-            apply=lambda spec: dict(adapter.dress_from_spec(spec, tspec.map_path).assertions),
+            apply=_apply,
             critique=lambda spec, a: critic.critique(spec, a, size=size),
             improve=lambda spec, c: director.improve_dressing(prompt, genre, gateway, spec, c),
             max_iters=max_iters,
