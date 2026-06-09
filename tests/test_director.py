@@ -220,3 +220,12 @@ def test_dress_level_script_is_additive_and_uses_real_assets() -> None:
     assert "_ps_delete(" in script
     assert "__ExternalActors__" in script  # the safety guard: only ever per-actor external packages
     assert "os.remove" in script and "project_content_dir" in script  # deletes the package file
+
+
+def test_demo_clear_verify_script_checks_persistence_fresh_load() -> None:
+    s = director.demo_clear_verify_script("/Game/ThirdPerson/Lvl_X")
+    assert "load_level(MAP)" in s and "/Game/ThirdPerson/Lvl_X" in s  # fresh-loads the real map
+    # Phase 0.2: the demo course is gone (persisted), but the floor + PS_ dressing are NOT wiped.
+    assert "PLAYSMITH_ASSERT template_demo_clear" in s
+    assert "PLAYSMITH_ASSERT objects_present" in s
+    assert "get_actor_bounds" in s  # same small-bounds heuristic the clear uses

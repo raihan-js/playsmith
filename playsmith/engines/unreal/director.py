@@ -663,6 +663,54 @@ def dress_level_script(spec: dict, map_path: str) -> str:
     )
 
 
+def demo_clear_verify_script(map_path: str) -> str:
+    """UE Python that FRESH-LOADS the level and checks the demo course cleared (Phase 0.2).
+
+    A within-session re-scan can't catch the OFPA persistence bug — ``destroy_actor`` "works"
+    in-session even when the package file survives on disk. Run as its own commandlet (a *second*
+    process/load), this only passes when deletions truly persisted. Writes ``PLAYSMITH_ASSERT`` to
+    ``$PLAYSMITH_UE_OUT``: ``template_demo_clear`` (the ~55 small demo blocks are gone) and
+    ``objects_present`` (the big floor + ``PS_`` dressing remain — catches an over-aggressive clear
+    that would wipe the level). Uses the SAME small-bounds heuristic as the clear in
+    :func:`dress_level_script`, so the two agree on what "a demo object" is.
+    """
+    return (
+        "import os\n"
+        "import unreal\n"
+        f'MAP = "{map_path}"\n'
+        'OUT = os.environ.get("PLAYSMITH_UE_OUT", "")\n'
+        "les = unreal.get_editor_subsystem(unreal.LevelEditorSubsystem)\n"
+        "eas = unreal.get_editor_subsystem(unreal.EditorActorSubsystem)\n"
+        "loaded = les.load_level(MAP)\n"
+        "demo = 0\n"
+        "floor = 0\n"
+        "ps = 0\n"
+        "for _a in list(eas.get_all_level_actors()):\n"
+        "    try:\n"
+        "        if not isinstance(_a, unreal.StaticMeshActor):\n"
+        "            continue\n"
+        "        if _a.get_actor_label().startswith('PS_'):\n"
+        "            ps += 1\n"
+        "            continue\n"
+        "        _bo, _bext = _a.get_actor_bounds(False)\n"
+        "        if _bext.x < 1500.0 and _bext.y < 1500.0:\n"  # same heuristic as the clear
+        "            demo += 1\n"
+        "        else:\n"
+        "            floor += 1\n"
+        "    except Exception:\n"
+        "        pass\n"
+        "unreal.log('PLAYSMITH verify_clean demo=%d floor=%d ps=%d' % (demo, floor, ps))\n"
+        "lines = [\n"
+        "    'PLAYSMITH_ASSERT level_loads=%s' % ('true' if loaded else 'false'),\n"
+        "    'PLAYSMITH_ASSERT template_demo_clear=%s' % ('true' if demo <= 2 else 'false'),\n"
+        "    'PLAYSMITH_ASSERT objects_present=%s' % ('true' if (floor + ps) > 0 else 'false'),\n"
+        "]\n"
+        "if OUT:\n"
+        "    with open(OUT, 'w') as f:\n"
+        "        f.write('\\n'.join(lines) + '\\n')\n"
+    )
+
+
 def character_script(spec: dict, character_bp: str, character_dir: str) -> str:
     """UE Python that customizes the template's player character from the dressing's ``character``.
 

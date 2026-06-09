@@ -301,6 +301,24 @@ class UnrealAdapter:
             assertions = parse_assert_lines(out_file.read_text())
         return VerifyResult(run=result, assertions=assertions)
 
+    def verify_clean(self, map_path: str) -> VerifyResult:
+        """Fresh-load check that the demo course cleared and the level wasn't wiped (Phase 0.2).
+
+        The only thing that actually catches the OFPA persistence bug: this runs as a SECOND load
+        (headless: a separate commandlet process), so any actor whose deletion didn't persist on
+        disk would stream back and fail ``template_demo_clear``. Parses ``template_demo_clear`` +
+        ``objects_present`` (the latter guards against an over-aggressive clear). Best-effort: it
+        never raises; the dressing already ran.
+        """
+        out_file = self.project_dir / "Saved" / "playsmith_assert.txt"
+        if out_file.exists():
+            out_file.unlink()
+        result = self._author(director.demo_clear_verify_script(map_path), out_file=out_file)
+        assertions: dict[str, bool] = {}
+        if out_file.exists():
+            assertions = parse_assert_lines(out_file.read_text())
+        return VerifyResult(run=result, assertions=assertions)
+
     def set_main_scene(self, res_path: str) -> None:
         path = self._uproject_path()
         if not path.exists():

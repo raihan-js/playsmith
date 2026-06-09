@@ -114,6 +114,27 @@ def test_verify_parses_file_based_assertions(tmp_path, monkeypatch) -> None:
     assert result.ok
 
 
+def test_verify_clean_parses_demo_clear_assertions(tmp_path, monkeypatch) -> None:
+    adapter = UnrealAdapter(tmp_path / "proj")
+    adapter.create_project("G")
+
+    def fake_author(script_text, *, out_file, timeout_s=600):
+        # verify_clean must run the fresh-load demo-clear script, not the dressing script.
+        assert "template_demo_clear" in script_text
+        out_file.parent.mkdir(parents=True, exist_ok=True)
+        out_file.write_text(
+            "PLAYSMITH_ASSERT level_loads=true\n"
+            "PLAYSMITH_ASSERT template_demo_clear=true\n"
+            "PLAYSMITH_ASSERT objects_present=true\n"
+        )
+        return RunResult(command=["ue"], returncode=0, stdout="ok")
+
+    monkeypatch.setattr(adapter, "_author", fake_author)
+    result = adapter.verify_clean("/Game/ThirdPerson/Lvl_X")
+    assert result.assertions["template_demo_clear"] is True
+    assert result.assertions["objects_present"] is True  # the clear didn't wipe the level
+
+
 def test_render_screenshot_copies_captured_png(tmp_path, monkeypatch) -> None:
     adapter = UnrealAdapter(tmp_path / "proj")
     adapter.create_project("G")

@@ -124,6 +124,8 @@ KNOWN_ASSERTIONS = frozenset(
         "character_present",  # build-on-template: the player character + shared content resolved
         "goal_exists",
         "obstacles_exist",
+        "template_demo_clear",  # phase 0.2: demo course cleared AND it persisted on disk
+        "objects_present",      # phase 0.2: floor + PS_ dressing remain (not over-cleared)
     }
 )
 
