@@ -6,7 +6,7 @@
 <title>Playsmith</title>
 <link rel="preconnect" href="https://fonts.googleapis.com" />
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet" />
+<link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@400;500;600;700&family=Plus+Jakarta+Sans:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet" />
 <style>
 /* ============================================================
    PLAYSMITH — redesigned web UI
@@ -17,29 +17,34 @@
    ============================================================ */
 
 :root{
-  --bg:#0e0d13;
-  --bg-2:#15131d;
-  --bg-3:#1b1827;
-  --bg-4:#221e30;
-  --line:#272333;
-  --line-2:#352f47;
-  --text:#ece9f6;
-  --muted:#9c95ae;
-  --faint:#6b6480;
-  --accent:#7b61ff;
-  --accent-2:#a48bff;
-  --accent-deep:#5b3df0;
-  --accent-soft:rgba(123,97,255,.14);
-  --accent-glow:rgba(123,97,255,.35);
-  --pass:#3ad29a;
-  --pass-soft:rgba(58,210,154,.13);
+  --bg:#0e1018;
+  --bg-2:#161a26;
+  --bg-3:#1d2233;
+  --bg-4:#272d42;
+  --line:#262b3d;
+  --line-2:#373e57;
+  --text:#f0f1f7;
+  --muted:#9aa3bd;
+  --faint:#646b85;
+  --accent:#ff5d73;          /* playful coral-pink — the studio's signature */
+  --accent-2:#ff8a7a;
+  --accent-deep:#e23b5a;
+  --accent-soft:rgba(255,93,115,.14);
+  --accent-glow:rgba(255,93,115,.40);
+  --teal:#2dd4bf;            /* secondary accent */
+  --teal-soft:rgba(45,212,191,.14);
+  --sun:#ffc93c;            /* sunny tertiary highlight */
+  --sun-soft:rgba(255,201,60,.14);
+  --pass:#35d6a4;
+  --pass-soft:rgba(53,214,164,.14);
   --fail:#ff6b76;
   --fail-soft:rgba(255,107,118,.13);
   --work:#ffb547;
   --work-soft:rgba(255,181,71,.13);
-  --r-sm:8px; --r:12px; --r-lg:18px; --r-xl:26px;
-  --shadow:0 18px 50px -20px rgba(0,0,0,.7);
-  --ui:'Space Grotesk',system-ui,sans-serif;
+  --r-sm:10px; --r:14px; --r-lg:20px; --r-xl:28px;
+  --shadow:0 20px 54px -20px rgba(0,0,0,.72);
+  --ui:'Plus Jakarta Sans',system-ui,sans-serif;
+  --display:'Fredoka','Plus Jakarta Sans',sans-serif;
   --mono:'JetBrains Mono',ui-monospace,monospace;
 }
 
@@ -57,14 +62,15 @@ body{
 button{font-family:inherit;cursor:pointer;border:none;background:none;color:inherit}
 ::-webkit-scrollbar{width:10px;height:10px}
 ::-webkit-scrollbar-thumb{background:var(--line-2);border-radius:20px;border:2px solid transparent;background-clip:padding-box}
-::-webkit-scrollbar-thumb:hover{background:#46405a;background-clip:padding-box;border:2px solid transparent}
+::-webkit-scrollbar-thumb:hover{background:#3f4866;background-clip:padding-box;border:2px solid transparent}
 input,textarea{font-family:inherit}
 
 /* ===================== SHELL ===================== */
 .app{display:flex;flex-direction:column;height:100vh;
   background:
-    radial-gradient(1200px 600px at 78% -10%, rgba(123,97,255,.10), transparent 60%),
-    radial-gradient(900px 500px at -5% 110%, rgba(123,97,255,.06), transparent 55%),
+    radial-gradient(1200px 620px at 80% -12%, rgba(255,93,115,.12), transparent 60%),
+    radial-gradient(1000px 560px at -8% 112%, rgba(45,212,191,.09), transparent 56%),
+    radial-gradient(700px 420px at 50% 122%, rgba(255,201,60,.05), transparent 60%),
     var(--bg);
 }
 
@@ -147,7 +153,7 @@ input,textarea{font-family:inherit}
 .build-body{padding:8px 6px 10px}
 
 .phase{display:flex;align-items:center;gap:9px;margin:7px 9px;padding:7px 11px;border-radius:10px;
-  background:var(--accent-soft);border:1px solid rgba(123,97,255,.22);font-size:12.5px;color:var(--accent-2);font-weight:500;animation:rise .35s ease}
+  background:var(--accent-soft);border:1px solid rgba(255,93,115,.22);font-size:12.5px;color:var(--accent-2);font-weight:500;animation:rise .35s ease}
 .phase svg{width:14px;height:14px;flex:0 0 auto}
 
 .step{display:flex;align-items:flex-start;gap:10px;padding:6px 12px;animation:slidein .35s ease;position:relative}
@@ -201,9 +207,9 @@ input,textarea{font-family:inherit}
 .composer-wrap{flex:0 0 auto;padding:12px 16px 16px;background:linear-gradient(0deg,var(--bg),transparent)}
 .ctx-bar{display:flex;align-items:center;gap:8px;margin-bottom:9px;animation:rise .3s ease}
 .ctx-bar .pill{display:inline-flex;align-items:center;gap:7px;height:30px;padding:0 11px;border-radius:9px;
-  background:var(--accent-soft);border:1px solid rgba(123,97,255,.3);font-size:12.5px;color:var(--accent-2);font-weight:500}
+  background:var(--accent-soft);border:1px solid rgba(255,93,115,.3);font-size:12.5px;color:var(--accent-2);font-weight:500}
 .ctx-bar .pill .x{margin-left:3px;color:var(--accent-2);opacity:.7;display:grid;place-items:center;width:16px;height:16px;border-radius:5px}
-.ctx-bar .pill .x:hover{opacity:1;background:rgba(123,97,255,.2)}
+.ctx-bar .pill .x:hover{opacity:1;background:rgba(255,93,115,.2)}
 .ctx-bar .pill svg{width:13px;height:13px}
 .composer{border:1px solid var(--line-2);border-radius:16px;background:var(--bg-2);transition:.18s;overflow:hidden}
 .composer:focus-within{border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-soft)}
@@ -229,7 +235,7 @@ input,textarea{font-family:inherit}
 .tab:hover{color:var(--text)}
 .tab.on{color:var(--text);border-bottom-color:var(--accent)}
 .tab .count{font-size:10.5px;background:var(--bg-3);border:1px solid var(--line);padding:1px 6px;border-radius:999px;color:var(--muted)}
-.tab.on .count{color:var(--accent-2);border-color:rgba(123,97,255,.3)}
+.tab.on .count{color:var(--accent-2);border-color:rgba(255,93,115,.3)}
 .work-tabs .spacer{flex:1}
 .work-body{flex:1;min-height:0;overflow:hidden;display:flex}
 .panel{flex:1;min-width:0;overflow-y:auto;display:none}
@@ -266,13 +272,13 @@ input,textarea{font-family:inherit}
 .card-actions .qa{flex:1;display:inline-flex;align-items:center;justify-content:center;gap:6px;height:32px;border-radius:9px;
   border:1px solid var(--line);font-size:12px;font-weight:600;color:var(--muted);transition:.14s}
 .card-actions .qa:hover{color:var(--text);background:var(--bg-3);border-color:var(--line-2)}
-.card-actions .qa.main{color:var(--accent-2);border-color:rgba(123,97,255,.3);background:var(--accent-soft)}
-.card-actions .qa.main:hover{background:rgba(123,97,255,.2)}
+.card-actions .qa.main{color:var(--accent-2);border-color:rgba(255,93,115,.3);background:var(--accent-soft)}
+.card-actions .qa.main:hover{background:rgba(255,93,115,.2)}
 .card-actions .qa svg{width:13px;height:13px}
 /* new-project tile */
 .card.new-tile{border-style:dashed;display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:240px;color:var(--muted);gap:10px}
 .card.new-tile:hover{color:var(--accent-2);border-color:var(--accent)}
-.card.new-tile .plus{width:46px;height:46px;border-radius:14px;background:var(--accent-soft);display:grid;place-items:center;border:1px solid rgba(123,97,255,.25)}
+.card.new-tile .plus{width:46px;height:46px;border-radius:14px;background:var(--accent-soft);display:grid;place-items:center;border:1px solid rgba(255,93,115,.25)}
 .card.new-tile .plus svg{width:22px;height:22px}
 
 /* PLAY panel */
@@ -346,11 +352,11 @@ pre.code .ln{display:inline-block;width:30px;color:var(--faint);user-select:none
 .asset-gen input:focus{border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-soft)}
 .asset-gen .kinds{display:flex;gap:7px;margin-top:11px}
 .asset-gen .kinds button{padding:6px 12px;border-radius:8px;border:1px solid var(--line);font-size:12px;font-weight:600;color:var(--muted);transition:.14s}
-.asset-gen .kinds button.on{color:var(--accent-2);border-color:rgba(123,97,255,.35);background:var(--accent-soft)}
+.asset-gen .kinds button.on{color:var(--accent-2);border-color:rgba(255,93,115,.35);background:var(--accent-soft)}
 .asset-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:14px}
 .asset{border:1px solid var(--line);border-radius:14px;overflow:hidden;background:var(--bg-2)}
 .asset .pv{aspect-ratio:1;position:relative;background:var(--bg-3);display:grid;place-items:center}
-.asset .pv .shimmer{position:absolute;inset:0;background:linear-gradient(110deg,transparent 30%,rgba(123,97,255,.18) 50%,transparent 70%);
+.asset .pv .shimmer{position:absolute;inset:0;background:linear-gradient(110deg,transparent 30%,rgba(255,93,115,.18) 50%,transparent 70%);
   background-size:220% 100%;animation:shimmer 1.4s infinite}
 .asset .am{padding:9px 11px}
 .asset .am .an{font-size:12.5px;font-weight:600}
@@ -365,7 +371,7 @@ pre.code .ln{display:inline-block;width:30px;color:var(--faint);user-select:none
 .skill:hover{border-color:var(--line-2)}
 .skill .sh{display:flex;align-items:center;gap:11px}
 .skill .si{width:40px;height:40px;border-radius:11px;display:grid;place-items:center;font-size:20px;flex:0 0 auto;
-  background:var(--accent-soft);border:1px solid rgba(123,97,255,.2)}
+  background:var(--accent-soft);border:1px solid rgba(255,93,115,.2)}
 .skill .snm{font-size:14px;font-weight:600;display:flex;align-items:center;gap:7px;flex-wrap:wrap}
 .skill .src{font-size:11px;color:var(--faint);margin-top:2px;font-family:var(--mono)}
 .skill .sd{font-size:12.5px;color:var(--muted);line-height:1.5;flex:1}
@@ -379,6 +385,104 @@ pre.code .ln{display:inline-block;width:30px;color:var(--faint);user-select:none
 
 /* striped placeholder helper */
 .stripe-ph{width:100%;height:100%;position:relative}
+
+/* ===================== playful display font ===================== */
+.brand .name,.onboard h1,.gallery-head h2,.gen h2,.build-head .t,.card-meta .nm,
+.poster .pt,.play-top .title,.result .rh .t,.tab,.btn,.modal-head h3,.seg-field .lbl,
+.send,.big-play{font-family:var(--display)}
+.brand .name{letter-spacing:0;font-weight:600}
+.onboard h1{letter-spacing:-.2px;font-weight:600}
+
+/* ===================== composer: structured fields ===================== */
+.compose-fields{display:flex;flex-wrap:wrap;gap:7px;margin-bottom:9px}
+.seg-field{display:flex;align-items:center;gap:4px;background:var(--bg-3);border:1px solid var(--line);
+  border-radius:11px;padding:3px}
+.seg-field .lbl{font-size:10.5px;font-weight:600;color:var(--faint);text-transform:uppercase;
+  letter-spacing:.4px;padding:0 6px 0 8px}
+.seg-field button{padding:5px 10px;border-radius:8px;font-size:12px;font-weight:600;color:var(--muted);transition:.14s}
+.seg-field button:hover{color:var(--text)}
+.seg-field button.on{background:var(--accent);color:#fff;box-shadow:0 4px 12px -4px var(--accent-glow)}
+.seg-field.teal button.on{background:var(--teal);color:#062b27;box-shadow:none}
+.seg-field.sun button.on{background:var(--sun);color:#3a2c00}
+
+/* ===================== quality badge + critic stream ===================== */
+.qbadge{display:inline-flex;align-items:center;gap:5px;font-size:10.5px;font-weight:700;font-family:var(--mono);
+  padding:4px 8px;border-radius:999px;backdrop-filter:blur(6px);border:1px solid transparent}
+.qbadge.good{background:var(--pass-soft);color:var(--pass);border-color:rgba(53,214,164,.3)}
+.qbadge.mid{background:var(--work-soft);color:var(--work);border-color:rgba(255,181,71,.3)}
+.qbadge.low{background:var(--fail-soft);color:var(--fail);border-color:rgba(255,107,118,.3)}
+.thumb .qbadge{position:absolute;bottom:9px;left:9px;background:rgba(8,9,14,.66)}
+.critic{margin:7px 11px;border:1px solid var(--line);border-radius:13px;overflow:hidden;
+  background:linear-gradient(180deg,var(--bg-3),var(--bg-2));animation:rise .35s ease}
+.critic .ch{display:flex;align-items:center;gap:10px;padding:10px 13px}
+.critic .gauge{position:relative;width:38px;height:38px;flex:0 0 auto;border-radius:50%;display:grid;place-items:center;
+  font-size:12px;font-weight:700;font-family:var(--mono);color:var(--text)}
+.critic .ct{font-size:12.5px;font-weight:600}
+.critic .ct small{display:block;color:var(--faint);font-weight:400;font-size:11px;margin-top:1px}
+.critic .verdict{margin-left:auto;font-size:10.5px;font-weight:700;text-transform:uppercase;letter-spacing:.4px;
+  padding:4px 9px;border-radius:999px}
+.critic .verdict.pass{background:var(--pass-soft);color:var(--pass)}
+.critic .verdict.work{background:var(--work-soft);color:var(--work)}
+.critic .fb{padding:0 13px 11px;display:flex;flex-direction:column;gap:5px}
+.critic .fb div{font-size:11.5px;color:var(--muted);display:flex;gap:7px;line-height:1.45}
+.critic .fb div::before{content:"→";color:var(--accent-2);flex:0 0 auto}
+
+/* ===================== delete button on cards ===================== */
+.card-actions .qa.del:hover{color:var(--fail);border-color:rgba(255,107,118,.4);background:var(--fail-soft)}
+.confirm-back{position:fixed;inset:0;z-index:60;background:rgba(6,7,12,.6);backdrop-filter:blur(3px);
+  display:none;place-items:center}
+.confirm-back.on{display:grid;animation:fade .15s ease}
+.confirm{width:340px;max-width:92vw;background:var(--bg-2);border:1px solid var(--line-2);border-radius:18px;
+  padding:20px;box-shadow:var(--shadow);animation:rise .2s ease}
+.confirm h4{margin:0 0 6px;font-size:16px;font-family:var(--display)}
+.confirm p{margin:0 0 16px;font-size:13px;color:var(--muted);line-height:1.5}
+.confirm .row{display:flex;gap:9px;justify-content:flex-end}
+
+/* ===================== settings / models modal ===================== */
+.modal-back{position:fixed;inset:0;z-index:55;background:rgba(6,7,12,.62);backdrop-filter:blur(4px);
+  display:none;place-items:center;padding:20px}
+.modal-back.on{display:grid;animation:fade .16s ease}
+.modal{width:620px;max-width:96vw;max-height:88vh;display:flex;flex-direction:column;background:var(--bg-2);
+  border:1px solid var(--line-2);border-radius:22px;box-shadow:var(--shadow);overflow:hidden;animation:rise .22s ease}
+.modal-head{display:flex;align-items:flex-start;gap:12px;padding:18px 20px 14px;border-bottom:1px solid var(--line)}
+.modal-head h3{margin:0;font-size:18px}
+.modal-head p{margin:3px 0 0;font-size:12.5px;color:var(--muted);line-height:1.45}
+.modal-head .x{margin-left:auto;width:32px;height:32px;border-radius:9px;border:1px solid var(--line);
+  background:var(--bg-3);color:var(--muted);display:grid;place-items:center;font-size:15px;flex:0 0 auto}
+.modal-head .x:hover{color:var(--text);border-color:var(--line-2)}
+.modal-body{padding:14px 18px;overflow-y:auto;min-height:0}
+.prov{border:1px solid var(--line);border-radius:14px;margin-bottom:11px;overflow:hidden;background:var(--bg-2)}
+.prov-head{display:flex;align-items:center;gap:10px;padding:12px 13px;cursor:pointer;transition:.14s}
+.prov-head:hover{background:var(--bg-3)}
+.prov .pi{width:30px;height:30px;border-radius:9px;display:grid;place-items:center;font-size:15px;flex:0 0 auto;
+  background:var(--accent-soft);border:1px solid var(--line)}
+.prov .pn{font-size:13.5px;font-weight:600;display:flex;align-items:center;gap:7px}
+.prov .pd{font-size:11.5px;color:var(--faint);margin-top:2px}
+.tag{font-size:9.5px;font-weight:700;text-transform:uppercase;letter-spacing:.4px;padding:2px 6px;border-radius:999px}
+.tag.frontier{background:var(--accent-soft);color:var(--accent-2)}
+.tag.local{background:var(--teal-soft);color:var(--teal)}
+.tag.cloud{background:var(--sun-soft);color:var(--sun)}
+.tag.ready{background:var(--pass-soft);color:var(--pass)}
+.tag.nokey{background:var(--work-soft);color:var(--work)}
+.prov .chev{margin-left:auto;color:var(--faint);transition:.2s}
+.prov.open .chev{transform:rotate(90deg)}
+.prov-body{display:none;padding:4px 10px 11px;flex-direction:column;gap:5px}
+.prov.open .prov-body{display:flex}
+.mrow{display:flex;align-items:center;gap:10px;padding:9px 11px;border-radius:10px;border:1px solid var(--line);
+  background:var(--bg-3);cursor:pointer;transition:.14s}
+.mrow:hover{border-color:var(--line-2)}
+.mrow.on{border-color:var(--accent);background:var(--accent-soft)}
+.mrow .mn{font-size:12.5px;font-family:var(--mono);color:var(--text)}
+.mrow .mlabel{font-size:12.5px;font-weight:600}
+.mrow .mnote{font-size:10.5px;color:var(--faint);margin-left:auto;display:flex;gap:6px;align-items:center}
+.mrow .vis{font-size:9px;font-weight:700;color:var(--teal);background:var(--teal-soft);padding:2px 5px;border-radius:5px}
+.keyrow{display:flex;gap:8px;margin-top:8px;padding:11px;border-radius:11px;background:var(--bg-3);border:1px solid var(--line)}
+.keyrow input{flex:1;height:36px;border-radius:9px;border:1px solid var(--line-2);background:var(--bg);color:var(--text);
+  padding:0 12px;font-size:13px;font-family:var(--mono);outline:none}
+.keyrow input:focus{border-color:var(--accent)}
+.modal-foot{display:flex;align-items:center;gap:10px;padding:13px 18px;border-top:1px solid var(--line)}
+.modal-foot .note{font-size:12px;color:var(--muted)}
+.modal-foot .sp{flex:1}
 
 /* ===================== animations ===================== */
 @keyframes rise{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:none}}
@@ -418,7 +522,7 @@ pre.code .ln{display:inline-block;width:30px;color:var(--faint);user-select:none
         <path d="M13 10.5L22 16L13 21.5V10.5Z" fill="#fff"/>
         <circle cx="10.5" cy="10.5" r="1.7" fill="#fff" opacity=".9"/>
         <defs><linearGradient id="g1" x1="2" y1="2" x2="30" y2="30">
-          <stop stop-color="#a48bff"/><stop offset="1" stop-color="#5b3df0"/>
+          <stop stop-color="#ff8a7a"/><stop offset="1" stop-color="#e23b5a"/>
         </linearGradient></defs>
       </svg>
       <div class="name">Play<b>smith</b></div>
@@ -428,9 +532,12 @@ pre.code .ln{display:inline-block;width:30px;color:var(--faint);user-select:none
       <button data-m="work">Workspace</button>
     </div>
     <div class="spacer"></div>
-    <div class="chip where" id="cfgChip" title="Generation config">
-      <span class="dot"></span><b id="cfgModel">gpt-4o</b> · <span id="cfgWhere">local</span>
-    </div>
+    <button class="chip where" id="cfgChip" title="Change model — click to open Settings" style="cursor:pointer">
+      <span class="dot"></span><b id="cfgModel">…</b> · <span id="cfgWhere">local</span>
+    </button>
+    <button class="icon-btn" title="Models &amp; settings" id="settingsBtn">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="3.2"/><path d="M19.4 15a1.6 1.6 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.6 1.6 0 0 0-2.7 1.1V21a2 2 0 1 1-4 0v-.1A1.6 1.6 0 0 0 6.8 19l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.6 1.6 0 0 0-1-2.7H3a2 2 0 1 1 0-4h.1A1.6 1.6 0 0 0 4.6 6.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.6 1.6 0 0 0 1.8.3H9.3A1.6 1.6 0 0 0 10.3 3V3a2 2 0 1 1 4 0v.1a1.6 1.6 0 0 0 2.7 1.1l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.6 1.6 0 0 0-.3 1.8v.1a1.6 1.6 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.6 1.6 0 0 0-1.5 1Z"/></svg>
+    </button>
     <button class="icon-btn" title="Workspace folder" id="folderBtn">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V7Z"/></svg>
     </button>
@@ -448,6 +555,29 @@ pre.code .ln{display:inline-block;width:30px;color:var(--faint);user-select:none
       </div>
       <div class="composer-wrap">
         <div class="ctx-bar" id="ctxBar" style="display:none"></div>
+        <div class="compose-fields" id="composeFields">
+          <div class="seg-field" data-field="genre">
+            <span class="lbl">Genre</span>
+            <button data-v="" class="on">Auto</button>
+            <button data-v="third-person">3rd</button>
+            <button data-v="first-person">1st</button>
+            <button data-v="top-down">Top</button>
+          </div>
+          <div class="seg-field sun" data-field="size">
+            <span class="lbl">Size</span>
+            <button data-v="small">S</button>
+            <button data-v="medium" class="on">M</button>
+            <button data-v="large">L</button>
+          </div>
+          <div class="seg-field teal" data-field="vibe">
+            <span class="lbl">Vibe</span>
+            <button data-v="" class="on">Any</button>
+            <button data-v="chill">Chill</button>
+            <button data-v="intense">Intense</button>
+            <button data-v="spooky">Spooky</button>
+            <button data-v="colorful">Colorful</button>
+          </div>
+        </div>
         <div class="composer">
           <textarea id="composer" rows="1" placeholder="Describe a game to build…"></textarea>
           <div class="composer-bar">
@@ -553,17 +683,8 @@ pre.code .ln{display:inline-block;width:30px;color:var(--faint);user-select:none
         <div class="panel" data-panel="assets">
           <div class="gen">
             <h2>Assets &amp; Art</h2>
-            <p class="lead">Bring your own assets into the Unreal editor.</p>
-            <div class="asset-gen">
-              <div class="row" style="align-items:flex-start;gap:11px">
-                <div class="si" style="width:40px;height:40px;border-radius:11px;display:grid;place-items:center;font-size:20px;flex:0 0 auto;background:var(--accent-soft);border:1px solid rgba(123,97,255,.2)">🎨</div>
-                <div>
-                  <div style="font-size:14px;font-weight:600">Asset generation isn't part of the Unreal flow yet</div>
-                  <p class="lead" style="margin:5px 0 0">Bring your own Fab / Quixel assets into the Unreal editor — the dressed level
-                  is a real UE project you fully own, so drop in any meshes, materials, or marketplace packs you like.</p>
-                </div>
-              </div>
-            </div>
+            <p class="lead" id="assetsLead">Generate concept art &amp; textures into your project — then import them in the UE editor.</p>
+            <div id="assetsBody"></div>
           </div>
         </div>
         <!-- SKILLS -->
@@ -576,6 +697,38 @@ pre.code .ln{display:inline-block;width:30px;color:var(--faint);user-select:none
         </div>
       </div>
     </section>
+  </div>
+
+  <!-- ===================== SETTINGS / MODELS MODAL ===================== -->
+  <div class="modal-back" id="settingsBack">
+    <div class="modal">
+      <div class="modal-head">
+        <div>
+          <h3>Models &amp; Providers</h3>
+          <p>Pick the model that directs &amp; critiques your games. A frontier model (Claude / GPT) gives the best results; local Ollama models are free &amp; private for cheap steps.</p>
+        </div>
+        <button class="x" id="settingsClose" title="Close">✕</button>
+      </div>
+      <div class="modal-body" id="settingsBody">Loading models…</div>
+      <div class="modal-foot">
+        <span class="note" id="settingsNote"></span>
+        <span class="sp"></span>
+        <button class="btn" id="settingsCancel">Close</button>
+        <button class="btn primary" id="settingsSave" disabled>Use this model</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===================== DELETE CONFIRM ===================== -->
+  <div class="confirm-back" id="confirmBack">
+    <div class="confirm">
+      <h4 id="confirmTitle">Delete this game?</h4>
+      <p id="confirmText">This permanently removes the project folder. This can't be undone.</p>
+      <div class="row">
+        <button class="btn" id="confirmCancel">Cancel</button>
+        <button class="btn primary" id="confirmOk" style="background:linear-gradient(160deg,var(--fail),#d8434e)">Delete</button>
+      </div>
+    </div>
   </div>
 </div>
 
@@ -656,6 +809,13 @@ async function getJSON(url){
   try{ const r=await fetch(url); if(!r.ok) return null; return await r.json(); }
   catch(_){ return null; }
 }
+/* POST JSON; returns the parsed body (incl. error payloads) or null on a network failure */
+async function postJSON(url,body){
+  try{
+    const r=await fetch(url,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body||{})});
+    return await r.json();
+  }catch(_){ return null; }
+}
 
 /* ============================================================
    STATE
@@ -665,11 +825,15 @@ const S = {
   editTarget:null,      // project name when editing
   building:false,
   hasConversation:false,
-  config:{model:'',provider:'',where:'',workspace:''},
+  config:{model:'',provider:'',where:'',workspace:'',art_enabled:false},
+  opts:{genre:'',size:'medium',vibe:''},  // structured composer choices
   projects:[],
   skills:[],
   files:{},             // slug -> [{path,size,text}]
-  activeProject:null,   // for play/files
+  assets:{},            // slug -> [{name,prompt,file}]
+  models:null,          // /api/models catalog
+  pendingModel:null,    // {provider,model} chosen in Settings, not yet saved
+  activeProject:null,   // for play/files/assets
   activeFile:null,
 };
 const $ = s=>document.querySelector(s);
@@ -683,9 +847,12 @@ async function init(){
   renderProjects();
   renderSkills();
   wireComposer();
+  wireComposeFields();
   wireTabs();
   wirePlay();
   wireMobile();
+  wireSettings();
+  wireConfirm();
   // pull live config / projects / skills
   await Promise.all([loadConfig(),loadProjects(),loadSkills()]);
 }
@@ -694,10 +861,11 @@ async function loadConfig(){
   const cfg=await getJSON('/api/config');
   if(!cfg)return;
   S.config=cfg;
-  $('#cfgModel').textContent=cfg.model||'';
+  $('#cfgModel').textContent=cfg.model||'—';
   $('#cfgWhere').textContent=cfg.where||'';
-  $('#cfgChip').title='Model: '+(cfg.model||'?')+'  ·  '+(cfg.provider||'?')+'  ·  '+(cfg.where||'?');
+  $('#cfgChip').title='Model: '+(cfg.model||'?')+'  ·  '+(cfg.provider||'?')+'  ·  '+(cfg.where||'?')+'  — click to change';
   $('#folderBtn').title=cfg.workspace||'Workspace folder';
+  if($('.panel[data-panel="assets"]').classList.contains('on')) renderAssets();
 }
 async function loadProjects(){
   const data=await getJSON('/api/projects');
@@ -815,12 +983,19 @@ function startNew(prompt){
   ensureConversation();
   setMode('new');
   addUserMsg(prompt,'New game');
-  runBuild({action:'build',prompt});
+  runBuild({action:'build',prompt,...buildOpts()});
 }
 function startEdit(project,prompt){
   ensureConversation();
   addUserMsg(prompt,'Edit · '+project);
-  runBuild({action:'dress',name:project,prompt});
+  runBuild({action:'dress',name:project,prompt,...buildOpts()});
+}
+/* the structured composer choices, only including the ones that are set */
+function buildOpts(){
+  const o={size:S.opts.size};
+  if(S.opts.genre) o.genre=S.opts.genre;
+  if(S.opts.vibe) o.vibe=S.opts.vibe;
+  return o;
 }
 
 function runBuild(payload){
@@ -868,6 +1043,11 @@ function runBuild(payload){
         lastStep.querySelector('.body').appendChild(ob);
       }
     }
+    else if(ev.type==='critic'){
+      finalizeStep(lastStep);lastStep=null;
+      body.appendChild(criticCard(ev));
+      head.querySelector('#bh-sub').textContent='critic: '+(ev.score||0)+'/100 (pass '+(ev.iter||1)+')';
+    }
     else if(ev.type==='error'){
       finalizeStep(lastStep,true);
       const c=document.createElement('div');c.className='callout-err';
@@ -895,14 +1075,39 @@ function finalizeStep(step,failed){
     ? svg('<path d="M18 6 6 18M6 6l12 12"/>',2.2).replace('stroke="currentColor"','stroke="var(--fail)"')
     : '<svg class="tick" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12l4.5 4.5L19 7"/></svg>';
 }
+/* quality 0-100 -> badge class + markup */
+function qClass(q){ return q==null?'mid':(q>=80?'good':(q>=60?'mid':'low')); }
+function qBadge(q){ if(q==null)return ''; return `<span class="qbadge ${qClass(q)}">${svg(I.spark,1.8)} ${q}</span>`; }
+
+/* per-iteration critic card with a score gauge + feedback */
+function criticCard(ev){
+  const q=ev.score||0, cls=qClass(q), col=cls==='good'?'var(--pass)':(cls==='mid'?'var(--work)':'var(--fail)');
+  const ang=Math.round(360*q/100);
+  const fb=(ev.feedback||[]).slice(0,3).map(f=>`<div>${escapeHtml(f)}</div>`).join('');
+  const d=document.createElement('div');d.className='critic';
+  d.innerHTML=`
+    <div class="ch">
+      <div class="gauge" style="background:conic-gradient(${col} ${ang}deg, var(--bg-4) 0)">
+        <span style="position:absolute;inset:3px;border-radius:50%;background:var(--bg-2);display:grid;place-items:center">${q}</span>
+      </div>
+      <div class="ct">Critic — pass ${ev.iter||1}<small>${escapeHtml(ev.summary||'')}</small></div>
+      <span class="verdict ${ev.passed?'pass':'work'}">${ev.passed?'meets bar':'iterating'}</span>
+    </div>
+    ${fb?`<div class="fb">${fb}</div>`:''}`;
+  return d;
+}
+
 function renderResult(body,ev){
   const chips=Object.entries(ev.assertions||{}).map(([k,v])=>
     `<span class="achip ${v?'pass':'fail'}">${v?svg('<path d="M5 12l4.5 4.5L19 7"/>',2.4):svg('<path d="M18 6 6 18M6 6l12 12"/>',2.4)}${k}</span>`).join('');
+  const title=ev.title?escapeHtml(ev.title):'It runs!';
+  const sub=[ev.summary||'', ev.iterations?('refined ×'+ev.iterations):''].filter(Boolean).join(' · ');
   const r=document.createElement('div');r.className='result';
   r.innerHTML=`
     <div class="rh">
       <div class="badge">${svg(I.verify,1.9)}</div>
-      <div class="t">It runs! <small>${escapeHtml(ev.summary||'')}</small></div>
+      <div class="t">${title} <small>${escapeHtml(sub)}</small></div>
+      ${qBadge(ev.quality)}
     </div>
     <div class="assert-row">${chips}</div>
     <div class="actions">
@@ -929,6 +1134,7 @@ function wireTabs(){
 function openTab(name){
   $$('.tab').forEach(t=>t.classList.toggle('on',t.dataset.tab===name));
   $$('.panel').forEach(p=>p.classList.toggle('on',p.dataset.panel===name));
+  if(name==='assets') renderAssets();
   if(window.innerWidth<=920){$('#body').className='body show-work';syncMobile('work');}
 }
 
@@ -950,6 +1156,7 @@ function renderProjects(){
     c.querySelector('[data-qa="play"]').onclick=e=>{e.stopPropagation();selectProject(n);openTab('play');launchGame();};
     c.querySelector('[data-qa="edit"]').onclick=e=>{e.stopPropagation();S.editTarget=n;setMode('edit');if(window.innerWidth<=920){$('#body').className='body show-chat';syncMobile('chat');}$('#composer').focus();};
     c.querySelector('[data-qa="files"]').onclick=e=>{e.stopPropagation();selectProject(n);openTab('files');};
+    c.querySelector('[data-qa="del"]').onclick=e=>{e.stopPropagation();const p=S.projects.find(x=>x.name===n);askDelete(n,(p&&p.title)||n);};
     c.onclick=()=>{selectProject(n);openTab('play');};
     // try to load a live preview thumbnail; falls back to the stripe placeholder on 404
     if(p_has_preview(n)){
@@ -970,15 +1177,17 @@ function projCard(p){
       <img class="prev" alt="" />
       <span class="genre">${escapeHtml(genreLabel(p.genre))}</span>
       ${badge}
+      ${qBadge(p.quality)}
       <div class="hover-play"><div class="pbtn">${svg('<path d="M8 5v14l11-7L8 5Z"/>',0).replace('fill="none"','fill="currentColor"')}</div></div>
     </div>
     <div class="card-meta">
-      <div class="nm">${p.name}</div>
+      <div class="nm">${escapeHtml(p.title||p.name)}</div>
       <p class="pr">${escapeHtml(p.prompt||'')}</p>
       <div class="card-actions">
         <button class="qa main" data-qa="play">${svg('<path d="M8 5v14l11-7L8 5Z"/>',0).replace('fill="none"','fill="currentColor"')}Play</button>
         <button class="qa" data-qa="edit" title="Iterate">${svg(I.patch,1.8)}</button>
         <button class="qa" data-qa="files" title="Files">${svg(I.code,1.8)}</button>
+        <button class="qa del" data-qa="del" title="Delete">${svg('<path d="M4 7h16M9 7V5a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2m2 0v12a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2V7"/>',1.8)}</button>
       </div>
     </div>
   </div>`;
@@ -986,13 +1195,15 @@ function projCard(p){
 function selectProject(name){
   S.activeProject=name;
   renderFileTree();
-  $('#playTitle').textContent=name||'No game selected';
+  const p=S.projects.find(x=>x.name===name);
+  $('#playTitle').textContent=(p&&p.title)||name||'No game selected';
   // back to idle play state
   $('#nowPlaying').style.display='none';
   $('#playHud').style.display='none';
   $('#playControls').style.display='none';
   $('#playOverlay').classList.remove('hidden');
   showPreview();
+  if($('.panel[data-panel="assets"]').classList.contains('on')) renderAssets();
 }
 
 /* ============================================================
@@ -1205,6 +1416,177 @@ function wireMobile(){
   });
 }
 function syncMobile(m){$$('#mobileSwitch button').forEach(b=>b.classList.toggle('on',b.dataset.m===m));}
+
+/* ============================================================
+   COMPOSE FIELDS (genre / size / vibe)
+   ============================================================ */
+function wireComposeFields(){
+  $$('#composeFields .seg-field').forEach(seg=>{
+    const field=seg.dataset.field;
+    seg.querySelectorAll('button').forEach(b=>b.onclick=()=>{
+      seg.querySelectorAll('button').forEach(x=>x.classList.remove('on'));
+      b.classList.add('on');
+      S.opts[field]=b.dataset.v;
+    });
+  });
+}
+
+/* ============================================================
+   SETTINGS / MODELS MODAL
+   ============================================================ */
+function wireSettings(){
+  $('#settingsBtn').onclick=openSettings;
+  $('#cfgChip').onclick=openSettings;
+  $('#settingsClose').onclick=closeSettings;
+  $('#settingsCancel').onclick=closeSettings;
+  $('#settingsBack').addEventListener('click',e=>{ if(e.target.id==='settingsBack') closeSettings(); });
+  $('#settingsSave').onclick=saveModel;
+}
+function closeSettings(){ $('#settingsBack').classList.remove('on'); }
+async function openSettings(){
+  S.pendingModel=null;
+  $('#settingsBack').classList.add('on');
+  $('#settingsBody').innerHTML='Loading models…';
+  $('#settingsSave').disabled=true; $('#settingsNote').textContent='';
+  S.models=await getJSON('/api/models');
+  renderModels();
+}
+function renderModels(){
+  const data=S.models;
+  if(!data||!data.providers){ $('#settingsBody').innerHTML='<p class="lead">Could not load models.</p>'; return; }
+  const tierTag={frontier:'frontier',local:'local',cloud:'cloud'};
+  $('#settingsBody').innerHTML=data.providers.map(p=>{
+    const ready = p.ready
+      ? `<span class="tag ready">ready</span>`
+      : `<span class="tag nokey">needs key</span>`;
+    const models=p.models.map(m=>`
+      <div class="mrow ${m.current?'on':''}" data-prov="${p.id}" data-model="${escapeAttr(m.id)}">
+        <span class="mlabel">${escapeHtml(m.label)}</span>
+        <span class="mn">${escapeHtml(m.id)}</span>
+        <span class="mnote">${m.vision?'<span class="vis">vision</span>':''}${m.note?escapeHtml(m.note):''}</span>
+      </div>`).join('');
+    const keyInput = p.needs_key
+      ? `<div class="keyrow"><input type="password" placeholder="${escapeAttr(p.env_key||'API key')} — paste to save, or leave blank to use your environment" data-key="${p.id}" /></div>`
+      : '';
+    return `<div class="prov ${p.current?'open':''}" data-prov="${p.id}">
+      <div class="prov-head">
+        <div class="pi">${p.local?'💻':'☁️'}</div>
+        <div><div class="pn">${escapeHtml(p.label)} <span class="tag ${tierTag[p.tier]||'cloud'}">${p.tier}</span> ${ready}</div>
+          <div class="pd">${escapeHtml(p.blurb||'')}</div></div>
+        <span class="chev">${svg('<path d="M9 6l6 6-6 6"/>',2)}</span>
+      </div>
+      <div class="prov-body">${models}${keyInput}</div>
+    </div>`;
+  }).join('');
+  // expand/collapse providers
+  $$('#settingsBody .prov-head').forEach(h=>h.onclick=()=>h.parentElement.classList.toggle('open'));
+  // pick a model
+  $$('#settingsBody .mrow').forEach(r=>r.onclick=()=>{
+    $$('#settingsBody .mrow').forEach(x=>x.classList.remove('on'));
+    r.classList.add('on');
+    S.pendingModel={provider:r.dataset.prov,model:r.dataset.model};
+    $('#settingsSave').disabled=false;
+    $('#settingsNote').textContent=r.dataset.model;
+  });
+}
+async function saveModel(){
+  if(!S.pendingModel) return;
+  const keyEl=document.querySelector(`#settingsBody input[data-key="${S.pendingModel.provider}"]`);
+  const payload={...S.pendingModel};
+  if(keyEl && keyEl.value.trim()) payload.api_key=keyEl.value.trim();
+  $('#settingsSave').disabled=true; $('#settingsNote').textContent='Saving…';
+  const res=await postJSON('/api/config',payload);
+  if(res&&res.ok){ await loadConfig(); closeSettings(); }
+  else { $('#settingsNote').textContent=(res&&res.error)||'Could not save.'; $('#settingsSave').disabled=false; }
+}
+
+/* ============================================================
+   DELETE CONFIRM
+   ============================================================ */
+let _pendingDelete=null;
+function wireConfirm(){
+  $('#confirmCancel').onclick=()=>$('#confirmBack').classList.remove('on');
+  $('#confirmBack').addEventListener('click',e=>{ if(e.target.id==='confirmBack') $('#confirmBack').classList.remove('on'); });
+  $('#confirmOk').onclick=()=>{ const n=_pendingDelete; $('#confirmBack').classList.remove('on'); if(n) deleteProject(n); };
+}
+function askDelete(name,title){
+  _pendingDelete=name;
+  $('#confirmTitle').textContent=`Delete “${title}”?`;
+  $('#confirmText').textContent='This permanently removes the Unreal project folder from your workspace. This can\'t be undone.';
+  $('#confirmBack').classList.add('on');
+}
+async function deleteProject(name){
+  await fetch('/api/projects/'+encodeURIComponent(name),{method:'DELETE'}).catch(()=>{});
+  if(S.activeProject===name){ S.activeProject=null; selectProject(null); }
+  await loadProjects();
+}
+
+/* ============================================================
+   ASSETS  (generate art into the selected project)
+   ============================================================ */
+async function renderAssets(){
+  const body=$('#assetsBody'); if(!body) return;
+  const proj=S.activeProject;
+  if(!proj){
+    body.innerHTML=`<div class="asset-gen"><div class="row" style="align-items:flex-start;gap:11px">
+      <div class="si" style="width:40px;height:40px;border-radius:11px;display:grid;place-items:center;font-size:20px;background:var(--accent-soft);border:1px solid var(--line)">🎨</div>
+      <div><div style="font-size:14px;font-weight:600">Pick a game first</div>
+      <p class="lead" style="margin:5px 0 0">Open a project from the Projects tab, then generate art for it here.</p></div>
+    </div></div>`;
+    return;
+  }
+  if(!S.config.art_enabled){
+    body.innerHTML=`<div class="asset-gen"><div class="row" style="align-items:flex-start;gap:11px">
+      <div class="si" style="width:40px;height:40px;border-radius:11px;display:grid;place-items:center;font-size:20px;background:var(--sun-soft);border:1px solid var(--line)">🔑</div>
+      <div><div style="font-size:14px;font-weight:600">Art generation is off</div>
+      <p class="lead" style="margin:5px 0 0">Set <code>OPENAI_API_KEY</code> (e.g. in your <code>.env</code>), then reopen — you'll generate concept art &amp; textures straight into <b>${escapeHtml(proj)}</b> for import in the UE editor.</p></div>
+    </div></div>`;
+    return;
+  }
+  body.innerHTML=`
+    <div class="asset-gen">
+      <div class="row">
+        <input id="artPrompt" placeholder="Describe art for ${escapeHtml(proj)} — e.g. cracked lava rock texture, seamless" />
+        <button class="btn primary" id="artGo">${svg(I.spark,1.8)}Generate</button>
+      </div>
+      <div class="lead" style="margin:9px 0 0;font-size:12px">Saved into the project (Saved/Playsmith/art) — drag into the UE Content browser to import.</div>
+    </div>
+    <div class="asset-grid" id="artGrid"></div>`;
+  $('#artGo').onclick=genAsset;
+  $('#artPrompt').addEventListener('keydown',e=>{ if(e.key==='Enter') genAsset(); });
+  loadAssets();
+}
+async function loadAssets(){
+  const proj=S.activeProject; if(!proj) return;
+  const data=await getJSON('/api/projects/'+encodeURIComponent(proj)+'/assets');
+  S.assets[proj]=(data&&data.assets)||[];
+  paintAssets();
+}
+function paintAssets(){
+  const grid=$('#artGrid'); if(!grid) return;
+  const list=S.assets[S.activeProject]||[];
+  if(!list.length){ grid.innerHTML=`<div class="lead" style="grid-column:1/-1;padding:8px 2px">No art yet — generate your first piece above.</div>`; return; }
+  grid.innerHTML=list.map(a=>`
+    <div class="asset">
+      <div class="pv"><img src="${a.file}" alt="" style="width:100%;height:100%;object-fit:cover" /></div>
+      <div class="am"><div class="an">${escapeHtml((a.prompt||a.name).slice(0,40))}</div>
+      <div class="ad">${escapeHtml(a.name)}</div></div>
+    </div>`).join('');
+}
+async function genAsset(){
+  const proj=S.activeProject; if(!proj) return;
+  const inp=$('#artPrompt'); const prompt=(inp.value||'').trim(); if(!prompt) return;
+  const go=$('#artGo'); go.disabled=true; const orig=go.innerHTML;
+  go.innerHTML='<div class="spin"></div>Generating…';
+  const grid=$('#artGrid');
+  const ph=document.createElement('div'); ph.className='asset';
+  ph.innerHTML='<div class="pv"><div class="shimmer"></div></div><div class="am"><div class="an">'+escapeHtml(prompt.slice(0,40))+'</div><div class="ad">generating…</div></div>';
+  grid.prepend(ph);
+  const res=await postJSON('/api/projects/'+encodeURIComponent(proj)+'/asset',{prompt});
+  go.disabled=false; go.innerHTML=orig;
+  if(res&&res.ok){ inp.value=''; await loadAssets(); }
+  else { ph.querySelector('.ad').textContent=(res&&res.error)||'failed'; ph.querySelector('.ad').style.color='var(--fail)'; }
+}
 
 /* ============================================================
    UTIL

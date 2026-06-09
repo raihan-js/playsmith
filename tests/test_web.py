@@ -97,6 +97,55 @@ def test_preview_missing_is_404() -> None:
     assert TestClient(app).get("/preview/definitely-not-a-real-project").status_code == 404
 
 
+def test_ws_build_streams_clone_verify_critic_done(tmp_path, monkeypatch) -> None:
+    """Drive a full build over the websocket with a faked adapter — exercises the refine bridge."""
+    from types import SimpleNamespace
+
+    from playsmith.engines.unreal import director as drct
+    from playsmith.engines.unreal import template_clone
+    from playsmith.web import server as srv
+
+    ws = _tmp_workspace(tmp_path, monkeypatch)
+    tspec = template_clone.TEMPLATES["third-person"]
+
+    class FakeAdapter:
+        def __init__(self, *a, **k) -> None:
+            pass
+
+        def create_from_template(self, genre, project_name):
+            return tspec
+
+        def verify_template(self, spec):
+            return SimpleNamespace(ok=True, assertions={"level_loads": True})
+
+        def dress_from_spec(self, spec, map_path):
+            return SimpleNamespace(
+                ok=True,
+                assertions={"level_loads": True, "objects_placed": True, "goal_exists": True},
+            )
+
+    monkeypatch.setattr(srv, "UnrealAdapter", FakeAdapter)
+    monkeypatch.setattr(srv.LLMGateway, "from_config", staticmethod(lambda cfg, **k: object()))
+    rich = drct._augment(drct.default_dressing(), size="large")  # passes the critic on pass 1
+    monkeypatch.setattr(drct, "plan_dressing", lambda *a, **k: rich)
+
+    with TestClient(app).websocket_connect("/ws") as sock:
+        sock.send_text(json.dumps(
+            {"action": "build", "prompt": "a temple run", "genre": "third-person", "iterations": 1}
+        ))
+        seen, done = [], None
+        for _ in range(40):
+            msg = json.loads(sock.receive_text())
+            seen.append(msg["type"])
+            if msg["type"] == "done":
+                done = msg
+                break
+    assert "critic" in seen and done is not None
+    assert done["title"] and done.get("quality") is not None
+    manifest = json.loads((ws / _slug("a temple run") / ".playsmith" / "manifest.json").read_text())
+    assert manifest["title"] == done["title"] and "quality" in manifest
+
+
 def test_ws_reports_errors_without_touching_unreal() -> None:
     client = TestClient(app)
     with client.websocket_connect("/ws") as ws:
