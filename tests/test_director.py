@@ -106,6 +106,23 @@ def test_theme_palette_matches_keywords() -> None:
     )
 
 
+def test_fallback_title_honors_title_label() -> None:
+    prompt = "GAME TITLE: Ashenveil Chronicles: Shattered Bloodlines\nGENRE: fighting game"
+    assert director.fallback_title(prompt) == "Ashenveil Chronicles: Shattered Bloodlines"
+    assert director.fallback_title("a frozen castle adventure here") == "A Frozen Castle Adventure"
+
+
+def test_theme_matching_is_word_boundary() -> None:
+    # the Ashenveil bug: "choices"/"voice" must NOT match the frozen 'ice' keyword
+    assert director._theme_palette("a game about player choices and your voice")["name"] == (
+        director._NEUTRAL_THEME["name"]
+    )
+    # dark-fantasy: ashfall / void / bloodlines -> ashen void (prefix match: 'ash' hits 'ashfall')
+    assert director._theme_palette(
+        "the Ashfall void weapon scattered the six bloodlines"
+    )["name"] == "ashen void"
+
+
 def test_apply_theme_makes_a_frozen_prompt_icy() -> None:
     spec = director.apply_theme(director.default_dressing(), "a frozen ruined fortress")
     assert spec["theme"] == "frozen fortress"

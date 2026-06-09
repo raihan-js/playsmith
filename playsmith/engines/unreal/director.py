@@ -61,7 +61,14 @@ def _hint_lines(hints: dict | None) -> str:
 
 
 def fallback_title(prompt: str) -> str:
-    """A readable game title from the raw prompt, for when the LLM gives none (Title Case)."""
+    """A readable game title from the raw prompt, for when the LLM gives none.
+
+    Honors an explicit ``TITLE:`` / ``GAME TITLE:`` line if the prompt has one (so a labelled spec
+    doesn't yield "Game Title ..."); otherwise Title-Cases the first few words.
+    """
+    label = re.search(r"(?im)^\s*(?:game\s+)?title\s*:\s*(.+?)\s*$", prompt or "")
+    if label:
+        return label.group(1).strip()[:48]
     words = re.findall(r"[A-Za-z0-9']+", prompt or "")
     return " ".join(w.capitalize() for w in words[:4]) or "Untitled Game"
 
@@ -116,6 +123,10 @@ def _place(kind, x, y, z, role, sx=1.0, sy=1.0, sz=1.0) -> dict:
 # the LLM's plan is. ``structure`` colours the bulk objects; gameplay roles (hazard/collectible/
 # goal) keep fixed, readable accents so the level stays legible against any theme.
 _THEMES: tuple[dict, ...] = (
+    {"name": "ashen void", "structure": [0.30, 0.27, 0.31], "sun": [0.62, 0.42, 0.40],
+     "intensity": 3.8, "pitch": -28.0, "fog": 0.065, "character": [0.52, 0.40, 0.46],
+     "keys": ("ash", "ashen", "void", "blood", "bloodline", "grim", "shadow", "necro", "doom",
+              "wraith", "demon", "dread", "abyssal", "dark fantasy", "operatic")},
     {"name": "frozen fortress", "structure": [0.62, 0.78, 0.92], "sun": [0.72, 0.84, 1.0],
      "intensity": 5.0, "pitch": -32.0, "fog": 0.05, "character": [0.55, 0.78, 0.95],
      "keys": ("frozen", "ice", "icy", "snow", "glacier", "arctic", "winter", "tundra", "frost",
@@ -154,10 +165,15 @@ _ROLE_ACCENT = {
 
 
 def _theme_palette(text: str) -> dict:
-    """Match a theme palette from prompt/theme keywords; neutral stone ruins if nothing matches."""
+    """Match a theme palette from prompt/theme keywords; neutral stone ruins if nothing matches.
+
+    Keywords match at a word *start* (``\\bkey``) so a prefix like ``ash`` still matches ``ashfall``
+    but ``ice`` no longer false-matches ``choices``/``voice`` (which is how the dark Ashenveil prompt
+    got themed "frozen").
+    """
     t = (text or "").lower()
     for theme in _THEMES:
-        if any(k in t for k in theme["keys"]):
+        if any(re.search(r"\b" + re.escape(k), t) for k in theme["keys"]):
             return theme
     return _NEUTRAL_THEME
 
