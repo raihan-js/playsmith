@@ -80,6 +80,8 @@ def _ask(prompt: str, genre: str, hints: dict | None = None) -> str:
         '  "title": "<a catchy 2-4 word game title>",\n'
         '  "theme": "<short theme>",\n'
         '  "objective": "<one sentence: what the player does to win>",\n'
+        '  "character": {"prefer": "<empty, or a character name to use if it ships>", '
+        '"tint": [r,g,b]},\n'
         '  "sun": {"color": [r,g,b], "intensity": <2-10>, "pitch": <-80..-10>},\n'
         '  "fog": <0.0-0.1>,\n'
         '  "placements": [\n'
@@ -92,7 +94,8 @@ def _ask(prompt: str, genre: str, hints: dict | None = None) -> str:
         "climb (platforms at varied z), a hazard gauntlet, and a goal arena. Cluster cover and "
         "obstacles, scatter collectibles between zones, and use jump_pad/target/door where they "
         "fit. Put exactly one placement with role 'goal', set far from the origin (in the last "
-        "zone). Match lighting/fog to the mood."
+        "zone). Match lighting/fog to the mood, and give the character a tint that fits the theme "
+        "(e.g. fiery red for lava, pale blue for ice, deep green for a jungle)."
     )
 
 
@@ -113,6 +116,9 @@ def default_dressing() -> dict:
         "title": "Prototype Course",
         "theme": "prototype course",
         "objective": "Reach the target at the far end of the course.",
+        # Player-character look (applied to the template's pawn): an optional mesh-variant
+        # preference (matched against whatever ships in the clone) + a theme accent tint.
+        "character": {"prefer": "", "tint": [0.6, 0.6, 0.65]},
         "sun": {"color": [1.0, 0.95, 0.85], "intensity": 6.0, "pitch": -45.0},
         "fog": 0.02,
         "placements": [
@@ -141,6 +147,13 @@ def _sanitize(spec: dict) -> dict:
     out["sun"]["intensity"] = _num(sun.get("intensity"), 1.0, 12.0, 6.0)
     out["sun"]["pitch"] = _num(sun.get("pitch"), -85.0, -5.0, -45.0)
     out["fog"] = _num(spec.get("fog"), 0.0, 0.1, 0.02)
+    char = spec.get("character")
+    if isinstance(char, dict):
+        prefer = char.get("prefer")
+        out["character"]["prefer"] = prefer.strip()[:40] if isinstance(prefer, str) else ""
+        tint = char.get("tint")
+        if isinstance(tint, list) and len(tint) == 3:
+            out["character"]["tint"] = [_num(c, 0.0, 1.0, 0.6) for c in tint]
     placements = spec.get("placements")
     if isinstance(placements, list):
         clean = []
@@ -370,6 +383,75 @@ def dress_level_script(spec: dict, map_path: str) -> str:
         "    'PLAYSMITH_ASSERT level_loads=%s' % ('true' if loaded else 'false'),\n"
         "    'PLAYSMITH_ASSERT objects_placed=%s' % ('true' if placed > 0 else 'false'),\n"
         "    'PLAYSMITH_ASSERT goal_exists=%s' % ('true' if has_goal else 'false'),\n"
+        "]\n"
+        "if OUT:\n"
+        "    with open(OUT, 'w') as f:\n"
+        "        f.write('\\n'.join(lines) + '\\n')\n"
+    )
+
+
+def character_script(spec: dict, character_bp: str, character_dir: str) -> str:
+    """UE Python that customizes the template's player character from the dressing's ``character``.
+
+    Defensive and asset-discovering (CLAUDE.md: never a bad ref): it *lists* the SkeletalMeshes that
+    actually ship in this clone under ``character_dir``, optionally swaps to one whose name matches
+    ``prefer``, and applies a theme-tinted override material to the character Blueprint's mesh — all
+    wrapped in try/except so a customization never breaks a build. Writes ``character_customized``
+    (+ ``character_mesh``) via ``$PLAYSMITH_UE_OUT``. Persists by compiling + saving the Blueprint.
+    """
+    char = spec.get("character") or {}
+    char_json = json.dumps(
+        {"prefer": char.get("prefer", ""), "tint": char.get("tint", [0.6, 0.6, 0.65])}
+    )
+    return (
+        "import json, os\n"
+        "import unreal\n"
+        f'CHAR_BP = "{character_bp}"\n'
+        f'CHAR_DIR = "{character_dir}"\n'
+        f"CHAR = json.loads(r'''{char_json}''')\n"
+        'OUT = os.environ.get("PLAYSMITH_UE_OUT", "")\n'
+        "ok = False\n"
+        "chosen = ''\n"
+        "tinted = False\n"
+        "try:\n"
+        "    prefer = (CHAR.get('prefer') or '').lower()\n"
+        "    meshes = []\n"
+        "    for ap in unreal.EditorAssetLibrary.list_assets(CHAR_DIR, recursive=True):\n"
+        "        a = unreal.EditorAssetLibrary.load_asset(ap)\n"
+        "        if isinstance(a, unreal.SkeletalMesh):\n"
+        "            meshes.append(a)\n"
+        "    pick = None\n"
+        "    if prefer:\n"
+        "        pick = next((m for m in meshes if prefer in m.get_name().lower()), None)\n"
+        "    gcls = unreal.EditorAssetLibrary.load_blueprint_class(CHAR_BP)\n"
+        "    cdo = unreal.get_default_object(gcls) if gcls else None\n"
+        "    comp = cdo.get_editor_property('mesh') if cdo else None\n"
+        "    if comp is not None and pick is not None:\n"
+        "        comp.set_editor_property('skeletal_mesh_asset', pick)\n"
+        "        chosen = pick.get_name()\n"
+        "        ok = True\n"
+        "    # Theme tint: a coloured override material on element 0 (best-effort).\n"
+        "    if comp is not None:\n"
+        "        t = CHAR.get('tint') or [0.6, 0.6, 0.65]\n"
+        "        base = unreal.EditorAssetLibrary.load_asset("
+        "'/Engine/BasicShapes/BasicShapeMaterial')\n"
+        "        if base is not None:\n"
+        "            mid = unreal.MaterialInstanceDynamic.create(base, comp)\n"
+        "            mid.set_vector_parameter_value('Color', "
+        "unreal.LinearColor(float(t[0]), float(t[1]), float(t[2]), 1.0))\n"
+        "            comp.set_material(0, mid)\n"
+        "            tinted = True\n"
+        "            ok = ok or True\n"
+        "    bp = unreal.EditorAssetLibrary.load_asset(CHAR_BP)\n"
+        "    if bp is not None:\n"
+        "        unreal.BlueprintEditorLibrary.compile_blueprint(bp)\n"
+        "    unreal.EditorAssetLibrary.save_asset(CHAR_BP)\n"
+        "except Exception as e:\n"
+        "    unreal.log_warning('PLAYSMITH character customization skipped: %s' % e)\n"
+        "unreal.log('PLAYSMITH character mesh=%s tinted=%s' % (chosen or 'default', tinted))\n"
+        "lines = [\n"
+        "    'PLAYSMITH_ASSERT character_customized=%s' % ('true' if ok else 'false'),\n"
+        "    'PLAYSMITH_ASSERT character_tinted=%s' % ('true' if tinted else 'false'),\n"
         "]\n"
         "if OUT:\n"
         "    with open(OUT, 'w') as f:\n"

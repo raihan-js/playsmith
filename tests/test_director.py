@@ -134,6 +134,27 @@ def test_improve_dressing_augments_when_llm_not_richer() -> None:
     assert len(out["placements"]) > len(base["placements"])
 
 
+def test_default_and_sanitize_carry_character() -> None:
+    assert "character" in director.default_dressing()
+    out = director._sanitize(
+        {"character": {"prefer": "  Quinn  ", "tint": [9, -1, 0.5]}, "placements": []}
+    )
+    assert out["character"]["prefer"] == "Quinn"
+    assert all(0.0 <= c <= 1.0 for c in out["character"]["tint"])
+
+
+def test_character_script_discovers_assets_and_asserts() -> None:
+    s = director.character_script(
+        director.default_dressing(), "/Game/X/BP_Char", "/Game/Characters"
+    )
+    assert "list_assets" in s and "SkeletalMesh" in s  # discovers what actually ships (no bad refs)
+    assert "/Game/Characters" in s and "/Game/X/BP_Char" in s
+    assert "skeletal_mesh_asset" in s  # variant swap
+    assert "set_vector_parameter_value" in s  # theme tint
+    assert "PLAYSMITH_ASSERT character_customized" in s
+    assert "save_asset" in s  # persists the change
+
+
 def test_dress_level_script_is_additive_and_uses_real_assets() -> None:
     script = director.dress_level_script(director.default_dressing(), "/Game/ThirdPerson/Lvl_X")
     assert "load_level(MAP)" in script and "new_level" not in script  # additive, not a rebuild

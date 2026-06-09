@@ -418,6 +418,13 @@ def _direct_level(
         f"[bold green]✓ Directed[/] [cyan]{spec.get('title', '')}[/] — quality [cyan]{score}[/] "
         f"after [cyan]{result.iterations}[/] pass(es) · theme: [cyan]{spec.get('theme', '')}[/]"
     )
+    # Customize the player character to fit the theme (best-effort; never fails the build).
+    try:
+        cust = adapter.customize_character(spec, tspec)
+        if cust.assertions.get("character_customized"):
+            console.print("  character: [cyan]themed to match[/]")
+    except (EngineError, EngineNotFoundError):
+        pass
 
 
 @unreal_app.command("dress")

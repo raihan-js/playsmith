@@ -480,7 +480,8 @@ async def _build(sock, cfg, workspace, prompt, genre, hints=None, max_iters=3) -
     _write_manifest(
         project_dir, genre=genre, prompt=prompt, title=dressing.get("title"),
         objective=dressing.get("objective"), theme=dressing.get("theme"),
-        quality=score, iterations=result.iterations, playable=playable,
+        character=dressing.get("character"), quality=score, iterations=result.iterations,
+        playable=playable,
     )
     assertions = {**dict(v.assertions), "objects_placed": True}
     summary = f"{dressing.get('theme', '')} — {dressing.get('objective', '')}".strip(" —")
@@ -503,7 +504,7 @@ async def _dress(sock, cfg, project_dir, name, prompt, genre, hints=None, max_it
     _write_manifest(
         project_dir, prompt=prompt, title=dressing.get("title"),
         objective=dressing.get("objective"), theme=dressing.get("theme"),
-        quality=score, iterations=result.iterations,
+        character=dressing.get("character"), quality=score, iterations=result.iterations,
     )
     summary = f"{dressing.get('theme', '')} — {dressing.get('objective', '')}".strip(" —")
     await _send(
@@ -560,7 +561,20 @@ async def _direct(
         if ev is sentinel:
             break
         await _stream_refine_event(sock, ev)
-    return await fut
+    result = await fut
+
+    # Apply the character look from the final dressing — best-effort, never blocks the build.
+    await _send(sock, type="phase", text="Customizing the character to fit the theme")
+    await _send(sock, type="tool", name="character", args={})
+    try:
+        cust = await asyncio.to_thread(adapter.customize_character, result.spec, tspec)
+        await _send(
+            sock, type="observe", name="character",
+            text=_fmt(cust.assertions) if cust.assertions else "applied", ok=cust.ok,
+        )
+    except (EngineError, OSError) as exc:
+        await _send(sock, type="observe", name="character", text=f"skipped: {exc}", ok=False)
+    return result
 
 
 async def _stream_refine_event(sock, ev: dict) -> None:

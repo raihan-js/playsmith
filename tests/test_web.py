@@ -136,6 +136,9 @@ def test_ws_build_streams_clone_verify_critic_done(tmp_path, monkeypatch) -> Non
                 assertions={"level_loads": True, "objects_placed": True, "goal_exists": True},
             )
 
+        def customize_character(self, spec, tspec):
+            return SimpleNamespace(ok=True, assertions={"character_customized": True})
+
     monkeypatch.setattr(srv, "UnrealAdapter", FakeAdapter)
     monkeypatch.setattr(srv.LLMGateway, "from_config", staticmethod(lambda cfg, **k: object()))
     rich = drct._augment(drct.default_dressing(), size="large")  # passes the critic on pass 1

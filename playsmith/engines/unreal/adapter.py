@@ -216,6 +216,28 @@ class UnrealAdapter:
             assertions = parse_assert_lines(out_file.read_text())
         return VerifyResult(run=result, assertions=assertions)
 
+    def customize_character(
+        self, spec: dict, tspec: template_clone.TemplateSpec
+    ) -> VerifyResult:
+        """Apply the dressing's ``character`` look to the template's player pawn (Stage B).
+
+        Discovers the character meshes that actually ship in this clone and (best-effort) swaps the
+        variant + applies a theme tint, then parses ``character_customized``/``character_tinted``.
+        Never raises for a missing customization — the level is already playable without it.
+        """
+        out_file = self.project_dir / "Saved" / "playsmith_assert.txt"
+        if out_file.exists():
+            out_file.unlink()
+        result = self._run_python(
+            director.character_script(spec, tspec.character_bp, tspec.character_dir),
+            timeout_s=600,
+            out_file=out_file,
+        )
+        assertions: dict[str, bool] = {}
+        if out_file.exists():
+            assertions = parse_assert_lines(out_file.read_text())
+        return VerifyResult(run=result, assertions=assertions)
+
     def verify_template(self, spec: template_clone.TemplateSpec) -> VerifyResult:
         """Verify a cloned template is a real playable project (map loads, character resolved).
 
