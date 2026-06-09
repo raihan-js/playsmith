@@ -24,7 +24,31 @@ def test_list_projects_finds_only_uproject_dirs(tmp_path) -> None:
     (good / "Game.uproject").write_text("{}")
     (good / "preview.png").write_bytes(b"\x89PNG")
     (tmp_path / "not-a-project").mkdir()  # no .uproject -> excluded
-    assert _list_projects(tmp_path) == [{"name": "game-a", "has_preview": True}]
+    projects = _list_projects(tmp_path)
+    assert [p["name"] for p in projects] == ["game-a"]
+    assert projects[0]["has_preview"] is True
+    assert projects[0]["genre"] == "third-person"  # default when no manifest
+
+
+def test_list_projects_reads_manifest(tmp_path) -> None:
+    g = tmp_path / "lava"
+    g.mkdir()
+    (g / "G.uproject").write_text("{}")
+    (g / ".playsmith").mkdir()
+    (g / ".playsmith" / "manifest.json").write_text(
+        json.dumps({"genre": "first-person", "objective": "shoot the targets", "playable": True})
+    )
+    p = _list_projects(tmp_path)[0]
+    assert p["genre"] == "first-person"
+    assert p["prompt"] == "shoot the targets"
+
+
+def test_config_and_skills_endpoints() -> None:
+    client = TestClient(app)
+    cfg = client.get("/api/config").json()
+    assert "model" in cfg and cfg["where"] in ("local", "cloud")
+    skills = {s["name"] for s in client.get("/api/skills").json()["skills"]}
+    assert skills == {"first-person", "third-person", "top-down"}
 
 
 def test_index_and_genres_served() -> None:
