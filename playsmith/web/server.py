@@ -30,7 +30,7 @@ from fastapi.responses import FileResponse, HTMLResponse, JSONResponse
 
 from playsmith.config import load_config, save_runtime_patch
 from playsmith.engines.base import EngineError
-from playsmith.engines.unreal import director, template_clone
+from playsmith.engines.unreal import critic, director, refine, template_clone
 from playsmith.engines.unreal.adapter import UnrealAdapter
 from playsmith.llm import LLMGateway
 from playsmith.llm import catalog as model_catalog
@@ -75,6 +75,14 @@ def _hints(req: dict) -> dict:
         if isinstance(value, str) and value.strip():
             out[key] = value.strip()[:60]
     return out
+
+
+def _iters(req: dict, hints: dict) -> int:
+    """How many director→critic passes to run: explicit override, else derived from level size."""
+    explicit = req.get("iterations")
+    if isinstance(explicit, (int, float)) and explicit:
+        return max(1, min(5, int(explicit)))
+    return {"small": 2, "large": 4}.get((hints.get("size") or "").lower(), 3)
 
 
 def _infer_genre(prompt: str) -> str:
@@ -124,6 +132,8 @@ def _list_projects(workspace: Path) -> list[dict]:
                         "playable": bool(m.get("playable", True)),
                         "prompt": m.get("objective") or m.get("prompt") or p.name,
                         "theme": m.get("theme", ""),
+                        "quality": m.get("quality"),
+                        "iterations": m.get("iterations"),
                         "has_preview": (p / "preview.png").exists(),
                     }
                 )
@@ -305,7 +315,8 @@ async def _handle(sock: WebSocket, req: dict) -> None:
     if action == "build":
         prompt = (req.get("prompt") or "").strip() or "a third person adventure"
         genre = (req.get("genre") or _infer_genre(prompt)).lower()
-        await _build(sock, cfg, workspace, prompt, genre, _hints(req))
+        hints = _hints(req)
+        await _build(sock, cfg, workspace, prompt, genre, hints, _iters(req, hints))
         return
 
     if action == "dress":
@@ -316,7 +327,8 @@ async def _handle(sock: WebSocket, req: dict) -> None:
             return
         prompt = (req.get("prompt") or "").strip() or name
         genre = (_read_manifest(project_dir).get("genre") or _infer_genre(prompt)).lower()
-        await _dress(sock, cfg, project_dir, name, prompt, genre, _hints(req))
+        hints = _hints(req)
+        await _dress(sock, cfg, project_dir, name, prompt, genre, hints, _iters(req, hints))
         return
 
     if action == "render":
@@ -330,7 +342,7 @@ async def _handle(sock: WebSocket, req: dict) -> None:
     await _send(sock, type="error", text=f"Unknown action: {action}")
 
 
-async def _build(sock, cfg, workspace, prompt: str, genre: str, hints: dict | None = None) -> None:
+async def _build(sock, cfg, workspace, prompt, genre, hints=None, max_iters=3) -> None:
     tspec = template_clone.TEMPLATES.get(genre)
     if tspec is None:
         await _send(sock, type="error", text=f"Unknown genre: {genre}")
@@ -350,62 +362,122 @@ async def _build(sock, cfg, workspace, prompt: str, genre: str, hints: dict | No
     v = await asyncio.to_thread(adapter.verify_template, tspec)
     await _send(sock, type="observe", name="verify_game", text=_fmt(v.assertions), ok=v.ok)
 
-    dressing = await _do_dressing(sock, cfg, adapter, prompt, genre, tspec, hints)
+    result = await _direct(sock, cfg, adapter, prompt, genre, tspec, hints, max_iters)
+    dressing, score = result.spec, (result.critique.score if result.critique else None)
 
     playable = bool(v.ok)
     _write_manifest(
         project_dir, genre=genre, prompt=prompt, title=dressing.get("title"),
-        objective=dressing.get("objective"), theme=dressing.get("theme"), playable=playable,
+        objective=dressing.get("objective"), theme=dressing.get("theme"),
+        quality=score, iterations=result.iterations, playable=playable,
     )
     assertions = {**dict(v.assertions), "objects_placed": True}
     summary = f"{dressing.get('theme', '')} — {dressing.get('objective', '')}".strip(" —")
     await _send(
         sock, type="done", done=True, runs_clean=playable, project=name, skill=genre,
-        title=dressing.get("title"), assertions=assertions, summary=summary,
-        preview=f"/preview/{name}", playable=playable,
+        title=dressing.get("title"), assertions=assertions, summary=summary, quality=score,
+        iterations=result.iterations, preview=f"/preview/{name}", playable=playable,
     )
 
 
-async def _dress(
-    sock, cfg, project_dir, name: str, prompt: str, genre: str, hints: dict | None = None
-) -> None:
+async def _dress(sock, cfg, project_dir, name, prompt, genre, hints=None, max_iters=3) -> None:
     tspec = template_clone.TEMPLATES.get(genre)
     if tspec is None:
         await _send(sock, type="error", text=f"Unknown genre: {genre}")
         return
     adapter = UnrealAdapter(project_dir, editor_cmd=cfg.engine.unreal.editor_cmd)
     await _send(sock, type="start", action="edit", prompt=prompt, project=name)
-    dressing = await _do_dressing(sock, cfg, adapter, prompt, genre, tspec, hints)
+    result = await _direct(sock, cfg, adapter, prompt, genre, tspec, hints, max_iters)
+    dressing, score = result.spec, (result.critique.score if result.critique else None)
     _write_manifest(
-        project_dir,
-        prompt=prompt,
-        title=dressing.get("title"),
-        objective=dressing.get("objective"),
-        theme=dressing.get("theme"),
+        project_dir, prompt=prompt, title=dressing.get("title"),
+        objective=dressing.get("objective"), theme=dressing.get("theme"),
+        quality=score, iterations=result.iterations,
     )
     summary = f"{dressing.get('theme', '')} — {dressing.get('objective', '')}".strip(" —")
     await _send(
         sock, type="done", done=True, runs_clean=True, project=name, skill=genre,
         title=dressing.get("title"), assertions={"objects_placed": True}, summary=summary,
-        preview=f"/preview/{name}", playable=True,
+        quality=score, iterations=result.iterations, preview=f"/preview/{name}", playable=True,
     )
 
 
-async def _do_dressing(sock, cfg, adapter, prompt: str, genre: str, tspec, hints=None) -> dict:
-    """Plan + apply a dressing, streaming director events. Returns the dressing spec."""
-    await _send(sock, type="phase", text="Directing the level from your prompt")
-    await _send(sock, type="tool", name="generate_asset", args={})
+async def _direct(
+    sock, cfg, adapter, prompt, genre, tspec, hints, max_iters
+) -> refine.RefineResult:
+    """Run the director→critic refine loop in a worker thread, streaming each step to the socket.
+
+    The loop is blocking (UE Python per pass), so it runs in an executor; its ``on_event`` hook is
+    bridged onto the event loop via a queue so the studio sees the agent plan → apply → critique →
+    improve, iteration by iteration. Returns the final :class:`refine.RefineResult`.
+    """
+    await _send(sock, type="phase", text="Directing the level — agent iterates for quality")
     gateway = LLMGateway.from_config(cfg)
-    dressing = await asyncio.to_thread(director.plan_dressing, prompt, genre, gateway, hints=hints)
-    n = len(dressing.get("placements", []))
-    await _send(
-        sock, type="observe", name="generate_asset",
-        text=f"{dressing.get('theme', '')} · {n} objects", ok=True,
-    )
-    await _send(sock, type="tool", name="write_file", args={"path": "Lvl (dressed)"})
-    d = await asyncio.to_thread(adapter.dress_from_spec, dressing, tspec.map_path)
-    await _send(sock, type="observe", name="write_file", text=_fmt(d.assertions), ok=d.ok)
-    return dressing
+    size = (hints or {}).get("size")
+
+    def _plan() -> dict:
+        return director.plan_dressing(prompt, genre, gateway, hints=hints)
+
+    def _apply(spec: dict) -> dict:
+        return dict(adapter.dress_from_spec(spec, tspec.map_path).assertions)
+
+    def _critique(spec: dict, assertions: dict | None):
+        return critic.critique(spec, assertions, size=size)
+
+    def _improve(spec: dict, crit):
+        return director.improve_dressing(prompt, genre, gateway, spec, crit, hints=hints)
+
+    loop = asyncio.get_running_loop()
+    queue: asyncio.Queue = asyncio.Queue()
+    sentinel = object()
+
+    def _on_event(ev: dict) -> None:
+        loop.call_soon_threadsafe(queue.put_nowait, ev)
+
+    def _run() -> refine.RefineResult:
+        try:
+            return refine.refine(
+                plan=_plan, apply=_apply, critique=_critique, improve=_improve,
+                max_iters=max_iters, on_event=_on_event,
+            )
+        finally:
+            loop.call_soon_threadsafe(queue.put_nowait, sentinel)
+
+    fut = loop.run_in_executor(None, _run)
+    while True:
+        ev = await queue.get()
+        if ev is sentinel:
+            break
+        await _stream_refine_event(sock, ev)
+    return await fut
+
+
+async def _stream_refine_event(sock, ev: dict) -> None:
+    """Map one refine-loop event to the studio's build-stream vocabulary."""
+    kind = ev.get("kind")
+    if kind == "planned":
+        await _send(sock, type="tool", name="generate_asset", args={})
+        await _send(
+            sock, type="observe", name="generate_asset",
+            text=f"{ev.get('objects', 0)} objects placed", ok=True,
+        )
+    elif kind == "applied":
+        await _send(
+            sock, type="tool", name="write_file", args={"path": f"Lvl (pass {ev.get('iter', 1)})"}
+        )
+        await _send(
+            sock, type="observe", name="write_file", text=_fmt(ev.get("assertions") or {}), ok=True
+        )
+    elif kind == "critiqued":
+        await _send(
+            sock, type="critic", iter=ev.get("iter"), score=ev.get("score"),
+            passed=ev.get("passed"), feedback=ev.get("feedback") or [], summary=ev.get("summary"),
+        )
+    elif kind == "improving":
+        await _send(
+            sock, type="phase",
+            text=f"Critic sent it back — refining (pass {ev.get('iter', 1)})",
+        )
 
 
 async def _render(sock, cfg, workspace, name: str) -> None:

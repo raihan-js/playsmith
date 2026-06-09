@@ -20,7 +20,14 @@ from rich.table import Table
 from playsmith import __version__
 from playsmith.config import Config, ConfigError, load_config
 from playsmith.engines import EngineError, EngineNotFoundError
-from playsmith.engines.unreal import UnrealAdapter, director, royalty_estimate, template_clone
+from playsmith.engines.unreal import (
+    UnrealAdapter,
+    critic,
+    director,
+    refine,
+    royalty_estimate,
+    template_clone,
+)
 from playsmith.llm import LLMError, LLMGateway, Message
 from playsmith.llm.eval import evaluate_targets
 from playsmith.skills import SkillLoader, SkillRegistry, SkillRegistryError
@@ -359,28 +366,58 @@ def unreal_new(
 
 
 def _direct_level(
-    adapter: UnrealAdapter, tspec: template_clone.TemplateSpec, prompt: str, genre: str, cfg: Config
+    adapter: UnrealAdapter,
+    tspec: template_clone.TemplateSpec,
+    prompt: str,
+    genre: str,
+    cfg: Config,
+    *,
+    max_iters: int = 3,
 ) -> None:
-    """Plan a dressing from the prompt (frontier LLM if configured) and apply it to the level."""
-    console.print("Directing the level from your prompt (frontier LLM if configured) ...")
-    gateway = LLMGateway.from_config(cfg, console=console)
-    dressing = director.plan_dressing(prompt, genre, gateway)
+    """Run the director→critic refine loop on the level (frontier LLM if configured).
+
+    Plans a dressing, applies it in-engine, scores it with the critic, and — while it's below the
+    quality bar — feeds the critique back for a richer pass (CLAUDE.md §0 Stage 3/4). Each UE pass
+    is slow, so this can take a few minutes per iteration.
+    """
     console.print(
-        f"  theme: [cyan]{dressing['theme']}[/] · "
-        f"objective: [cyan]{dressing['objective']}[/] · {len(dressing['placements'])} objects"
+        f"Directing the level — the agent will iterate up to [cyan]{max_iters}[/] times to raise "
+        "quality (frontier LLM if configured) ..."
     )
-    console.print("Applying the dressing in-engine (UE headless) ...")
+    gateway = LLMGateway.from_config(cfg, console=console)
+    size = None  # CLI has no structured size hint yet; the web composer does
+
+    def _on_event(ev: dict) -> None:
+        kind = ev.get("kind")
+        if kind == "planned":
+            console.print(f"  planned [cyan]{ev.get('objects', 0)}[/] objects")
+        elif kind == "critiqued":
+            mark = "[green]PASS[/]" if ev.get("passed") else "[yellow]needs more[/]"
+            console.print(f"  pass {ev.get('iter')}: quality [cyan]{ev.get('score')}/100[/] {mark}")
+            for tip in ev.get("feedback", [])[:2]:
+                console.print(f"    [dim]→ {tip}[/]")
+        elif kind == "improving":
+            console.print("  critic sent it back — refining ...")
+
     try:
-        res = adapter.dress_from_spec(dressing, tspec.map_path)
+        result = refine.refine(
+            plan=lambda: director.plan_dressing(prompt, genre, gateway),
+            apply=lambda spec: dict(adapter.dress_from_spec(spec, tspec.map_path).assertions),
+            critique=lambda spec, a: critic.critique(spec, a, size=size),
+            improve=lambda spec, c: director.improve_dressing(prompt, genre, gateway, spec, c),
+            max_iters=max_iters,
+            on_event=_on_event,
+        )
     except EngineNotFoundError as exc:
         console.print(f"[bold red]{exc}[/]")
         raise typer.Exit(code=1) from exc
-    if res.ok:
-        console.print(f"[bold green]✓ Directed[/] (theme: [cyan]{dressing['theme']}[/])")
-    else:
-        console.print("[yellow]Dressing applied but verify was incomplete:[/]")
-        for key, value in res.assertions.items():
-            console.print(f"  {key}: {'PASS' if value else 'FAIL'}")
+
+    spec, crit = result.spec, result.critique
+    score = f"{crit.score}/100" if crit else "n/a"
+    console.print(
+        f"[bold green]✓ Directed[/] [cyan]{spec.get('title', '')}[/] — quality [cyan]{score}[/] "
+        f"after [cyan]{result.iterations}[/] pass(es) · theme: [cyan]{spec.get('theme', '')}[/]"
+    )
 
 
 @unreal_app.command("dress")

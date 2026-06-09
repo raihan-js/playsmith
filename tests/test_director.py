@@ -97,6 +97,43 @@ def test_plan_dressing_uses_llm_title_then_prompt_fallback() -> None:
     )
 
 
+def test_augment_adds_objects_variety_and_one_goal() -> None:
+    out = director._augment(director.default_dressing(), size="large")
+    assert len(out["placements"]) > len(director.default_dressing()["placements"])
+    assert all(p["kind"] in director.PALETTE for p in out["placements"])
+    assert sum(1 for p in out["placements"] if p["role"] == "goal") == 1
+    z_levels = {round(p["z"] / 100) for p in out["placements"]}
+    assert len(z_levels) >= 2  # verticality
+
+
+def test_improve_dressing_uses_richer_llm_plan() -> None:
+    from playsmith.engines.unreal.critic import Critique
+
+    crit = Critique(score=40, passed=False, dimensions={}, feedback=["add more"], summary="s")
+    base = {"title": "Keep Me", "placements": [
+        {"kind": "cube", "x": 100, "y": 0, "z": 50, "role": "obstacle"}]}
+    gw = _FakeGateway(
+        '{"title":"New","placements":['
+        '{"kind":"cube","x":100,"y":0,"z":50,"role":"obstacle"},'
+        '{"kind":"ramp","x":600,"y":100,"z":0,"role":"platform"},'
+        '{"kind":"target","x":2200,"y":0,"z":120,"role":"goal"}]}'
+    )
+    out = director.improve_dressing("a run", "third-person", gw, base, crit)
+    assert len(out["placements"]) == 3
+    assert out["title"] == "Keep Me"  # title preserved across iterations
+    assert gw.tasks == [TaskType.REASONING]
+
+
+def test_improve_dressing_augments_when_llm_not_richer() -> None:
+    from playsmith.engines.unreal.critic import Critique
+
+    crit = Critique(score=30, passed=False, dimensions={}, feedback=["sparse"], summary="s")
+    base = director.default_dressing()
+    out = director.improve_dressing("x", "third-person", _FakeGateway("no json"), base, crit)
+    # LLM gave nothing usable -> deterministic augmentation makes it strictly richer.
+    assert len(out["placements"]) > len(base["placements"])
+
+
 def test_dress_level_script_is_additive_and_uses_real_assets() -> None:
     script = director.dress_level_script(director.default_dressing(), "/Game/ThirdPerson/Lvl_X")
     assert "load_level(MAP)" in script and "new_level" not in script  # additive, not a rebuild
@@ -104,4 +141,5 @@ def test_dress_level_script_is_additive_and_uses_real_assets() -> None:
     assert "spawn_actor_from_class" in script
     assert "load_blueprint_class" in script  # palette Blueprints (jump pad / target / door)
     assert "save_dirty_packages" in script  # persists spawned World Partition external actors
+    assert "destroy_actor" in script and "PS_" in script  # idempotent: clears prior PS_ objects
     assert "PLAYSMITH_ASSERT objects_placed" in script

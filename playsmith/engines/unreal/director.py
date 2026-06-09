@@ -16,12 +16,13 @@ from __future__ import annotations
 import json
 import re
 
+from playsmith.engines.unreal import critic
 from playsmith.llm import LLMGateway, Message, TaskType
 
 # UE units are centimetres; keep the playfield bounded and reachable from the template PlayerStart.
 _BOUND_XY = 3000.0
 _BOUND_Z = 700.0
-_MAX_PLACEMENTS = 24
+_MAX_PLACEMENTS = 40
 
 # Curated palette: friendly name -> (kind, asset path). These ship inside every clone (the
 # LevelPrototyping shared pack), so the LLM can only pick known-good, real assets — never a bad ref.
@@ -86,9 +87,11 @@ def _ask(prompt: str, genre: str, hints: dict | None = None) -> str:
         '"sx":<1-6>,"sy":<1-6>,"sz":<1-6>,"role":"obstacle|platform|goal|hazard|prop"}, ...\n'
         "  ]\n"
         "}\n"
-        "Colour components are 0..1. Use 6-16 placements forming an interesting route from the "
-        "player start (near origin) toward a clear goal. Use jump_pad/target/door where they fit "
-        "the game. Put exactly one placement with role 'goal'. Match lighting/fog to the mood."
+        "Colour components are 0..1. Use 12-24 placements arranged as 2-4 distinct areas along a "
+        "route from the player start (near origin) toward a clear goal — vary heights (z) so there "
+        "are platforms to climb, cluster cover and obstacles, and scatter collectibles between "
+        "them. Use jump_pad/target/door where they fit. Put exactly one placement with role "
+        "'goal', set far from the origin. Match lighting/fog to the mood."
     )
 
 
@@ -189,6 +192,86 @@ def plan_dressing(
     return out
 
 
+# Kinds/roles the deterministic augmenter cycles through for variety (all known-good palette refs).
+_AUGMENT_KINDS = ("cube", "ramp", "cylinder", "chamfer_cube", "quarter_cylinder", "jump_pad")
+_AUGMENT_ROLES = ("platform", "obstacle", "cover", "collectible", "hazard")
+
+
+def _augment(spec: dict, *, size: str | None = None) -> dict:
+    """Deterministically enrich a dressing: add a varied, vertical route until it hits the size
+    target, and guarantee exactly one far goal. Guarantees real progress with no LLM in the loop.
+    """
+    out = _sanitize(spec)  # normalize + clamp the incoming spec first
+    placements = list(out["placements"])
+    target_n = critic.target_count(size)
+    while len(placements) < min(target_n + 2, _MAX_PLACEMENTS):
+        k = len(placements)
+        kind = _AUGMENT_KINDS[k % len(_AUGMENT_KINDS)]
+        role = _AUGMENT_ROLES[k % len(_AUGMENT_ROLES)]
+        x = min(_BOUND_XY - 200, 500.0 + 170.0 * k)  # march outward from the start
+        y = float((-1) ** k) * (200.0 + 90.0 * (k % 5))  # serpentine across the route
+        z = 50.0 + 110.0 * (k % 4)  # vary height -> verticality
+        placements.append(_place(kind, x, y, z, role, sx=1.5, sy=1.5, sz=1.0 + (k % 3)))
+    # Exactly one goal, set far out — demote any extras to props.
+    seen_goal = False
+    for p in placements:
+        if p.get("role") == "goal":
+            if seen_goal:
+                p["role"] = "prop"
+            seen_goal = True
+    if not seen_goal:
+        placements.append(_place("target", min(_BOUND_XY - 100, 2500.0), 0.0, 120.0, "goal"))
+    out["placements"] = placements[:_MAX_PLACEMENTS]
+    return out
+
+
+def _improve_ask(prompt: str, genre: str, spec: dict, crit, hints: dict | None = None) -> str:
+    issues = "\n".join(f"- {f}" for f in crit.feedback) or "- Make it richer and more varied."
+    current = json.dumps({"placements": spec.get("placements", [])})[:2000]
+    return (
+        f"You are improving an existing {genre} Unreal level dressing for this game:\n"
+        f"GAME: {prompt}\n\n"
+        f"{_hint_lines(hints)}"
+        f"A critic scored it {crit.score}/100 and wants you to fix:\n{issues}\n\n"
+        f"Current placements (JSON): {current}\n\n"
+        "Return STRICT JSON in the SAME schema as before (title, theme, objective, sun, fog, "
+        "placements). KEEP the good placements and ADD more to address every point above — aim for "
+        "a denser, more varied, more vertical level. Use only these kinds: "
+        f"{', '.join(sorted(PALETTE))}. Keep exactly one placement with role 'goal', far from "
+        "the origin."
+    )
+
+
+def improve_dressing(
+    prompt: str, genre: str, gateway: LLMGateway, spec: dict, crit, *, hints: dict | None = None
+) -> dict:
+    """Given the critic's verdict, produce a richer dressing for the next iteration.
+
+    Tries the frontier model for a creative upgrade; on any failure — or a reply that isn't
+    genuinely richer than what we have — falls back to a deterministic augmentation, so every
+    director→critic iteration measurably improves the level (the loop never stalls). The title is
+    preserved across iterations.
+    """
+    size = (hints or {}).get("size")
+    base_n = len(spec.get("placements") or [])
+    try:
+        resp = gateway.chat(
+            [Message.system(_SYSTEM), Message.user(_improve_ask(prompt, genre, spec, crit, hints))],
+            task=TaskType.REASONING,
+        )
+        match = re.search(r"\{.*\}", resp.content or "", re.DOTALL)
+        if match:
+            parsed = json.loads(match.group(0))
+            if isinstance(parsed, dict):
+                improved = _sanitize(parsed)
+                improved["title"] = spec.get("title") or improved["title"]
+                if len(improved["placements"]) > base_n:  # accept only a genuinely richer plan
+                    return improved
+    except Exception:  # noqa: BLE001 - improvement must never break a build
+        pass
+    return _augment(spec, size=size)
+
+
 def dress_level_script(spec: dict, map_path: str) -> str:
     """UE Python that loads the template level and ADDS the dressing, then writes PLAYSMITH_ASSERT.
 
@@ -208,6 +291,14 @@ def dress_level_script(spec: dict, map_path: str) -> str:
         "les = unreal.get_editor_subsystem(unreal.LevelEditorSubsystem)\n"
         "eas = unreal.get_editor_subsystem(unreal.EditorActorSubsystem)\n"
         "loaded = les.load_level(MAP)\n"
+        # Idempotent re-dressing: remove objects a previous Playsmith pass placed (labelled PS_*)
+        # so the director→critic loop REPLACES its dressing each iteration instead of stacking it.
+        "for _a in list(eas.get_all_level_actors()):\n"
+        "    try:\n"
+        "        if _a.get_actor_label().startswith('PS_'):\n"
+        "            eas.destroy_actor(_a)\n"
+        "    except Exception:\n"
+        "        pass\n"
         "placed = 0\n"
         "def _spawn_mesh(path, x, y, z, sx, sy, sz, tag, label):\n"
         "    mesh = unreal.EditorAssetLibrary.load_asset(path)\n"
