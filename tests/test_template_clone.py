@@ -126,3 +126,24 @@ def test_real_third_person_spec_registered() -> None:
     spec = template_clone.TEMPLATES["third-person"]
     assert spec.template_dir == "TP_ThirdPersonBP"
     assert spec.map_path == "/Game/ThirdPerson/Lvl_ThirdPerson"
+
+
+def test_ensure_render_settings_writes_nextgen_block(tmp_path) -> None:
+    ini = template_clone.ensure_render_settings(tmp_path)
+    text = ini.read_text()
+    assert "[/Script/Engine.RendererSettings]" in text
+    assert "r.DynamicGlobalIlluminationMethod=1" in text  # Lumen GI
+    assert "r.ReflectionMethod=1" in text  # Lumen reflections
+    assert "r.Shadow.Virtual.Enable=1" in text  # Virtual Shadow Maps
+    assert "r.AntiAliasingMethod=4" in text  # TSR
+
+
+def test_ensure_render_settings_is_idempotent_and_preserves(tmp_path) -> None:
+    ini = tmp_path / "DefaultEngine.ini"
+    ini.write_text("[/Script/EngineSettings.GameMapsSettings]\nGameDefaultMap=/Game/X\n")
+    template_clone.ensure_render_settings(tmp_path)
+    first = ini.read_text()
+    assert "GameDefaultMap=/Game/X" in first  # existing settings preserved
+    assert "r.DynamicGlobalIlluminationMethod=1" in first  # nextgen added
+    template_clone.ensure_render_settings(tmp_path)
+    assert ini.read_text() == first  # not appended twice

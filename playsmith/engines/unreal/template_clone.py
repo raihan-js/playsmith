@@ -79,6 +79,45 @@ class TemplateError(Exception):
     """Raised when a template or its shared content can't be located."""
 
 
+# Next-gen rendering defaults (Phase 1 of NEXTGEN_ROADMAP): Lumen GI + reflections, Virtual Shadow
+# Maps, TSR, mesh distance fields, real-time sky reflections, sensible post defaults. Software Lumen
+# (no forced hardware ray tracing) so it works on a broad range of GPUs; the look comes from these +
+# real assets. These are standard UE5 RendererSettings — safe to set explicitly, verifiable in the
+# generated .ini. (Visual confirmation still needs an on-machine editor.)
+_NEXTGEN_RENDER: dict[str, str] = {
+    "r.DynamicGlobalIlluminationMethod": "1",  # Lumen
+    "r.ReflectionMethod": "1",  # Lumen reflections
+    "r.Shadow.Virtual.Enable": "1",  # Virtual Shadow Maps
+    "r.AntiAliasingMethod": "4",  # Temporal Super Resolution
+    "r.GenerateMeshDistanceFields": "True",  # required for software Lumen
+    "r.SkyLight.RealTimeReflectionCapture": "1",
+    "r.DefaultFeature.AutoExposure": "True",
+    "r.DefaultFeature.Bloom": "True",
+    "r.DefaultFeature.MotionBlur": "False",
+}
+_RENDER_MARKER = "; Playsmith next-gen rendering"
+
+
+def ensure_render_settings(config_dir: Path) -> Path:
+    """Ensure next-gen rendering settings in the project's ``DefaultEngine.ini`` (idempotent).
+
+    Appends a Playsmith-managed ``[/Script/Engine.RendererSettings]`` block (Lumen, VSM, TSR, mesh
+    distance fields, auto-exposure) once — UE merges duplicate section headers, so this layers over
+    the template's own settings without parsing them. Returns the ini path.
+    """
+    config_dir = Path(config_dir)
+    config_dir.mkdir(parents=True, exist_ok=True)
+    ini = config_dir / "DefaultEngine.ini"
+    text = ini.read_text(errors="ignore") if ini.exists() else ""
+    if _RENDER_MARKER in text:
+        return ini
+    lines = ["", _RENDER_MARKER + " (Lumen / VSM / TSR — software Lumen for broad GPU support)",
+             "[/Script/Engine.RendererSettings]"]
+    lines += [f"{key}={value}" for key, value in _NEXTGEN_RENDER.items()]
+    ini.write_text((text.rstrip() + "\n" if text.strip() else "") + "\n".join(lines) + "\n")
+    return ini
+
+
 def find_ue_root(editor_cmd: str | None = None) -> Path | None:
     """Resolve the Unreal Engine root from the editor binary path, else common locations.
 
@@ -169,6 +208,7 @@ def clone_template(
         shutil.copytree(template_root / "Config", dest_config, dirs_exist_ok=True)
         for ignored in _TEMPLATE_ONLY_CONFIG:
             (dest_config / ignored).unlink(missing_ok=True)
+    ensure_render_settings(dest_config)  # next-gen rendering (Lumen / VSM / TSR) — see roadmap
 
     # 3. Shared content packs (mannequin, level-prototyping, input, cursor, ...) merged in by hand.
     defs = (template_root / "Config" / "TemplateDefs.ini").read_text(errors="ignore")
