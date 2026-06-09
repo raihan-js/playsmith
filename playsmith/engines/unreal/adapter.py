@@ -81,13 +81,20 @@ class RemoteControlClient:
         except httpx.HTTPError:
             return False
 
-    def call(self, object_path: str, function_name: str, parameters: dict | None = None) -> dict:
+    def call(
+        self,
+        object_path: str,
+        function_name: str,
+        parameters: dict | None = None,
+        *,
+        timeout: float | None = None,
+    ) -> dict:
         body = {
             "objectPath": object_path,
             "functionName": function_name,
             "parameters": parameters or {},
         }
-        resp = self._request("PUT", "/remote/object/call", json=body)
+        resp = self._request("PUT", "/remote/object/call", json=body, timeout=timeout)
         if resp.status_code >= 400:
             raise EngineError(
                 f"Remote Control call failed (HTTP {resp.status_code}): {resp.text[:200]}"
@@ -97,11 +104,29 @@ class RemoteControlClient:
         except ValueError:
             return {}
 
-    def _request(self, method: str, path: str, **kwargs) -> httpx.Response:
+    def execute_python(self, command: str, *, timeout: float | None = None) -> dict:
+        """Run a Python command/string in the LIVE editor (the editor-in-the-loop primitive).
+
+        Calls ``PythonScriptLibrary.ExecutePythonCommand`` over Remote Control, so authoring runs in
+        a real editor with a render context (SceneCapture/MRQ work), reliable Blueprint editing, and
+        correct World Partition persistence — none of which the headless commandlet does well. The
+        call is synchronous: the command has fully run in-editor by the time it returns.
+        """
+        return self.call(
+            "/Script/PythonScriptPlugin.Default__PythonScriptLibrary",
+            "ExecutePythonCommand",
+            {"PythonCommand": command},
+            timeout=timeout,
+        )
+
+    def _request(
+        self, method: str, path: str, *, timeout: float | None = None, **kwargs
+    ) -> httpx.Response:
         url = self.host + path
+        to = self._timeout if timeout is None else timeout
         if self._client is not None:
-            return self._client.request(method, url, timeout=self._timeout, **kwargs)
-        return httpx.request(method, url, timeout=self._timeout, **kwargs)
+            return self._client.request(method, url, timeout=to, **kwargs)
+        return httpx.request(method, url, timeout=to, **kwargs)
 
 
 # Common install locations to auto-find UnrealEditor-Cmd when the config value isn't a real path.
@@ -208,9 +233,7 @@ class UnrealAdapter:
         out_file = self.project_dir / "Saved" / "playsmith_assert.txt"
         if out_file.exists():
             out_file.unlink()
-        result = self._run_python(
-            director.dress_level_script(spec, map_path), timeout_s=600, out_file=out_file
-        )
+        result = self._author(director.dress_level_script(spec, map_path), out_file=out_file)
         assertions: dict[str, bool] = {}
         if out_file.exists():
             assertions = parse_assert_lines(out_file.read_text())
@@ -228,9 +251,8 @@ class UnrealAdapter:
         out_file = self.project_dir / "Saved" / "playsmith_assert.txt"
         if out_file.exists():
             out_file.unlink()
-        result = self._run_python(
+        result = self._author(
             director.character_script(spec, tspec.character_bp, tspec.character_dir),
-            timeout_s=600,
             out_file=out_file,
         )
         assertions: dict[str, bool] = {}
@@ -249,10 +271,8 @@ class UnrealAdapter:
         out_file = self.project_dir / "Saved" / "playsmith_assert.txt"
         if out_file.exists():
             out_file.unlink()
-        result = self._run_python(
-            assets.import_and_apply_script(str(png_path), tspec.map_path),
-            timeout_s=600,
-            out_file=out_file,
+        result = self._author(
+            assets.import_and_apply_script(str(png_path), tspec.map_path), out_file=out_file
         )
         assertions: dict[str, bool] = {}
         if out_file.exists():
@@ -268,9 +288,7 @@ class UnrealAdapter:
         out_file = self.project_dir / "Saved" / "playsmith_assert.txt"
         if out_file.exists():
             out_file.unlink()
-        result = self._run_python(
-            template_clone.clone_verify_script(spec), timeout_s=600, out_file=out_file
-        )
+        result = self._author(template_clone.clone_verify_script(spec), out_file=out_file)
         assertions: dict[str, bool] = {}
         if out_file.exists():
             assertions = parse_assert_lines(out_file.read_text())
@@ -446,6 +464,46 @@ class UnrealAdapter:
             )
         return self._invoke(args, timeout_s=timeout_s, env=None)
 
+    def live_available(self) -> bool:
+        """True if a running editor with Remote Control is reachable (editor-in-the-loop is on)."""
+        return self.remote.available()
+
+    def _run_python_live(
+        self, script_text: str, *, out_file: Path, timeout_s: int = 600
+    ) -> RunResult:
+        """Run an authoring script in the LIVE editor via Remote Control (editor-in-the-loop).
+
+        The same script the commandlet would run, but executed inside a running editor — which has a
+        real render context, edits Blueprints reliably, and persists World Partition correctly.
+        Results still come back through ``out_file``; the call is synchronous so it's written on
+        return. The editor isn't our process, so we inject ``PLAYSMITH_UE_OUT`` into its Python env.
+        """
+        saved = self.project_dir / "Saved"
+        saved.mkdir(parents=True, exist_ok=True)
+        script_path = saved / "playsmith_live.py"
+        script_path.write_text(script_text)
+        command = (
+            "import os\n"
+            f"os.environ['PLAYSMITH_UE_OUT'] = r'{out_file}'\n"
+            f"exec(open(r'{script_path}').read())\n"
+        )
+        try:
+            self.remote.execute_python(command, timeout=float(timeout_s))
+        except EngineError as exc:
+            return RunResult(command=["remote", "execute_python"], returncode=1, stderr=str(exc))
+        return RunResult(command=["remote", "execute_python"], returncode=0, stdout=str(out_file))
+
+    def _author(self, script_text: str, *, out_file: Path, timeout_s: int = 600) -> RunResult:
+        """Run an authoring script in the live editor if one is up, else the headless commandlet.
+
+        This is the seam that makes Playsmith editor-in-the-loop: when a UE editor with Remote
+        Control is running, authoring (dress/character/textures/verify) goes through it — fast
+        (no per-op boot), render-capable, and WP-correct — and otherwise falls back to headless.
+        """
+        if self.remote.available():
+            return self._run_python_live(script_text, out_file=out_file, timeout_s=timeout_s)
+        return self._run_python(script_text, timeout_s=timeout_s, out_file=out_file)
+
     def version(self) -> str:
         result = self._invoke(["-version"], timeout_s=30)
         return (
@@ -539,19 +597,30 @@ class UnrealAdapter:
     ) -> RunResult:
         """Render an elevated establishing shot of the whole level (not the player's spawn view).
 
-        Three safe steps (each terminated only after its artifact lands — never killed mid-save):
-        place an auto-activating preview camera framed on the dressing, render the GPU frame (which
-        captures that camera), then remove the camera so interactive play is unchanged. Returns the
-        render's :class:`RunResult`; the PNG is at ``out_path`` (absent if nothing was captured).
+        With a **live editor** (Remote Control up), renders via SceneCapture2D straight to a PNG — a
+        real render context, so no camera/`-game`/cleanup dance. **Headless** falls back to: a
+        auto-activating preview camera framed on the dressing → render the GPU `-game` frame (which
+        captures it) → remove the camera (each step terminated only after its artifact lands). The
+        PNG is at ``out_path`` (absent if nothing was captured).
         """
+        out = Path(out_path).expanduser()
+        out.parent.mkdir(parents=True, exist_ok=True)
         out_file = self.project_dir / "Saved" / "playsmith_assert.txt"
         if out_file.exists():
             out_file.unlink()
+
+        if self.remote.available():  # editor-in-the-loop: SceneCapture works in a real editor
+            return self._run_python_live(
+                render.scene_capture_script(tspec.map_path, str(out), width, height),
+                out_file=out_file,
+                timeout_s=timeout_s,
+            )
+
         self._run_python(
             render.place_camera_script(tspec.map_path), timeout_s=timeout_s, out_file=out_file
         )
         result = self.render_screenshot(
-            out_path, scene=tspec.map_path, width=width, height=height, timeout_s=timeout_s
+            out, scene=tspec.map_path, width=width, height=height, timeout_s=timeout_s
         )
         if out_file.exists():
             out_file.unlink()
@@ -620,9 +689,7 @@ class UnrealAdapter:
         out_file = self.project_dir / "Saved" / "playsmith_assert.txt"
         if out_file.exists():
             out_file.unlink()
-        result = self._run_python(
-            templates.verify_script(scene or templates.MAP), timeout_s=600, out_file=out_file
-        )
+        result = self._author(templates.verify_script(scene or templates.MAP), out_file=out_file)
         assertions: dict[str, bool] = {}
         if out_file.exists():
             assertions = parse_assert_lines(out_file.read_text())

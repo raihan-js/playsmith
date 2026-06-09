@@ -160,8 +160,11 @@ def _uproject_text(template_uproject: Path, name: str) -> str:
         except (json.JSONDecodeError, OSError):
             data = {}
     plugins = list(data.get("Plugins", []))
-    if not any(p.get("Name") == "PythonScriptPlugin" for p in plugins):
-        plugins.append({"Name": "PythonScriptPlugin", "Enabled": True})
+    # PythonScriptPlugin for the harness; RemoteControl(+Web) so a running editor can be driven
+    # editor-in-the-loop (reliable authoring/render vs headless commandlets — roadmap Phase 0).
+    for needed in ("PythonScriptPlugin", "RemoteControl", "RemoteControlWebInterface"):
+        if not any(p.get("Name") == needed for p in plugins):
+            plugins.append({"Name": needed, "Enabled": True})
     return json.dumps(
         {
             "FileVersion": 3,

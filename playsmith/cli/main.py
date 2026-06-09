@@ -296,7 +296,7 @@ def unreal_royalty(
 def unreal_check(
     config: str = typer.Option(None, "--config", "-c", help="Path to a config YAML."),
 ) -> None:
-    """Check the Unreal track: editor binary + Remote Control API availability."""
+    """Check the Unreal track: editor binary + editor-in-the-loop (Remote Control) availability."""
     cfg = load_config(config)
     adapter = UnrealAdapter("/tmp/_playsmith_unreal_check", editor_cmd=cfg.engine.unreal.editor_cmd)
     try:
@@ -304,8 +304,22 @@ def unreal_check(
         console.print(f"Found Unreal: [bold cyan]{ver}[/]")
     except (EngineNotFoundError, EngineError) as exc:
         console.print(f"[yellow]Unreal editor not available:[/] {exc}")
-    rc = "[green]reachable[/]" if adapter.remote.available() else "[yellow]not reachable[/]"
-    console.print(f"Remote Control API ({adapter.remote.host}): {rc}")
+    if adapter.remote.available():
+        console.print(
+            f"[bold green]✓ Editor-in-the-loop ON[/] — Remote Control reachable at "
+            f"[dim]{adapter.remote.host}[/]. Authoring + establishing renders run in the live "
+            "editor (fast, reliable, World-Partition-correct)."
+        )
+    else:
+        console.print(
+            f"[yellow]Editor-in-the-loop OFF[/] — Remote Control not reachable at "
+            f"[dim]{adapter.remote.host}[/]; using the slower headless commandlet path."
+        )
+        console.print(
+            "  To enable: open a generated project in the editor and run "
+            "[cyan]WebControl.StartServer[/] in the console (or Project Settings → Remote "
+            "Control → auto-start the web server). New projects already enable RemoteControl."
+        )
 
 
 @unreal_app.command("new")

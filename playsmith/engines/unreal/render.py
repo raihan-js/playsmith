@@ -85,6 +85,56 @@ def place_camera_script(map_path: str, label: str = PREVIEW_CAM_LABEL) -> str:
     )
 
 
+def scene_capture_script(map_path: str, out_png: str, width: int = 1280, height: int = 720) -> str:
+    """UE Python: render an establishing shot via SceneCapture2D → render target → PNG.
+
+    This is the **live-editor** establishing render. SceneCapture produces nothing in a headless
+    pythonscript commandlet (no render context), but works in a running editor — so this is used
+    only over Remote Control. Frames an elevated camera on the placed PS_ objects and exports the
+    render target straight to ``out_png`` (no auto-activate camera / ``-game`` / cleanup needed).
+    """
+    return (
+        _HEAD + f'MAP = "{map_path}"\n'
+        f"OUT_PNG = r'{out_png}'\n"
+        f"W, H = {int(width)}, {int(height)}\n"
+        "ok = False\n"
+        "try:\n"
+        "    les.load_level(MAP)\n"
+        "    world = unreal.get_editor_subsystem(unreal.UnrealEditorSubsystem).get_editor_world()\n"
+        "    pts = [a.get_actor_location() for a in eas.get_all_level_actors()\n"
+        "           if a.get_actor_label().startswith('PS_')]\n"
+        "    if pts:\n"
+        "        cx = sum(p.x for p in pts) / len(pts)\n"
+        "        cy = sum(p.y for p in pts) / len(pts)\n"
+        "        maxr = max((((p.x - cx) ** 2 + (p.y - cy) ** 2) ** 0.5) for p in pts)\n"
+        "    else:\n"
+        "        cx, cy, maxr = 1200.0, 0.0, 1800.0\n"
+        "    maxr = max(maxr, 1500.0)\n"
+        "    dist = max(2800.0, maxr * 2.3)\n"
+        "    cam_loc = unreal.Vector(cx - dist * 0.7, cy - dist * 0.5, dist * 0.85)\n"
+        "    tgt = unreal.Vector(cx, cy, 120.0)\n"
+        "    rot = unreal.MathLibrary.find_look_at_rotation(cam_loc, tgt)\n"
+        "    rt = unreal.RenderingLibrary.create_render_target2d(world, W, H)\n"
+        "    cap = eas.spawn_actor_from_class(unreal.SceneCapture2D, cam_loc, rot)\n"
+        "    comp = cap.capture_component2d\n"
+        "    comp.set_editor_property('texture_target', rt)\n"
+        "    comp.set_editor_property('capture_source', "
+        "unreal.SceneCaptureSource.SCS_FINAL_COLOR_LDR)\n"
+        "    comp.set_editor_property('fov_angle', 70.0)\n"
+        "    comp.capture_scene()\n"
+        "    unreal.RenderingLibrary.export_render_target("
+        "world, rt, os.path.dirname(OUT_PNG), os.path.basename(OUT_PNG))\n"
+        "    try:\n"
+        "        eas.destroy_actor(cap)\n"
+        "    except Exception:\n"
+        "        pass\n"
+        "    ok = os.path.exists(OUT_PNG)\n"
+        "except Exception as e:\n"
+        "    unreal.log_warning('PLAYSMITH scene capture failed: %s' % e)\n"
+        "_write(['PLAYSMITH_ASSERT scene_capture=%s' % ('true' if ok else 'false')])\n"
+    )
+
+
 def cleanup_camera_script(map_path: str, label: str = PREVIEW_CAM_LABEL) -> str:
     """UE Python: remove the preview camera so interactive play is unaffected."""
     return (
