@@ -214,3 +214,9 @@ def test_dress_level_script_is_additive_and_uses_real_assets() -> None:
     assert "get_actor_bounds" in script  # clears the template demo course (keeps the big floor)
     assert "set_material" in script and "ROLE_COLOR" in script  # role-coloured, themed objects
     assert "PLAYSMITH_ASSERT objects_placed" in script
+    # The keystone: World Partition deletions must persist on disk, or destroyed actors stream back
+    # on the next load (the demo course never cleared, PS_ dressing stacked 20→40). Both clear loops
+    # route through _ps_delete, which removes each actor's external-actor .uasset file.
+    assert "_ps_delete(" in script
+    assert "__ExternalActors__" in script  # the safety guard: only ever per-actor external packages
+    assert "os.remove" in script and "project_content_dir" in script  # deletes the package file

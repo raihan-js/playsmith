@@ -427,6 +427,44 @@ _ROLE_COLOR: dict[str, list[float]] = {
 }
 
 
+# World Partition / OFPA: each actor lives in its own external `.uasset`. ``destroy_actor`` +
+# ``save_dirty_packages`` removes the actor in-session but leaves its package FILE on disk, so it
+# streams right back on the next load — which is why the template's demo course never cleared and
+# our PS_* dressing stacked (20→40). ``_ps_delete`` (injected into the emitted UE script) destroys
+# the actors AND removes their external-actor package files, so deletions persist even on the
+# headless commandlet path. The ``'__ExternalActors__' in _name`` guard is the safety rail: only
+# ever per-actor external packages, never the main ``.umap`` or any shared content package.
+_PERSIST_DELETE_HELPER = (
+    "def _ps_delete(actors):\n"
+    "    import os, unreal\n"
+    "    files = []\n"
+    "    for _a in actors:\n"
+    "        try:\n"
+    "            _name = _a.get_package().get_name()\n"
+    "            if '__ExternalActors__' in _name and _name.startswith('/Game/'):\n"
+    "                files.append(os.path.join(\n"
+    "                    unreal.Paths.project_content_dir(), _name[len('/Game/'):] + '.uasset'))\n"
+    "        except Exception:\n"
+    "            pass\n"
+    "    _eas = unreal.get_editor_subsystem(unreal.EditorActorSubsystem)\n"
+    "    for _a in actors:\n"
+    "        try:\n"
+    "            _eas.destroy_actor(_a)\n"
+    "        except Exception:\n"
+    "            pass\n"
+    "    unreal.EditorLoadingAndSavingUtils.save_dirty_packages(True, True)\n"
+    "    _removed = 0\n"
+    "    for _f in files:\n"
+    "        try:\n"
+    "            if os.path.exists(_f):\n"
+    "                os.remove(_f)\n"
+    "                _removed += 1\n"
+    "        except Exception:\n"
+    "            pass\n"
+    "    return _removed\n"
+)
+
+
 def dress_level_script(spec: dict, map_path: str) -> str:
     """UE Python that loads the template level and ADDS the dressing, then writes PLAYSMITH_ASSERT.
 
@@ -494,19 +532,24 @@ def dress_level_script(spec: dict, map_path: str) -> str:
         "les = unreal.get_editor_subsystem(unreal.LevelEditorSubsystem)\n"
         "eas = unreal.get_editor_subsystem(unreal.EditorActorSubsystem)\n"
         "loaded = les.load_level(MAP)\n"
+        # Deletions must persist on disk (World Partition/OFPA) — define _ps_delete, then route both
+        # clear loops through it so destroyed actors don't stream back on the next load.
+        + _PERSIST_DELETE_HELPER +
         # Idempotent re-dressing: remove objects a previous Playsmith pass placed (labelled PS_*)
         # so the director→critic loop REPLACES its dressing each iteration instead of stacking it.
+        "_ps_old = []\n"
         "for _a in list(eas.get_all_level_actors()):\n"
         "    try:\n"
         "        if _a.get_actor_label().startswith('PS_'):\n"
-        "            eas.destroy_actor(_a)\n"
+        "            _ps_old.append(_a)\n"
         "    except Exception:\n"
         "        pass\n"
+        "_ps_delete(_ps_old)\n"
         # Clear the template's DEMO course — the UE third-person template ships ~55 prototype blocks
         # that dominate every level, so every prompt looked like "the same template demo". Remove
         # the object-sized demo pieces (small bounding box) but KEEP large-bounds actors (floor +
         # arena walls) so the level stays playable and the director's dressing becomes what you see.
-        "_template_cleared = 0\n"
+        "_demo = []\n"
         "for _ta in list(eas.get_all_level_actors()):\n"
         "    try:\n"
         "        if not isinstance(_ta, unreal.StaticMeshActor):\n"
@@ -515,10 +558,10 @@ def dress_level_script(spec: dict, map_path: str) -> str:
         "            continue\n"
         "        _bo, _bext = _ta.get_actor_bounds(False)\n"
         "        if _bext.x < 1500.0 and _bext.y < 1500.0:\n"  # object-sized: demo, not floor
-        "            eas.destroy_actor(_ta)\n"
-        "            _template_cleared += 1\n"
+        "            _demo.append(_ta)\n"
         "    except Exception:\n"
         "        pass\n"
+        "_template_cleared = _ps_delete(_demo)\n"
         "unreal.log('PLAYSMITH cleared %d template demo objects' % _template_cleared)\n"
         "placed = 0\n"
         "def _spawn_mesh(path, x, y, z, sx, sy, sz, tag, label):\n"
