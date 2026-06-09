@@ -150,7 +150,10 @@ def test_character_script_discovers_assets_and_asserts() -> None:
     assert "list_assets" in s and "SkeletalMesh" in s  # discovers what actually ships (no bad refs)
     assert "/Game/Characters" in s and "/Game/X/BP_Char" in s
     assert "skeletal_mesh_asset" in s  # variant swap
-    assert "set_vector_parameter_value" in s  # theme tint
+    # persistent theme tint via a MaterialInstanceConstant (not a runtime-only dynamic material)
+    assert "MaterialInstanceConstant" in s
+    assert "set_material_instance_vector_parameter_value" in s
+    assert "MaterialInstanceDynamic" not in s  # the old broken API is gone
     assert "PLAYSMITH_ASSERT character_customized" in s
     assert "save_asset" in s  # persists the change
 
@@ -163,4 +166,5 @@ def test_dress_level_script_is_additive_and_uses_real_assets() -> None:
     assert "load_blueprint_class" in script  # palette Blueprints (jump pad / target / door)
     assert "save_dirty_packages" in script  # persists spawned World Partition external actors
     assert "destroy_actor" in script and "PS_" in script  # idempotent: clears prior PS_ objects
+    assert "set_material" in script and "ROLE_COLOR" in script  # role-coloured, themed objects
     assert "PLAYSMITH_ASSERT objects_placed" in script

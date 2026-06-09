@@ -94,8 +94,9 @@ def _ask(prompt: str, genre: str, hints: dict | None = None) -> str:
         "climb (platforms at varied z), a hazard gauntlet, and a goal arena. Cluster cover and "
         "obstacles, scatter collectibles between zones, and use jump_pad/target/door where they "
         "fit. Put exactly one placement with role 'goal', set far from the origin (in the last "
-        "zone). Match lighting/fog to the mood, and give the character a tint that fits the theme "
-        "(e.g. fiery red for lava, pale blue for ice, deep green for a jungle)."
+        "zone). Use generous scales (sx/sy around 2-5) so objects read at a distance and fill the "
+        "space — not tiny specks on a huge floor. Match lighting/fog to the mood, and give the "
+        "character a tint that fits the theme (fiery red for lava, pale blue ice, green jungle)."
     )
 
 
@@ -233,7 +234,8 @@ def _augment(spec: dict, *, size: str | None = None) -> dict:
         x = max(-_BOUND_XY + 150, min(_BOUND_XY - 150, cx + ox))
         y = max(-_BOUND_XY + 150, min(_BOUND_XY - 150, cy + oy))
         z = 50.0 + 100.0 * ((k // len(_ZONE_CENTERS)) % 4)  # layered heights -> verticality
-        placements.append(_place(kind, x, y, z, role, sx=1.4, sy=1.4, sz=1.0 + (k % 3)))
+        # generous scales so objects read at a distance and fill the playfield (not tiny specks)
+        placements.append(_place(kind, x, y, z, role, sx=2.4, sy=2.4, sz=1.5 + (k % 3)))
     # Exactly one goal, set in the far zone — demote any extras to props.
     seen_goal = False
     for p in placements:
@@ -295,6 +297,19 @@ def improve_dressing(
     return _augment(spec, size=size)
 
 
+# Per-role object colours (RGB 0..1) — turns the grey LevelPrototyping meshes into a readable,
+# themed level (hazards red, collectibles gold, the goal bright), the #1 "make it look real" lever.
+_ROLE_COLOR: dict[str, list[float]] = {
+    "platform": [0.78, 0.50, 0.28],   # warm stone/orange — reads as a step you can climb
+    "obstacle": [0.16, 0.17, 0.22],   # near-black charcoal
+    "cover": [0.28, 0.40, 0.62],      # slate blue
+    "hazard": [0.95, 0.11, 0.05],     # bright danger red
+    "collectible": [1.00, 0.78, 0.10],# gold
+    "goal": [0.10, 0.95, 0.45],       # bright green — the place to reach
+    "prop": [0.55, 0.50, 0.46],
+}
+
+
 def dress_level_script(spec: dict, map_path: str) -> str:
     """UE Python that loads the template level and ADDS the dressing, then writes PLAYSMITH_ASSERT.
 
@@ -304,13 +319,56 @@ def dress_level_script(spec: dict, map_path: str) -> str:
     """
     spec_json = json.dumps(spec)
     palette_json = json.dumps(PALETTE)
+    role_color_json = json.dumps(_ROLE_COLOR)
     return (
         "import json, os\n"
         "import unreal\n"
         f'MAP = "{map_path}"\n'
         f"SPEC = json.loads(r'''{spec_json}''')\n"
         f"PALETTE = json.loads(r'''{palette_json}''')\n"
+        f"ROLE_COLOR = json.loads(r'''{role_color_json}''')\n"
+        'PROP_DEST = "/Game/Playsmith/Props"\n'
         'OUT = os.environ.get("PLAYSMITH_UE_OUT", "")\n'
+        # A shared param material + one MaterialInstanceConstant per role, so placed meshes are
+        # coloured by role (themed + readable) instead of all grey. Cached; persists on save.
+        "_mic_cache = {}\n"
+        "def _prop_base():\n"
+        "    p = PROP_DEST + '/M_PS_Props'\n"
+        "    if unreal.EditorAssetLibrary.does_asset_exist(p):\n"
+        "        return unreal.EditorAssetLibrary.load_asset(p)\n"
+        "    tools = unreal.AssetToolsHelpers.get_asset_tools()\n"
+        "    m = tools.create_asset('M_PS_Props', PROP_DEST, "
+        "unreal.Material, unreal.MaterialFactoryNew())\n"
+        "    vp = unreal.MaterialEditingLibrary.create_material_expression("
+        "m, unreal.MaterialExpressionVectorParameter, -350, 0)\n"
+        "    vp.set_editor_property('parameter_name', 'TintColor')\n"
+        "    vp.set_editor_property('default_value', unreal.LinearColor(0.5, 0.5, 0.5, 1.0))\n"
+        "    unreal.MaterialEditingLibrary.connect_material_property("
+        "vp, '', unreal.MaterialProperty.MP_BASE_COLOR)\n"
+        "    unreal.MaterialEditingLibrary.recompile_material(m)\n"
+        "    return m\n"
+        "def _role_mic(role):\n"
+        "    if role in _mic_cache:\n"
+        "        return _mic_cache[role]\n"
+        "    mic = None\n"
+        "    try:\n"
+        "        c = ROLE_COLOR.get(role) or ROLE_COLOR.get('prop') or [0.5, 0.45, 0.44]\n"
+        "        tools = unreal.AssetToolsHelpers.get_asset_tools()\n"
+        "        p = PROP_DEST + '/MI_PS_' + role\n"
+        "        if unreal.EditorAssetLibrary.does_asset_exist(p):\n"
+        "            mic = unreal.EditorAssetLibrary.load_asset(p)\n"
+        "        else:\n"
+        "            mic = tools.create_asset('MI_PS_' + role, PROP_DEST, "
+        "unreal.MaterialInstanceConstant, unreal.MaterialInstanceConstantFactoryNew())\n"
+        "            _b = _prop_base()\n"
+        "            unreal.MaterialEditingLibrary.set_material_instance_parent(mic, _b)\n"
+        "        unreal.MaterialEditingLibrary.set_material_instance_vector_parameter_value("
+        "mic, 'TintColor', unreal.LinearColor(float(c[0]), float(c[1]), float(c[2]), 1.0))\n"
+        "    except Exception as e:\n"
+        "        unreal.log_warning('PLAYSMITH prop tint skipped: %s' % e)\n"
+        "        mic = None\n"
+        "    _mic_cache[role] = mic\n"
+        "    return mic\n"
         "les = unreal.get_editor_subsystem(unreal.LevelEditorSubsystem)\n"
         "eas = unreal.get_editor_subsystem(unreal.EditorActorSubsystem)\n"
         "loaded = les.load_level(MAP)\n"
@@ -334,6 +392,12 @@ def dress_level_script(spec: dict, map_path: str) -> str:
         "    a.set_actor_label(label)\n"
         "    a.set_mobility(unreal.ComponentMobility.MOVABLE)\n"
         "    a.tags = [unreal.Name(tag)]\n"
+        "    _m = _role_mic(tag)\n"
+        "    if _m is not None:\n"
+        "        try:\n"
+        "            a.static_mesh_component.set_material(0, _m)\n"
+        "        except Exception:\n"
+        "            pass\n"
         "    return True\n"
         "def _spawn_bp(path, x, y, z, tag, label):\n"
         "    cls = unreal.EditorAssetLibrary.load_blueprint_class(path)\n"
@@ -410,44 +474,99 @@ def character_script(spec: dict, character_bp: str, character_dir: str) -> str:
         f'CHAR_DIR = "{character_dir}"\n'
         f"CHAR = json.loads(r'''{char_json}''')\n"
         'OUT = os.environ.get("PLAYSMITH_UE_OUT", "")\n'
+        'DEST = "/Game/Playsmith/Char"\n'
         "ok = False\n"
         "chosen = ''\n"
         "tinted = False\n"
+        "t = CHAR.get('tint') or [0.6, 0.6, 0.65]\n"
+        "col = unreal.LinearColor(float(t[0]), float(t[1]), float(t[2]), 1.0)\n"
+        "tools = unreal.AssetToolsHelpers.get_asset_tools()\n"
+        # All skeletal-mesh components on the character CDO. Critically, first-person templates show
+        # the ARMS (Mesh1P), not the hidden third-person Mesh — so tint every skeletal mesh comp.
+        "def _char_comps():\n"
+        "    gcls = unreal.EditorAssetLibrary.load_blueprint_class(CHAR_BP)\n"
+        "    if gcls is None:\n"
+        "        return None, []\n"
+        "    cdo = gcls.get_default_object()\n"
+        "    comps = []\n"
+        # Named props work on a CDO ('mesh' = 3rd-person body, 'mesh1p' = FP arms);
+        # get_components_by_class() returns [] on a CDO, so only use it as a last resort.
+        "    for prop in ('mesh', 'mesh1p'):\n"
+        "        try:\n"
+        "            c = cdo.get_editor_property(prop)\n"
+        "            if c is not None and c not in comps:\n"
+        "                comps.append(c)\n"
+        "        except Exception:\n"
+        "            pass\n"
+        "    if not comps:\n"
+        "        try:\n"
+        "            comps = list(cdo.get_components_by_class(unreal.SkeletalMeshComponent))\n"
+        "        except Exception:\n"
+        "            comps = []\n"
+        "    return cdo, comps\n"
+        # 1) optional mesh-variant swap from what actually ships in this clone (no bad refs)
         "try:\n"
         "    prefer = (CHAR.get('prefer') or '').lower()\n"
-        "    meshes = []\n"
-        "    for ap in unreal.EditorAssetLibrary.list_assets(CHAR_DIR, recursive=True):\n"
-        "        a = unreal.EditorAssetLibrary.load_asset(ap)\n"
-        "        if isinstance(a, unreal.SkeletalMesh):\n"
-        "            meshes.append(a)\n"
-        "    pick = None\n"
         "    if prefer:\n"
-        "        pick = next((m for m in meshes if prefer in m.get_name().lower()), None)\n"
-        "    gcls = unreal.EditorAssetLibrary.load_blueprint_class(CHAR_BP)\n"
-        "    cdo = unreal.get_default_object(gcls) if gcls else None\n"
-        "    comp = cdo.get_editor_property('mesh') if cdo else None\n"
-        "    if comp is not None and pick is not None:\n"
-        "        comp.set_editor_property('skeletal_mesh_asset', pick)\n"
-        "        chosen = pick.get_name()\n"
-        "        ok = True\n"
-        "    # Theme tint: a coloured override material on element 0 (best-effort).\n"
-        "    if comp is not None:\n"
-        "        t = CHAR.get('tint') or [0.6, 0.6, 0.65]\n"
-        "        base = unreal.EditorAssetLibrary.load_asset("
-        "'/Engine/BasicShapes/BasicShapeMaterial')\n"
-        "        if base is not None:\n"
-        "            mid = unreal.MaterialInstanceDynamic.create(base, comp)\n"
-        "            mid.set_vector_parameter_value('Color', "
-        "unreal.LinearColor(float(t[0]), float(t[1]), float(t[2]), 1.0))\n"
-        "            comp.set_material(0, mid)\n"
+        "        cdo, comps = _char_comps()\n"
+        "        pick = None\n"
+        "        for ap in unreal.EditorAssetLibrary.list_assets(CHAR_DIR, recursive=True):\n"
+        "            a = unreal.EditorAssetLibrary.load_asset(ap)\n"
+        "            if isinstance(a, unreal.SkeletalMesh) and prefer in a.get_name().lower():\n"
+        "                pick = a\n"
+        "                break\n"
+        "        if pick is not None and comps:\n"
+        "            comps[0].set_skeletal_mesh_asset(pick)\n"
+        "            chosen = pick.get_name()\n"
+        "            ok = True\n"
+        "except Exception as e:\n"
+        "    unreal.log_warning('PLAYSMITH char mesh swap skipped: %s' % e)\n"
+        # 2) theme tint via a MaterialInstanceConstant from a self-built param material (persists)
+        "try:\n"
+        "    base_path = DEST + '/M_PS_CharBase'\n"
+        "    if unreal.EditorAssetLibrary.does_asset_exist(base_path):\n"
+        "        base = unreal.EditorAssetLibrary.load_asset(base_path)\n"
+        "    else:\n"
+        "        base = tools.create_asset('M_PS_CharBase', DEST, unreal.Material, "
+        "unreal.MaterialFactoryNew())\n"
+        "        vp = unreal.MaterialEditingLibrary.create_material_expression(base, "
+        "unreal.MaterialExpressionVectorParameter, -350, 0)\n"
+        "        vp.set_editor_property('parameter_name', 'TintColor')\n"
+        "        vp.set_editor_property('default_value', col)\n"
+        "        unreal.MaterialEditingLibrary.connect_material_property(vp, '', "
+        "unreal.MaterialProperty.MP_BASE_COLOR)\n"
+        "        unreal.MaterialEditingLibrary.recompile_material(base)\n"
+        "    mic_path = DEST + '/MI_PS_Char'\n"
+        "    if unreal.EditorAssetLibrary.does_asset_exist(mic_path):\n"
+        "        mic = unreal.EditorAssetLibrary.load_asset(mic_path)\n"
+        "    else:\n"
+        "        mic = tools.create_asset('MI_PS_Char', DEST, "
+        "unreal.MaterialInstanceConstant, unreal.MaterialInstanceConstantFactoryNew())\n"
+        "        unreal.MaterialEditingLibrary.set_material_instance_parent(mic, base)\n"
+        "    unreal.MaterialEditingLibrary.set_material_instance_vector_parameter_value("
+        "mic, 'TintColor', col)\n"
+        "    cdo, comps = _char_comps()\n"
+        "    for comp in comps:\n"
+        "        try:\n"
+        "            cnt = comp.get_num_materials() if hasattr(comp, 'get_num_materials') else 1\n"
+        "            for i in range(max(1, cnt)):\n"
+        "                comp.set_material(i, mic)\n"
         "            tinted = True\n"
-        "            ok = ok or True\n"
+        "            ok = True\n"
+        "        except Exception:\n"
+        "            pass\n"
+        "    unreal.EditorAssetLibrary.save_asset(base_path)\n"
+        "    unreal.EditorAssetLibrary.save_asset(mic_path)\n"
+        "except Exception as e:\n"
+        "    unreal.log_warning('PLAYSMITH char tint skipped: %s' % e)\n"
+        # 3) compile + save the character Blueprint so the override persists into PIE
+        "try:\n"
         "    bp = unreal.EditorAssetLibrary.load_asset(CHAR_BP)\n"
         "    if bp is not None:\n"
         "        unreal.BlueprintEditorLibrary.compile_blueprint(bp)\n"
         "    unreal.EditorAssetLibrary.save_asset(CHAR_BP)\n"
         "except Exception as e:\n"
-        "    unreal.log_warning('PLAYSMITH character customization skipped: %s' % e)\n"
+        "    unreal.log_warning('PLAYSMITH char save skipped: %s' % e)\n"
         "unreal.log('PLAYSMITH character mesh=%s tinted=%s' % (chosen or 'default', tinted))\n"
         "lines = [\n"
         "    'PLAYSMITH_ASSERT character_customized=%s' % ('true' if ok else 'false'),\n"
