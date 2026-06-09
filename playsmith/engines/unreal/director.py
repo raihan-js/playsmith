@@ -503,8 +503,8 @@ def dress_level_script(spec: dict, map_path: str) -> str:
         "    except Exception:\n"
         "        pass\n"
         # Clear the template's DEMO course — the UE third-person template ships ~55 prototype blocks
-        # that dominate every level, so every prompt looked like "the same template demo". Remove the
-        # object-sized demo pieces (small bounding box) but KEEP large-bounds actors (the floor +
+        # that dominate every level, so every prompt looked like "the same template demo". Remove
+        # the object-sized demo pieces (small bounding box) but KEEP large-bounds actors (floor +
         # arena walls) so the level stays playable and the director's dressing becomes what you see.
         "_template_cleared = 0\n"
         "for _ta in list(eas.get_all_level_actors()):\n"
@@ -514,7 +514,7 @@ def dress_level_script(spec: dict, map_path: str) -> str:
         "        if _ta.get_actor_label().startswith('PS_'):\n"
         "            continue\n"
         "        _bo, _bext = _ta.get_actor_bounds(False)\n"
-        "        if _bext.x < 1500.0 and _bext.y < 1500.0:\n"  # object-sized -> demo, not floor/walls
+        "        if _bext.x < 1500.0 and _bext.y < 1500.0:\n"  # object-sized: demo, not floor
         "            eas.destroy_actor(_ta)\n"
         "            _template_cleared += 1\n"
         "    except Exception:\n"
