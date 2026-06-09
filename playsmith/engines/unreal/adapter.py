@@ -708,6 +708,46 @@ class UnrealAdapter:
             raise EngineNotFoundError(self._NOT_FOUND.format(cmd=self.editor_cmd)) from exc
         return proc.pid
 
+    def launch_editor(self, *, scene: str | None = None, render_offscreen: bool = False) -> int:
+        """Start the FULL Unreal editor with Remote Control ON — editor-in-the-loop (Route A).
+
+        A live editor persists World Partition/OFPA deletions natively (and is render-capable for
+        later stages), so it's the reliable counterpart to the headless on-disk delete. Boots the
+        interactive editor — the sibling ``UnrealEditor`` of our ``UnrealEditor-Cmd`` — with
+        ``-ExecCmds=WebControl.StartServer`` so the Remote Control HTTP server comes up on :30010,
+        which :meth:`live_available` probes and :meth:`_author` then routes through. Detached
+        (``start_new_session``): returns the PID immediately. ``render_offscreen`` adds
+        ``-RenderOffscreen`` for a GPU box with no display; otherwise a graphical display is needed.
+        """
+        # The interactive editor is the sibling of UnrealEditor-Cmd — drop the "-Cmd" suffix.
+        cmd = self.editor_cmd
+        if cmd.endswith("-Cmd"):
+            sibling = cmd[: -len("-Cmd")]
+            if Path(sibling).exists() or shutil.which(Path(sibling).name):
+                cmd = sibling
+        args = [str(self._uproject_path())]
+        if scene:
+            args.append(scene)
+        args += [
+            "-ExecCmds=WebControl.StartServer",  # auto-start Remote Control on :30010
+            "-nosplash",
+            "-notrace",
+            "-noxgecontroller",
+        ]
+        if render_offscreen:
+            args.append("-RenderOffscreen")
+        try:
+            proc = subprocess.Popen(  # noqa: S603 - detached live editor session
+                [cmd, *args],
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+                start_new_session=True,  # outlive the launcher (CLI returns, editor keeps running)
+                env={**os.environ},
+            )
+        except FileNotFoundError as exc:
+            raise EngineNotFoundError(self._NOT_FOUND.format(cmd=cmd)) from exc
+        return proc.pid
+
     def import_assets(self) -> RunResult:
         """Unreal imports assets through the editor/Interchange pipeline, not a CLI flag."""
         return RunResult(command=["unreal", "import"], returncode=0)

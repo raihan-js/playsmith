@@ -11,6 +11,7 @@ Command surface:
 from __future__ import annotations
 
 import re
+import time
 from pathlib import Path
 
 import typer
@@ -317,9 +318,9 @@ def unreal_check(
             f"[dim]{adapter.remote.host}[/]; using the slower headless commandlet path."
         )
         console.print(
-            "  To enable: open a generated project in the editor and run "
-            "[cyan]WebControl.StartServer[/] in the console (or Project Settings → Remote "
-            "Control → auto-start the web server). New projects already enable RemoteControl."
+            '  To enable: [cyan]playsmith unreal serve "<project>"[/] — opens the project in the '
+            "live editor with Remote Control on (one command). Or open it by hand and run "
+            "[cyan]WebControl.StartServer[/] in the console."
         )
 
 
@@ -531,6 +532,61 @@ def unreal_play(
         console.print(f"[bold red]{exc}[/]")
         raise typer.Exit(code=1) from exc
     console.print(f"[bold green]✓ Game launched[/] (pid {pid}).")
+
+
+@unreal_app.command("serve")
+def unreal_serve(
+    name: str = typer.Argument(..., help="The project (workspace folder) to open in the editor."),
+    genre: str = typer.Option("third-person", "--genre", "-g", help="Which template's level."),
+    config: str = typer.Option(None, "--config", "-c", help="Path to a config YAML."),
+    timeout: int = typer.Option(120, "--timeout", help="Seconds to wait for Remote Control."),
+) -> None:
+    """Turn editor-in-the-loop ON: open the project in the live editor with Remote Control.
+
+    Boots the full Unreal editor with the Remote Control web server, so `unreal new` / `unreal
+    dress` auto-route their authoring through the LIVE editor — which persists World Partition
+    deletions natively and renders real screenshots — instead of the slower headless commandlet.
+    The first boot compiles shaders (slow). Leave the editor running while you work; close it to
+    fall back to headless.
+    """
+    cfg = load_config(config)
+    tspec = template_clone.TEMPLATES.get(genre.lower())
+    if tspec is None:
+        console.print(f"[bold red]Unknown genre:[/] {genre}.")
+        raise typer.Exit(code=1)
+    slug = _slug(name)
+    project_dir = cfg.workspace_dir.expanduser() / slug
+    if not project_dir.is_dir():
+        console.print(f"[bold red]No project at[/] {project_dir}.")
+        console.print(f'Run `playsmith unreal new "{name}"` first.')
+        raise typer.Exit(code=1)
+    adapter = UnrealAdapter(project_dir, editor_cmd=cfg.engine.unreal.editor_cmd)
+    if adapter.remote.available():
+        console.print("[bold green]✓ Editor-in-the-loop already ON[/] — Remote Control reachable.")
+        return
+    console.print("Opening the editor (first boot compiles shaders — be patient) …")
+    try:
+        pid = adapter.launch_editor(scene=tspec.map_path)
+    except EngineNotFoundError as exc:
+        console.print(f"[bold red]{exc}[/]")
+        raise typer.Exit(code=1) from exc
+    console.print(
+        f"[dim]Editor launched (pid {pid}); waiting for Remote Control on "
+        f"{adapter.remote.host} …[/]"
+    )
+    deadline = time.monotonic() + timeout
+    while time.monotonic() < deadline:
+        if adapter.remote.available():
+            console.print(
+                "[bold green]✓ Editor-in-the-loop ON[/] — `unreal new` / `unreal dress` now author "
+                "in the live editor (World-Partition-correct, render-capable)."
+            )
+            return
+        time.sleep(2.0)
+    console.print(
+        f"[yellow]Editor launched (pid {pid}) but Remote Control didn't come up within "
+        f"{timeout}s.[/] It may still be compiling shaders — re-check with `unreal check`."
+    )
 
 
 @unreal_app.command("shot")

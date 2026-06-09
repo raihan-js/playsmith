@@ -181,6 +181,30 @@ def test_play_launches_windowed_game_detached(tmp_path, monkeypatch) -> None:
     assert captured["kwargs"].get("start_new_session") is True  # outlives the launcher
 
 
+def test_launch_editor_starts_remote_control_detached(tmp_path, monkeypatch) -> None:
+    adapter = UnrealAdapter(tmp_path / "proj")
+    adapter.create_project("G")
+    captured: dict = {}
+
+    class _FakeProc:
+        pid = 5151
+
+    def fake_popen(cmd, **kwargs):
+        captured["cmd"] = cmd
+        captured["kwargs"] = kwargs
+        return _FakeProc()
+
+    monkeypatch.setattr(subprocess, "Popen", fake_popen)
+    pid = adapter.launch_editor(scene="/Game/X/Map")
+    assert pid == 5151
+    # Boots the live editor with Remote Control on :30010 (so _author then routes through it).
+    assert any("WebControl.StartServer" in str(a) for a in captured["cmd"])
+    assert "/Game/X/Map" in captured["cmd"]
+    assert any(str(a).endswith(".uproject") for a in captured["cmd"])
+    assert captured["kwargs"].get("start_new_session") is True  # outlives the launcher
+    assert "-RenderOffscreen" not in captured["cmd"]  # default: needs a display, not offscreen
+
+
 def test_write_scene_refused_binary(tmp_path) -> None:
     from playsmith.engines.base import SceneSpec
 
