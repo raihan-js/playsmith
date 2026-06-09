@@ -5,18 +5,29 @@ from __future__ import annotations
 from playsmith.engines.unreal import critic, director
 
 
-def test_sparse_default_scores_low_with_feedback() -> None:
+def test_sparse_default_does_not_pass_and_gives_feedback() -> None:
     c = critic.critique(director.default_dressing(), size="medium")
-    assert c.score < critic.DEFAULT_TARGET_SCORE
-    assert not c.passed
+    assert not c.passed  # a sparse level can't pass — the density floor blocks it
+    assert c.dimensions["density"] < critic._DENSITY_FLOOR
     assert c.feedback  # tells the director what to add
     assert "Quality" in c.summary
 
 
-def test_rich_spread_level_scores_higher_than_sparse() -> None:
+def test_rich_spread_level_scores_higher_than_sparse_and_passes() -> None:
     sparse = critic.critique(director.default_dressing(), size="medium").score
     rich = director._augment(director.default_dressing(), size="large")
-    assert critic.critique(rich, size="large").score > sparse
+    crich = critic.critique(rich, {"objects_placed": True, "goal_exists": True}, size="large")
+    assert crich.score > sparse and crich.passed
+
+
+def test_zones_dimension_rewards_multiple_areas() -> None:
+    one_area = {"placements": [{"kind": "cube", "x": 100 + i, "y": 0, "z": 50, "role": "obstacle"}
+                              for i in range(8)]}
+    spread = director._augment(director.default_dressing(), size="large")
+    assert (
+        critic.critique(spread, size="large").dimensions["zones"]
+        > critic.critique(one_area, size="large").dimensions["zones"]
+    )
 
 
 def test_engine_assertions_gate_the_score() -> None:

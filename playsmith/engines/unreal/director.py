@@ -87,11 +87,12 @@ def _ask(prompt: str, genre: str, hints: dict | None = None) -> str:
         '"sx":<1-6>,"sy":<1-6>,"sz":<1-6>,"role":"obstacle|platform|goal|hazard|prop"}, ...\n'
         "  ]\n"
         "}\n"
-        "Colour components are 0..1. Use 12-24 placements arranged as 2-4 distinct areas along a "
-        "route from the player start (near origin) toward a clear goal — vary heights (z) so there "
-        "are platforms to climb, cluster cover and obstacles, and scatter collectibles between "
-        "them. Use jump_pad/target/door where they fit. Put exactly one placement with role "
-        "'goal', set far from the origin. Match lighting/fog to the mood."
+        "Colour components are 0..1. Use 16-28 placements grouped into 3-4 DISTINCT ZONES along a "
+        "route from the player start (near origin) to a clear goal — e.g. a starting clearing, a "
+        "climb (platforms at varied z), a hazard gauntlet, and a goal arena. Cluster cover and "
+        "obstacles, scatter collectibles between zones, and use jump_pad/target/door where they "
+        "fit. Put exactly one placement with role 'goal', set far from the origin (in the last "
+        "zone). Match lighting/fog to the mood."
     )
 
 
@@ -195,24 +196,32 @@ def plan_dressing(
 # Kinds/roles the deterministic augmenter cycles through for variety (all known-good palette refs).
 _AUGMENT_KINDS = ("cube", "ramp", "cylinder", "chamfer_cube", "quarter_cylinder", "jump_pad")
 _AUGMENT_ROLES = ("platform", "obstacle", "cover", "collectible", "hazard")
+# A route through 4 distinct areas (cm): a start clearing, a climb, a hazard gauntlet, a goal arena.
+_ZONE_CENTERS = ((650.0, 0.0), (1450.0, 650.0), (1800.0, -700.0), (2550.0, 0.0))
 
 
 def _augment(spec: dict, *, size: str | None = None) -> dict:
-    """Deterministically enrich a dressing: add a varied, vertical route until it hits the size
-    target, and guarantee exactly one far goal. Guarantees real progress with no LLM in the loop.
+    """Deterministically enrich a dressing into distinct, varied, vertical **zones** until it hits
+    the size target, guaranteeing exactly one far goal. Makes real progress with no LLM in the loop.
+
+    Spreads additions across :data:`_ZONE_CENTERS` (a designed route) rather than one straight line,
+    so the result reads as several areas — the multi-area feel the critic now rewards.
     """
     out = _sanitize(spec)  # normalize + clamp the incoming spec first
     placements = list(out["placements"])
     target_n = critic.target_count(size)
-    while len(placements) < min(target_n + 2, _MAX_PLACEMENTS):
+    while len(placements) < min(target_n + 4, _MAX_PLACEMENTS):
         k = len(placements)
+        cx, cy = _ZONE_CENTERS[k % len(_ZONE_CENTERS)]  # round-robin through the zones
+        ox = float((k * 53) % 420) - 210.0  # deterministic jitter within the zone
+        oy = float((k * 97) % 420) - 210.0
         kind = _AUGMENT_KINDS[k % len(_AUGMENT_KINDS)]
         role = _AUGMENT_ROLES[k % len(_AUGMENT_ROLES)]
-        x = min(_BOUND_XY - 200, 500.0 + 170.0 * k)  # march outward from the start
-        y = float((-1) ** k) * (200.0 + 90.0 * (k % 5))  # serpentine across the route
-        z = 50.0 + 110.0 * (k % 4)  # vary height -> verticality
-        placements.append(_place(kind, x, y, z, role, sx=1.5, sy=1.5, sz=1.0 + (k % 3)))
-    # Exactly one goal, set far out — demote any extras to props.
+        x = max(-_BOUND_XY + 150, min(_BOUND_XY - 150, cx + ox))
+        y = max(-_BOUND_XY + 150, min(_BOUND_XY - 150, cy + oy))
+        z = 50.0 + 100.0 * ((k // len(_ZONE_CENTERS)) % 4)  # layered heights -> verticality
+        placements.append(_place(kind, x, y, z, role, sx=1.4, sy=1.4, sz=1.0 + (k % 3)))
+    # Exactly one goal, set in the far zone — demote any extras to props.
     seen_goal = False
     for p in placements:
         if p.get("role") == "goal":
@@ -220,7 +229,8 @@ def _augment(spec: dict, *, size: str | None = None) -> dict:
                 p["role"] = "prop"
             seen_goal = True
     if not seen_goal:
-        placements.append(_place("target", min(_BOUND_XY - 100, 2500.0), 0.0, 120.0, "goal"))
+        gx, gy = _ZONE_CENTERS[-1]
+        placements.append(_place("target", gx, gy, 120.0, "goal"))
     out["placements"] = placements[:_MAX_PLACEMENTS]
     return out
 

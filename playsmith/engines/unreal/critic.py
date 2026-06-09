@@ -24,23 +24,27 @@ _TARGET_BY_SIZE = {"small": 10, "medium": 18, "large": 28}
 # single dressing pass (the "very basic" first-person game the user hit), and a few well-placed
 # objects shouldn't be able to "pass" on spread/lighting alone (see the density floor below).
 _WEIGHTS = {
-    "density": 0.30,
-    "variety": 0.20,
-    "spread": 0.14,
-    "verticality": 0.12,
-    "flow": 0.08,
+    "density": 0.28,
+    "variety": 0.18,
+    "spread": 0.12,
+    "verticality": 0.10,
+    "zones": 0.10,
+    "flow": 0.06,
     "goal": 0.10,
     "lighting": 0.06,
 }
 
 # A level must have real content to pass, not just be well-spread: density must clear this floor.
 _DENSITY_FLOOR = 0.55
+# Spatial bucket size (cm) for counting distinct "zones" / areas the level occupies.
+_ZONE_CELL = 700.0
 
 _TIPS = {
     "density": "Add more gameplay objects — the level feels sparse and empty.",
     "variety": "Use more object types and roles (cover, hazards, collectibles, platforms).",
     "spread": "Spread objects across the playfield — they're bunched up near the start.",
     "verticality": "Add platforms at varied heights so there's vertical interest to navigate.",
+    "zones": "Group the level into 3-4 distinct areas (a start, a climb, a gauntlet, a goal zone).",
     "flow": "Build a clear route from the start toward the goal, not a flat scatter.",
     "goal": "Place exactly one clear goal, set well away from the player start.",
     "lighting": "Set a stronger lighting mood (sun intensity/colour) to match the theme.",
@@ -71,6 +75,10 @@ def _dimensions(spec: dict, size: str | None) -> dict[str, float]:
     roles = {p.get("role") for p in placements}
     dists = [math.hypot(p.get("x", 0) or 0, p.get("y", 0) or 0) for p in placements] or [0.0]
     z_levels = {round((p.get("z", 0) or 0) / 100) for p in placements}
+    cells = {
+        (round((p.get("x", 0) or 0) / _ZONE_CELL), round((p.get("y", 0) or 0) / _ZONE_CELL))
+        for p in placements
+    }
     goals = [p for p in placements if p.get("role") == "goal"]
     sun = spec.get("sun") or {}
 
@@ -91,6 +99,7 @@ def _dimensions(spec: dict, size: str | None) -> dict[str, float]:
         "variety": min(1.0, (len(kinds) + len(roles)) / 10),
         "spread": min(1.0, max_dist / 2500),
         "verticality": min(1.0, len(z_levels) / 4),
+        "zones": min(1.0, len(cells) / 4),
         "flow": min(1.0, far / max(1.0, n * 0.6)),
         "goal": goal_score,
         "lighting": 1.0 if 1.0 <= intensity <= 12.0 else 0.4,
