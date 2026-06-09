@@ -363,6 +363,31 @@ async def api_gen_asset(name: str, request: Request) -> JSONResponse:
     )
 
 
+@app.post("/api/projects/{name}/asset/apply")
+async def api_apply_asset(name: str, request: Request) -> JSONResponse:
+    """Import a generated art PNG into the UE project as a texture + material, applied in-level."""
+    cfg = load_config()
+    project_dir = _project_dir(cfg.workspace_dir, name)
+    if project_dir is None:
+        return JSONResponse({"error": f"No such project: {name}"}, status_code=404)
+    try:
+        body = await request.json()
+    except (json.JSONDecodeError, ValueError):
+        body = {}
+    png = _art_dir(project_dir) / Path(body.get("asset") or "").name
+    if not png.is_file():
+        return JSONResponse({"error": "No such asset."}, status_code=404)
+    tspec = template_clone.TEMPLATES.get(_read_manifest(project_dir).get("genre", "third-person"))
+    if tspec is None:
+        return JSONResponse({"error": "Unknown genre for project."}, status_code=400)
+    adapter = UnrealAdapter(project_dir, editor_cmd=cfg.engine.unreal.editor_cmd)
+    try:
+        res = await asyncio.to_thread(adapter.apply_texture, png, tspec)
+    except (EngineError, OSError) as exc:
+        return JSONResponse({"error": str(exc)}, status_code=502)
+    return JSONResponse({"ok": bool(res.ok), "assertions": dict(res.assertions)})
+
+
 @app.get("/api/projects/{name}/asset-file/{fname}")
 def api_asset_file(name: str, fname: str):
     """Serve a generated art PNG (path-traversal safe)."""

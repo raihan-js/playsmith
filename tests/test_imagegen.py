@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import base64
+import json
 
 import pytest
 
@@ -140,3 +141,51 @@ def test_asset_file_path_traversal_safe(tmp_path, monkeypatch) -> None:
     _workspace_with_project(tmp_path, monkeypatch)
     resp = TestClient(app).get("/api/projects/my-game/asset-file/..%2f..%2fmanifest.json")
     assert resp.status_code == 404
+
+
+# -- apply art into the UE project --------------------------------------------------
+def test_import_and_apply_script_has_expected_calls() -> None:
+    from playsmith.engines.unreal import assets
+
+    s = assets.import_and_apply_script("/tmp/a.png", "/Game/X/Lvl")
+    assert "AssetImportTask" in s and "TextureFactory" in s  # import the PNG as a Texture2D
+    assert "create_material_expression" in s and "MP_BASE_COLOR" in s  # build a material
+    assert "set_material(0, mat)" in s  # apply it to the ground meshes
+    assert "/Game/X/Lvl" in s and "/tmp/a.png" in s
+    assert "PLAYSMITH_ASSERT texture_imported" in s
+    assert "PLAYSMITH_ASSERT material_applied" in s
+
+
+def test_apply_asset_endpoint(tmp_path, monkeypatch) -> None:
+    from types import SimpleNamespace
+
+    from playsmith.web import server as srv
+
+    ws = _workspace_with_project(tmp_path, monkeypatch)
+    proj = ws / "my-game"
+    (proj / ".playsmith").mkdir(parents=True, exist_ok=True)
+    (proj / ".playsmith" / "manifest.json").write_text(json.dumps({"genre": "third-person"}))
+    art = proj / "Saved" / "Playsmith" / "art"
+    art.mkdir(parents=True)
+    (art / "lava-1.png").write_bytes(b"\x89PNG")
+
+    class FakeAdapter:
+        def __init__(self, *a, **k) -> None:
+            pass
+
+        def apply_texture(self, png, tspec):
+            return SimpleNamespace(
+                ok=True, assertions={"texture_imported": True, "material_applied": True}
+            )
+
+    monkeypatch.setattr(srv, "UnrealAdapter", FakeAdapter)
+    client = TestClient(app)
+    ok = client.post("/api/projects/my-game/asset/apply", json={"asset": "lava-1.png"})
+    assert ok.status_code == 200 and ok.json()["ok"]
+    assert ok.json()["assertions"]["material_applied"] is True
+    assert client.post(
+        "/api/projects/my-game/asset/apply", json={"asset": "nope.png"}
+    ).status_code == 404
+    assert client.post(
+        "/api/projects/nope/asset/apply", json={"asset": "x.png"}
+    ).status_code == 404

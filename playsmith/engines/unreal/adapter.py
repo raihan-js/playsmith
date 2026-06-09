@@ -31,7 +31,7 @@ from playsmith.engines.base import (
     VerifyResult,
     parse_assert_lines,
 )
-from playsmith.engines.unreal import director, template_clone, templates
+from playsmith.engines.unreal import assets, director, template_clone, templates
 
 # Epic's Unreal EULA royalty terms (surfaced so users can plan for the cost).
 _ROYALTY_THRESHOLD = 1_000_000.0
@@ -230,6 +230,27 @@ class UnrealAdapter:
             out_file.unlink()
         result = self._run_python(
             director.character_script(spec, tspec.character_bp, tspec.character_dir),
+            timeout_s=600,
+            out_file=out_file,
+        )
+        assertions: dict[str, bool] = {}
+        if out_file.exists():
+            assertions = parse_assert_lines(out_file.read_text())
+        return VerifyResult(run=result, assertions=assertions)
+
+    def apply_texture(
+        self, png_path: str | os.PathLike[str], tspec: template_clone.TemplateSpec
+    ) -> VerifyResult:
+        """Import a generated PNG as a Texture2D, build a material, and apply it to the ground.
+
+        Brings generated art into the actual playable level (Stage B #4). Parses
+        ``texture_imported``/``material_applied``; best-effort — never breaks the project.
+        """
+        out_file = self.project_dir / "Saved" / "playsmith_assert.txt"
+        if out_file.exists():
+            out_file.unlink()
+        result = self._run_python(
+            assets.import_and_apply_script(str(png_path), tspec.map_path),
             timeout_s=600,
             out_file=out_file,
         )

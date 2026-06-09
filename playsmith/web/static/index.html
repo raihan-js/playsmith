@@ -1590,8 +1590,19 @@ function paintAssets(){
     <div class="asset">
       <div class="pv"><img src="${a.file}" alt="" style="width:100%;height:100%;object-fit:cover" /></div>
       <div class="am"><div class="an">${escapeHtml((a.prompt||a.name).slice(0,40))}</div>
-      <div class="ad">${escapeHtml(a.name)}</div></div>
+      <div class="ad">${escapeHtml(a.name)}</div>
+      <button class="btn sm" data-apply="${escapeAttr(a.name)}" style="margin-top:8px;width:100%">${svg(I.asset,1.6)}Apply to game</button></div>
     </div>`).join('');
+  grid.querySelectorAll('[data-apply]').forEach(b=>b.onclick=()=>applyAsset(b.dataset.apply,b));
+}
+async function applyAsset(name,btn){
+  const proj=S.activeProject; if(!proj) return;
+  const orig=btn.innerHTML; btn.disabled=true; btn.innerHTML='<div class="spin"></div>Applying in UE…';
+  const res=await postJSON('/api/projects/'+encodeURIComponent(proj)+'/asset/apply',{asset:name});
+  btn.disabled=false;
+  if(res&&res.ok){ btn.innerHTML='✓ Applied to the ground'; setTimeout(()=>{btn.innerHTML=orig;},3000); }
+  else { btn.innerHTML=(res&&res.error)?'Couldn’t apply':'Couldn’t apply'; btn.style.color='var(--fail)';
+    setTimeout(()=>{btn.innerHTML=orig;btn.style.color='';},3000); }
 }
 async function genAsset(){
   const proj=S.activeProject; if(!proj) return;
