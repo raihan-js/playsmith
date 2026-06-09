@@ -24,14 +24,15 @@ import json
 import re
 from pathlib import Path
 
-from fastapi import FastAPI, WebSocket, WebSocketDisconnect
+from fastapi import FastAPI, Request, WebSocket, WebSocketDisconnect
 from fastapi.responses import FileResponse, HTMLResponse, JSONResponse
 
-from playsmith.config import load_config
+from playsmith.config import load_config, save_runtime_patch
 from playsmith.engines.base import EngineError
 from playsmith.engines.unreal import director, template_clone
 from playsmith.engines.unreal.adapter import UnrealAdapter
 from playsmith.llm import LLMGateway
+from playsmith.llm import catalog as model_catalog
 
 _STATIC = Path(__file__).parent / "static"
 app = FastAPI(title="Playsmith")
@@ -147,6 +148,40 @@ def api_config() -> JSONResponse:
             "provider": cfg.llm.provider,
             "where": "local" if cfg.llm.is_local else "cloud",
             "workspace": str(cfg.workspace_dir),
+        }
+    )
+
+
+@app.get("/api/models")
+def api_models() -> JSONResponse:
+    """Providers + models for the Settings picker (live-discovers local Ollama models)."""
+    return JSONResponse(model_catalog.catalog(load_config()))
+
+
+@app.post("/api/config")
+async def api_set_config(request: Request) -> JSONResponse:
+    """Persist a provider/model pick (+ optional API key / base_url) from the Settings modal."""
+    try:
+        body = await request.json()
+    except (json.JSONDecodeError, ValueError):
+        body = {}
+    try:
+        patch = model_catalog.config_patch_for(
+            (body.get("provider") or "").strip(),
+            (body.get("model") or "").strip(),
+            body.get("api_key"),
+            body.get("base_url"),
+        )
+    except ValueError as exc:
+        return JSONResponse({"error": str(exc)}, status_code=400)
+    save_runtime_patch(patch)
+    cfg = load_config()
+    return JSONResponse(
+        {
+            "ok": True,
+            "model": cfg.llm.model,
+            "provider": cfg.llm.provider,
+            "where": "local" if cfg.llm.is_local else "cloud",
         }
     )
 
