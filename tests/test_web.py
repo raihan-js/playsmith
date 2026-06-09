@@ -161,6 +161,53 @@ def test_ws_build_streams_clone_verify_critic_done(tmp_path, monkeypatch) -> Non
     assert manifest["title"] == done["title"] and "quality" in manifest
 
 
+def test_ws_improve_streams_and_saves(tmp_path, monkeypatch) -> None:
+    """The 'keep improving' agent runs the refine loop on an existing project and saves quality."""
+    from types import SimpleNamespace
+
+    from playsmith.engines.unreal import director as drct
+    from playsmith.web import server as srv
+
+    ws = _tmp_workspace(tmp_path, monkeypatch)
+    proj = ws / "mygame"
+    (proj / ".playsmith").mkdir(parents=True)
+    (proj / "G.uproject").write_text("{}")
+    (proj / ".playsmith" / "manifest.json").write_text(
+        json.dumps({"genre": "third-person", "objective": "reach the goal"})
+    )
+
+    class FakeAdapter:
+        def __init__(self, *a, **k) -> None:
+            self.project_dir = proj
+
+        def dress_from_spec(self, spec, map_path):
+            return SimpleNamespace(
+                ok=True,
+                assertions={"level_loads": True, "objects_placed": True, "goal_exists": True},
+            )
+
+        def customize_character(self, spec, tspec):
+            return SimpleNamespace(ok=True, assertions={"character_customized": True})
+
+    monkeypatch.setattr(srv, "UnrealAdapter", FakeAdapter)
+    monkeypatch.setattr(srv.LLMGateway, "from_config", staticmethod(lambda cfg, **k: object()))
+    monkeypatch.setattr(drct, "plan_dressing",
+                        lambda *a, **k: drct._augment(drct.default_dressing(), size="large"))
+
+    with TestClient(app).websocket_connect("/ws") as sock:
+        sock.send_text(json.dumps({"action": "improve", "name": "mygame", "rounds": 2}))
+        seen, done = [], None
+        for _ in range(50):
+            msg = json.loads(sock.receive_text())
+            seen.append(msg["type"])
+            if msg["type"] == "done":
+                done = msg
+                break
+    assert "critic" in seen and done is not None and done["title"]
+    manifest = json.loads((proj / ".playsmith" / "manifest.json").read_text())
+    assert "quality" in manifest
+
+
 def test_ws_reports_errors_without_touching_unreal() -> None:
     client = TestClient(app)
     with client.websocket_connect("/ws") as ws:

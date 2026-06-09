@@ -802,7 +802,8 @@ function wsAction(payload,onEvent,onEnd){
   };
   ws.onerror=()=>{ onEvent&&onEvent({type:'error',text:'Lost connection to the server.'}); finish(); };
   ws.onclose=()=>finish();
-  return ()=>finish();
+  // cancel() ends the action; stop() asks the agent to wrap up after the current pass
+  return { cancel:()=>finish(), stop:()=>{ try{ws.send(JSON.stringify({action:'stop'}));}catch(_){ } } };
 }
 
 /* fetch JSON helper that won't throw the whole app on a hiccup */
@@ -991,6 +992,12 @@ function startEdit(project,prompt){
   addUserMsg(prompt,'Edit · '+project);
   runBuild({action:'dress',name:project,prompt,...buildOpts()});
 }
+function startImprove(project){
+  ensureConversation();
+  selectProject(project);
+  addUserMsg('Keep improving until it’s great','Improve · '+project);
+  runBuild({action:'improve',name:project,rounds:6});
+}
 /* the structured composer choices, only including the ones that are set */
 function buildOpts(){
   const o={size:S.opts.size};
@@ -1017,7 +1024,7 @@ function runBuild(payload){
   const head=card.querySelector('.build-head');
   let lastStep=null;
 
-  wsAction(payload,ev=>{
+  const handle = wsAction(payload,ev=>{
     if(ev.type==='start'){
       head.querySelector('#bh-sub').textContent = ev.action==='edit'?'editing '+ (ev.project||S.editTarget||''):'understanding your idea…';
     }
@@ -1058,10 +1065,11 @@ function runBuild(payload){
     else if(ev.type==='done'){
       finalizeStep(lastStep);
       renderResult(body,ev);
+      const sb=head.querySelector('.stopbtn'); if(sb) sb.remove();
       head.querySelector('.live').classList.add('done');
-      head.querySelector('.live').innerHTML='<span class="pulse"></span>Done';
-      head.querySelector('.t').firstChild.textContent='Game ready';
-      head.querySelector('#bh-sub').textContent=(ev.skill||'')+' · runs clean';
+      head.querySelector('.live').innerHTML='<span class="pulse"></span>'+(ev.stopped?'Stopped':'Done');
+      head.querySelector('.t').firstChild.textContent=ev.stopped?'Saved progress':'Game ready';
+      head.querySelector('#bh-sub').textContent=(ev.skill||'')+(ev.stopped?' · stopped':' · runs clean');
       // register/update project
       upsertProject(ev);
     }
@@ -1069,6 +1077,13 @@ function runBuild(payload){
   },()=>{
     S.building=false;$('#sendBtn').disabled=!$('#composer').value.trim();
   });
+  // 'Keep improving' is long-running — offer a Stop control in the card header.
+  if(payload.action==='improve'){
+    const stopBtn=document.createElement('button');
+    stopBtn.className='btn sm stopbtn';stopBtn.style.marginLeft='8px';stopBtn.textContent='Stop';
+    stopBtn.onclick=()=>{ handle.stop(); stopBtn.textContent='Stopping…'; stopBtn.disabled=true; };
+    head.appendChild(stopBtn);
+  }
 }
 function finalizeStep(step,failed){
   if(!step)return;const stat=step.querySelector('.stat');if(!stat)return;
@@ -1113,11 +1128,13 @@ function renderResult(body,ev){
     <div class="assert-row">${chips}</div>
     <div class="actions">
       <button class="btn primary" data-act="play">${svg(I.run,2)}Play it</button>
-      <button class="btn" data-act="files">${svg(I.code,1.8)}Open files</button>
+      <button class="btn" data-act="improve">${svg(I.spark,1.8)}Keep improving</button>
+      <button class="btn ghost" data-act="files">${svg(I.code,1.8)}Files</button>
       <button class="btn ghost" data-act="edit">${svg(I.patch,1.8)}Iterate</button>
     </div>`;
   body.appendChild(r);
   r.querySelector('[data-act="play"]').onclick=()=>{selectProject(ev.project);openTab('play');launchGame();};
+  r.querySelector('[data-act="improve"]').onclick=()=>{ if(!S.building) startImprove(ev.project); };
   r.querySelector('[data-act="files"]').onclick=()=>{selectProject(ev.project);openTab('files');};
   r.querySelector('[data-act="edit"]').onclick=()=>{S.editTarget=ev.project;setMode('edit');$('#composer').focus();};
 }
@@ -1157,6 +1174,7 @@ function renderProjects(){
     c.querySelector('[data-qa="play"]').onclick=e=>{e.stopPropagation();selectProject(n);openTab('play');launchGame();};
     c.querySelector('[data-qa="edit"]').onclick=e=>{e.stopPropagation();S.editTarget=n;setMode('edit');if(window.innerWidth<=920){$('#body').className='body show-chat';syncMobile('chat');}$('#composer').focus();};
     c.querySelector('[data-qa="files"]').onclick=e=>{e.stopPropagation();selectProject(n);openTab('files');};
+    c.querySelector('[data-qa="improve"]').onclick=e=>{e.stopPropagation();if(window.innerWidth<=920){$('#body').className='body show-chat';syncMobile('chat');}if(!S.building) startImprove(n);};
     c.querySelector('[data-qa="del"]').onclick=e=>{e.stopPropagation();const p=S.projects.find(x=>x.name===n);askDelete(n,(p&&p.title)||n);};
     c.onclick=()=>{selectProject(n);openTab('play');};
     // try to load a live preview thumbnail; falls back to the stripe placeholder on 404
@@ -1186,6 +1204,7 @@ function projCard(p){
       <p class="pr">${escapeHtml(p.prompt||'')}</p>
       <div class="card-actions">
         <button class="qa main" data-qa="play">${svg('<path d="M8 5v14l11-7L8 5Z"/>',0).replace('fill="none"','fill="currentColor"')}Play</button>
+        <button class="qa" data-qa="improve" title="Keep improving">${svg(I.spark,1.8)}</button>
         <button class="qa" data-qa="edit" title="Iterate">${svg(I.patch,1.8)}</button>
         <button class="qa" data-qa="files" title="Files">${svg(I.code,1.8)}</button>
         <button class="qa del" data-qa="del" title="Delete">${svg('<path d="M4 7h16M9 7V5a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2m2 0v12a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2V7"/>',1.8)}</button>

@@ -442,6 +442,16 @@ async def _handle(sock: WebSocket, req: dict) -> None:
         await _dress(sock, cfg, project_dir, name, prompt, genre, hints, _iters(req, hints))
         return
 
+    if action == "improve":
+        project_dir = _project_dir(workspace, req.get("name") or "")
+        if project_dir is None:
+            await _send(sock, type="error", text=f"No such project: {req.get('name')}")
+            return
+        rounds = req.get("rounds")
+        rounds = max(2, min(12, int(rounds))) if isinstance(rounds, (int, float)) and rounds else 6
+        await _improve(sock, cfg, project_dir, project_dir.name, rounds)
+        return
+
     if action == "render":
         await _render(sock, cfg, workspace, req.get("name") or "")
         return
@@ -514,8 +524,66 @@ async def _dress(sock, cfg, project_dir, name, prompt, genre, hints=None, max_it
     )
 
 
+async def _improve(sock, cfg, project_dir, name, rounds) -> None:
+    """The 'keep improving' background agent: many director→critic passes on an existing project.
+
+    Runs the refine loop with a higher pass budget, streaming each pass, and watches the socket for
+    a ``{"action":"stop"}`` message (or disconnect) to cancel cooperatively after the current pass.
+    """
+    manifest = _read_manifest(project_dir)
+    genre = (manifest.get("genre") or "third-person").lower()
+    tspec = template_clone.TEMPLATES.get(genre)
+    if tspec is None:
+        await _send(sock, type="error", text=f"Unknown genre: {genre}")
+        return
+    prompt = manifest.get("objective") or manifest.get("prompt") or name
+    adapter = UnrealAdapter(project_dir, editor_cmd=cfg.engine.unreal.editor_cmd)
+    await _send(sock, type="start", action="edit", prompt=prompt, project=name)
+    await _send(
+        sock, type="phase", text=f"Keep improving — up to {rounds} passes (Stop anytime)"
+    )
+
+    stop = {"v": False}
+
+    async def _watch() -> None:
+        try:
+            while not stop["v"]:
+                raw = await sock.receive_text()
+                try:
+                    if json.loads(raw).get("action") == "stop":
+                        stop["v"] = True
+                        return
+                except (json.JSONDecodeError, ValueError):
+                    continue
+        except Exception:  # noqa: BLE001 - a disconnect mid-run means "stop"
+            stop["v"] = True
+
+    watcher = asyncio.create_task(_watch())
+    try:
+        result = await _direct(
+            sock, cfg, adapter, prompt, genre, tspec, {}, rounds,
+            should_continue=lambda: not stop["v"],
+        )
+    finally:
+        watcher.cancel()
+
+    dressing, score = result.spec, (result.critique.score if result.critique else None)
+    _write_manifest(
+        project_dir, prompt=prompt, title=dressing.get("title"),
+        objective=dressing.get("objective"), theme=dressing.get("theme"),
+        character=dressing.get("character"), quality=score, iterations=result.iterations,
+    )
+    summary = f"{dressing.get('theme', '')} — {dressing.get('objective', '')}".strip(" —")
+    await _send(
+        sock, type="done", done=True, runs_clean=True, project=name, skill=genre,
+        title=dressing.get("title"), assertions={"objects_placed": True}, summary=summary,
+        quality=score, iterations=result.iterations, preview=f"/preview/{name}", playable=True,
+        stopped=stop["v"],
+    )
+
+
 async def _direct(
-    sock, cfg, adapter, prompt, genre, tspec, hints, max_iters
+    sock, cfg, adapter, prompt, genre, tspec, hints, max_iters, should_continue=None
 ) -> refine.RefineResult:
     """Run the director→critic refine loop in a worker thread, streaming each step to the socket.
 
@@ -550,7 +618,7 @@ async def _direct(
         try:
             return refine.refine(
                 plan=_plan, apply=_apply, critique=_critique, improve=_improve,
-                max_iters=max_iters, on_event=_on_event,
+                max_iters=max_iters, on_event=_on_event, should_continue=should_continue,
             )
         finally:
             loop.call_soon_threadsafe(queue.put_nowait, sentinel)
@@ -625,6 +693,8 @@ async def _stream_refine_event(sock, ev: dict) -> None:
             sock, type="phase",
             text=f"Critic sent it back — refining (pass {ev.get('iter', 1)})",
         )
+    elif kind == "stopped":
+        await _send(sock, type="phase", text="Stopped — keeping the latest version")
 
 
 async def _render(sock, cfg, workspace, name: str) -> None:

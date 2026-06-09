@@ -40,12 +40,15 @@ def refine(
     improve: Callable[[dict, Critique], dict],
     max_iters: int = 3,
     on_event: OnEvent | None = None,
+    should_continue: Callable[[], bool] | None = None,
 ) -> RefineResult:
     """Run plan → (apply → critique → improve)* until the critique passes or iterations run out.
 
     ``apply`` returns the engine's ``PLAYSMITH_ASSERT`` results (or ``None``); ``critique`` scores
     the spec against them; ``improve`` returns a richer spec for the next pass. Stops early the
-    moment a critique passes. Always returns the best (latest) spec — never raises for an empty run.
+    moment a critique passes — or when ``should_continue()`` returns False (a cooperative cancel for
+    the "keep improving" agent; checked after each pass, so the current pass always finishes).
+    Always returns the best (latest) spec — never raises for an empty run.
     """
     emit = on_event or (lambda _ev: None)
     max_iters = max(1, int(max_iters))
@@ -76,6 +79,9 @@ def refine(
             }
         )
         if crit.passed or i == max_iters:
+            break
+        if should_continue is not None and not should_continue():
+            emit({"kind": "stopped", "iter": i})
             break
 
         emit({"kind": "improving", "iter": i})

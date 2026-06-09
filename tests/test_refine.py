@@ -47,6 +47,28 @@ def test_loop_iterates_and_improves_until_cap() -> None:
     assert len(result.history) == 3 and result.critique.score == 60
 
 
+def test_should_continue_false_stops_after_current_pass() -> None:
+    events: list[dict] = []
+    crits = iter([_crit(40, False), _crit(45, False), _crit(50, False)])
+    calls = {"n": 0}
+
+    def cont() -> bool:
+        calls["n"] += 1
+        return calls["n"] < 2  # allow one improve, then ask to stop
+
+    result = refine.refine(
+        plan=lambda: {"placements": [0]},
+        apply=lambda spec: {},
+        critique=lambda spec, a: next(crits),
+        improve=lambda spec, c: {"placements": spec["placements"] + [0]},
+        max_iters=10,
+        on_event=events.append,
+        should_continue=cont,
+    )
+    assert result.iterations == 2  # stopped on the 2nd pass instead of running all 10
+    assert any(e["kind"] == "stopped" for e in events)
+
+
 def test_loop_clamps_iters_and_tolerates_no_on_event() -> None:
     result = refine.refine(
         plan=lambda: {"placements": []},
