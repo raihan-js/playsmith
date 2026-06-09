@@ -31,3 +31,6 @@ playsmith-games/
 # Docker secrets
 .env
 docs/design
+
+# Local planning (ultraplan output — kept locally, not tracked in the repo)
+plans/
