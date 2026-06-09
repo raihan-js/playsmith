@@ -55,13 +55,39 @@ def _slug(name: str) -> str:
     return s[:48] or "unreal-game"
 
 
+def _project_dir(workspace: Path, name: str) -> Path | None:
+    """Resolve an existing project folder by name — path-safe, exact name first.
+
+    Projects can be created by the web flow (short ``_slug`` names) OR the CLI (full untruncated
+    names), so re-slugging an existing name is lossy and was silently 404ing long-named projects
+    (delete/play/render). Match the exact directory name first (sanitised against traversal), then
+    fall back to the slug for loosely-typed names. Returns ``None`` if no real UE project matches.
+    """
+    workspace = workspace.expanduser().resolve()
+    for candidate in (Path(name).name, _slug(name)):  # exact folder, then slug fallback
+        if not candidate:
+            continue
+        target = (workspace / candidate).resolve()
+        if (
+            target.parent == workspace
+            and target.is_dir()
+            and next(target.glob("*.uproject"), None) is not None
+        ):
+            return target
+    return None
+
+
 def _proj_name(name: str) -> str:
     return re.sub(r"[^A-Za-z0-9]", "", name or "")[:40] or "Game"
 
 
 def _pretty(slug: str) -> str:
-    """A readable fallback title from a project slug (when no manifest title exists)."""
-    return " ".join(w.capitalize() for w in slug.replace("-", " ").split()) or slug
+    """A readable fallback title from a project slug (when no manifest title exists).
+
+    Capped to the first few words so old CLI projects (whose folder is the full prompt) don't show
+    a giant title; new builds get a real LLM-authored title in the manifest.
+    """
+    return " ".join(w.capitalize() for w in slug.replace("-", " ").split()[:6]) or slug
 
 
 # Structured composer fields the studio can pass so a prompt is more directive than one text line.
@@ -262,14 +288,8 @@ def api_projects() -> JSONResponse:
 def api_delete_project(name: str) -> JSONResponse:
     """Delete a generated UE project from the workspace (workspace-scoped, real-project only)."""
     cfg = load_config()
-    workspace = cfg.workspace_dir.expanduser().resolve()
-    target = (workspace / _slug(name)).resolve()
-    # Safety: only a direct child of the workspace that is a real UE project may be removed.
-    if (
-        target.parent != workspace
-        or not target.is_dir()
-        or next(target.glob("*.uproject"), None) is None
-    ):
+    target = _project_dir(cfg.workspace_dir, name)
+    if target is None:
         return JSONResponse({"error": f"No such project: {name}"}, status_code=404)
     shutil.rmtree(target, ignore_errors=True)
     return JSONResponse({"ok": True, "deleted": target.name})
@@ -278,8 +298,8 @@ def api_delete_project(name: str) -> JSONResponse:
 @app.get("/api/files/{name}")
 def api_files(name: str) -> JSONResponse:
     cfg = load_config()
-    project_dir = cfg.workspace_dir.expanduser() / _slug(name)
-    if not project_dir.is_dir():
+    project_dir = _project_dir(cfg.workspace_dir, name)
+    if project_dir is None:
         return JSONResponse({"files": []})
     return JSONResponse({"files": _project_files(project_dir)})
 
@@ -288,18 +308,20 @@ def api_files(name: str) -> JSONResponse:
 def api_assets(name: str) -> JSONResponse:
     """List the art generated into a project (newest first)."""
     cfg = load_config()
-    art_dir = _art_dir(cfg.workspace_dir.expanduser() / _slug(name))
+    project_dir = _project_dir(cfg.workspace_dir, name)
     out: list[dict] = []
-    if art_dir.is_dir():
-        for png in sorted(art_dir.glob("*.png"), reverse=True):
-            sidecar = art_dir / (png.name + ".txt")
-            out.append(
-                {
-                    "name": png.name,
-                    "prompt": sidecar.read_text(errors="ignore") if sidecar.exists() else "",
-                    "file": f"/api/projects/{_slug(name)}/asset-file/{png.name}",
-                }
-            )
+    if project_dir is not None:
+        art_dir = _art_dir(project_dir)
+        if art_dir.is_dir():
+            for png in sorted(art_dir.glob("*.png"), reverse=True):
+                sidecar = art_dir / (png.name + ".txt")
+                out.append(
+                    {
+                        "name": png.name,
+                        "prompt": sidecar.read_text(errors="ignore") if sidecar.exists() else "",
+                        "file": f"/api/projects/{name}/asset-file/{png.name}",
+                    }
+                )
     enabled = imagegen.resolve_image_provider(cfg) is not None
     return JSONResponse({"assets": out, "enabled": enabled})
 
@@ -308,8 +330,8 @@ def api_assets(name: str) -> JSONResponse:
 async def api_gen_asset(name: str, request: Request) -> JSONResponse:
     """Generate art from a prompt and save it into the project for import in the UE editor."""
     cfg = load_config()
-    project_dir = cfg.workspace_dir.expanduser() / _slug(name)
-    if not (project_dir.is_dir() and next(project_dir.glob("*.uproject"), None)):
+    project_dir = _project_dir(cfg.workspace_dir, name)
+    if project_dir is None:
         return JSONResponse({"error": f"No such project: {name}"}, status_code=404)
     provider = imagegen.resolve_image_provider(cfg)
     if provider is None:
@@ -337,7 +359,7 @@ async def api_gen_asset(name: str, request: Request) -> JSONResponse:
     (art_dir / (fname + ".txt")).write_text(prompt)  # remember the prompt for the gallery
     return JSONResponse(
         {"ok": True, "name": fname, "prompt": prompt,
-         "file": f"/api/projects/{_slug(name)}/asset-file/{fname}"}
+         "file": f"/api/projects/{name}/asset-file/{fname}"}
     )
 
 
@@ -345,7 +367,10 @@ async def api_gen_asset(name: str, request: Request) -> JSONResponse:
 def api_asset_file(name: str, fname: str):
     """Serve a generated art PNG (path-traversal safe)."""
     cfg = load_config()
-    art_dir = _art_dir(cfg.workspace_dir.expanduser() / _slug(name)).resolve()
+    project_dir = _project_dir(cfg.workspace_dir, name)
+    if project_dir is None:
+        return JSONResponse({"error": "no such asset"}, status_code=404)
+    art_dir = _art_dir(project_dir).resolve()
     target = (art_dir / Path(fname).name).resolve()
     if art_dir not in target.parents or not target.is_file():
         return JSONResponse({"error": "no such asset"}, status_code=404)
@@ -355,7 +380,10 @@ def api_asset_file(name: str, fname: str):
 @app.get("/preview/{name}")
 def preview(name: str):
     cfg = load_config()
-    png = cfg.workspace_dir.expanduser() / _slug(name) / "preview.png"
+    project_dir = _project_dir(cfg.workspace_dir, name)
+    if project_dir is None:
+        return JSONResponse({"error": "no preview"}, status_code=404)
+    png = project_dir / "preview.png"
     if not png.exists():
         return JSONResponse({"error": "no preview"}, status_code=404)
     return FileResponse(png, media_type="image/png")
@@ -403,11 +431,11 @@ async def _handle(sock: WebSocket, req: dict) -> None:
         return
 
     if action == "dress":
-        name = _slug(req.get("name") or "")
-        project_dir = workspace / name
-        if not (project_dir.is_dir() and next(project_dir.glob("*.uproject"), None)):
-            await _send(sock, type="error", text=f"No such project: {name}")
+        project_dir = _project_dir(workspace, req.get("name") or "")
+        if project_dir is None:
+            await _send(sock, type="error", text=f"No such project: {req.get('name')}")
             return
+        name = project_dir.name
         prompt = (req.get("prompt") or "").strip() or name
         genre = (_read_manifest(project_dir).get("genre") or _infer_genre(prompt)).lower()
         hints = _hints(req)
@@ -415,11 +443,11 @@ async def _handle(sock: WebSocket, req: dict) -> None:
         return
 
     if action == "render":
-        await _render(sock, cfg, workspace, _slug(req.get("name") or ""))
+        await _render(sock, cfg, workspace, req.get("name") or "")
         return
 
     if action == "play":
-        await _play(sock, cfg, workspace, _slug(req.get("name") or ""))
+        await _play(sock, cfg, workspace, req.get("name") or "")
         return
 
     await _send(sock, type="error", text=f"Unknown action: {action}")
@@ -564,11 +592,14 @@ async def _stream_refine_event(sock, ev: dict) -> None:
 
 
 async def _render(sock, cfg, workspace, name: str) -> None:
-    project_dir = workspace / name
-    tspec = template_clone.TEMPLATES.get(_read_manifest(project_dir).get("genre", "third-person"))
-    if not (project_dir.is_dir() and next(project_dir.glob("*.uproject"), None)) or tspec is None:
+    project_dir = _project_dir(workspace, name)
+    tspec = template_clone.TEMPLATES.get(
+        _read_manifest(project_dir).get("genre", "third-person") if project_dir else ""
+    )
+    if project_dir is None or tspec is None:
         await _send(sock, type="error", text=f"No such project: {name}")
         return
+    name = project_dir.name
     adapter = UnrealAdapter(project_dir, editor_cmd=cfg.engine.unreal.editor_cmd)
     await _send(sock, type="phase", text="Rendering a preview (first render compiles shaders)")
     await asyncio.to_thread(
@@ -586,11 +617,14 @@ async def _render(sock, cfg, workspace, name: str) -> None:
 
 
 async def _play(sock, cfg, workspace, name: str) -> None:
-    project_dir = workspace / name
-    tspec = template_clone.TEMPLATES.get(_read_manifest(project_dir).get("genre", "third-person"))
-    if not (project_dir.is_dir() and next(project_dir.glob("*.uproject"), None)) or tspec is None:
+    project_dir = _project_dir(workspace, name)
+    tspec = template_clone.TEMPLATES.get(
+        _read_manifest(project_dir).get("genre", "third-person") if project_dir else ""
+    )
+    if project_dir is None or tspec is None:
         await _send(sock, type="error", text=f"No such project: {name}")
         return
+    name = project_dir.name
     adapter = UnrealAdapter(project_dir, editor_cmd=cfg.engine.unreal.editor_cmd)
     await _send(sock, type="phase", text="Launching the game window (WASD + mouse) …")
     pid = await asyncio.to_thread(adapter.play, scene=tspec.map_path)

@@ -78,6 +78,18 @@ def test_delete_project_is_workspace_scoped(tmp_path, monkeypatch) -> None:
     assert not proj.exists()
 
 
+def test_delete_handles_long_cli_names(tmp_path, monkeypatch) -> None:
+    """Regression: CLI-made projects have full untruncated folder names; delete must still work."""
+    ws = _tmp_workspace(tmp_path, monkeypatch)
+    longname = "make-a-survival-simulation-where-a-player-is-stranded-on-an-island-" + "x" * 40
+    proj = ws / longname
+    proj.mkdir()
+    (proj / "G.uproject").write_text("{}")
+    assert _slug(longname) != longname  # the bug: re-slugging would truncate and never match
+    resp = TestClient(app).delete("/api/projects/" + longname)
+    assert resp.status_code == 200 and not proj.exists()
+
+
 def test_config_and_skills_endpoints() -> None:
     client = TestClient(app)
     cfg = client.get("/api/config").json()
