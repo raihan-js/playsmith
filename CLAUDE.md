@@ -102,15 +102,23 @@ user prompt
 ```
 
 Module boundaries under `playsmith/`:
-- `playsmith/llm/` — provider abstraction + model router + reliability eval (`gateway`, `anthropic`, `eval`)
+- `playsmith/llm/` — provider abstraction + model router + reliability eval + model `catalog` (for the
+  studio's switcher) + `imagegen` (art) (`gateway`, `anthropic`, `eval`, `catalog`, `imagegen`)
 - `playsmith/agent/` — the agentic loop, tool definitions, diff approval
-- `playsmith/engines/` — `EngineAdapter` interface + `unreal/` (adapter, level_director, templates)
+- `playsmith/engines/` — `EngineAdapter` interface + `unreal/` (adapter, `director`, `critic`, `refine`,
+  `template_clone`, templates)
 - `playsmith/skills/` — SKILL.md loader (progressive disclosure) + secure marketplace registry
-- `playsmith/cli/` — Typer/Rich entrypoints (`version`, `config-check`, `models`, `skills`, `unreal`)
+- `playsmith/web/` — FastAPI studio (`server.py` + a single self-contained `static/index.html`)
+- `playsmith/cli/` — Typer/Rich entrypoints (`version`, `config-check`, `models`, `skills`, `unreal`, `web`)
+
+The **director→critic loop now exists** (headless): `director.plan_dressing`/`improve_dressing` +
+`critic.critique` (a rubric over the dressing spec + `PLAYSMITH_ASSERT` reality signals) driven by
+`refine.refine`, surfaced live in the studio and the CLI. Still forthcoming: a **vision** critic that
+scores real rendered screenshots, richer multi-scene content, and a UE-native publish path.
 
 Removed in the re-founding (do not resurrect without asking): `engines/godot/`, the GDScript genre
-skills, `studio.py`, `web/`, `publish/`, `assets/`, the Docker stack. The director/critic loop and a
-UE-native publish path are forthcoming (stages 3–4).
+skills, `studio.py`, `publish/`, `assets/`, the Docker stack. (The web UI was later rebuilt Unreal-first
+as `playsmith/web/` — that one is current, not removed.)
 
 ---
 
