@@ -31,7 +31,7 @@ from playsmith.engines.base import (
     VerifyResult,
     parse_assert_lines,
 )
-from playsmith.engines.unreal import template_clone, templates
+from playsmith.engines.unreal import director, template_clone, templates
 
 # Epic's Unreal EULA royalty terms (surfaced so users can plan for the cost).
 _ROYALTY_THRESHOLD = 1_000_000.0
@@ -197,6 +197,24 @@ class UnrealAdapter:
         return template_clone.clone_template(
             genre, self.project_dir, ue_root=ue_root, project_name=project_name
         )
+
+    def dress_from_spec(self, spec: dict, map_path: str) -> VerifyResult:
+        """Apply a director dressing spec to the cloned template's level (Stage 3 'act' step).
+
+        Adds the spec's gameplay objects + lighting ADDITIVELY to the real template level and saves
+        it, then parses the harness's ``PLAYSMITH_ASSERT`` lines (level_loads, objects_placed,
+        goal_exists, placed_count). The dressed level becomes what opens/plays in the project.
+        """
+        out_file = self.project_dir / "Saved" / "playsmith_assert.txt"
+        if out_file.exists():
+            out_file.unlink()
+        result = self._run_python(
+            director.dress_level_script(spec, map_path), timeout_s=600, out_file=out_file
+        )
+        assertions: dict[str, bool] = {}
+        if out_file.exists():
+            assertions = parse_assert_lines(out_file.read_text())
+        return VerifyResult(run=result, assertions=assertions)
 
     def verify_template(self, spec: template_clone.TemplateSpec) -> VerifyResult:
         """Verify a cloned template is a real playable project (map loads, character resolved).
