@@ -455,6 +455,21 @@ def unreal_shot(
         raise typer.Exit(code=1)
 
 
+@app.command()
+def web(
+    host: str = typer.Option("127.0.0.1", "--host", help="Bind host."),
+    port: int = typer.Option(8000, "--port", help="Bind port."),
+) -> None:
+    """Launch the web UI (prompt → clone → dress → render). Needs the `web` extra."""
+    try:
+        import uvicorn
+    except ModuleNotFoundError as exc:
+        console.print('[bold red]The web UI needs extra deps.[/] Install: pip install -e ".[web]"')
+        raise typer.Exit(code=1) from exc
+    console.print(f"Playsmith web UI → [bold cyan]http://localhost:{port}[/]  (Ctrl-C to stop)")
+    uvicorn.run("playsmith.web.server:app", host=host, port=port, log_level="warning")
+
+
 def main() -> None:
     """Console-script entrypoint."""
     app()

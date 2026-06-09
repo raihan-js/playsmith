@@ -1,0 +1,795 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Playsmith</title>
+<style>
+  :root {
+    --bg:        #0d0f14;
+    --bg-2:      #13161d;
+    --panel:     #171b24;
+    --panel-2:   #1d222d;
+    --border:    #262c38;
+    --border-2:  #313847;
+    --text:      #e6e9ef;
+    --text-dim:  #9aa3b2;
+    --text-mute: #6b7484;
+    --accent:    #6d8bff;
+    --accent-2:  #5673f0;
+    --accent-soft:#6d8bff22;
+    --error:     #ff6b6b;
+    --error-bg:  #ff6b6b18;
+    --ok:        #4ade80;
+    --radius:    14px;
+    --radius-sm: 9px;
+  }
+
+  * { box-sizing: border-box; }
+
+  html, body {
+    margin: 0;
+    height: 100%;
+  }
+
+  body {
+    background:
+      radial-gradient(1100px 600px at 80% -10%, #1a2340 0%, transparent 55%),
+      radial-gradient(900px 500px at -10% 110%, #15233a 0%, transparent 50%),
+      var(--bg);
+    color: var(--text);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    font-size: 15px;
+    line-height: 1.5;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  .wrap {
+    max-width: 1320px;
+    margin: 0 auto;
+    padding: 28px 28px 56px;
+  }
+
+  /* ---------- header ---------- */
+  header {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    padding: 6px 2px 26px;
+  }
+  .logo {
+    width: 42px; height: 42px;
+    border-radius: 12px;
+    background: linear-gradient(140deg, var(--accent) 0%, var(--accent-2) 100%);
+    display: grid; place-items: center;
+    box-shadow: 0 6px 20px -6px var(--accent);
+    flex: none;
+  }
+  .logo svg { width: 22px; height: 22px; display: block; }
+  .title h1 {
+    margin: 0;
+    font-size: 23px;
+    font-weight: 650;
+    letter-spacing: -0.3px;
+  }
+  .title p {
+    margin: 2px 0 0;
+    font-size: 13.5px;
+    color: var(--text-dim);
+  }
+  .conn {
+    margin-left: auto;
+    display: flex; align-items: center; gap: 8px;
+    font-size: 12.5px;
+    color: var(--text-dim);
+    padding: 7px 13px;
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 999px;
+  }
+  .dot {
+    width: 8px; height: 8px; border-radius: 50%;
+    background: var(--text-mute);
+    box-shadow: 0 0 0 0 transparent;
+  }
+  .conn.online .dot { background: var(--ok); box-shadow: 0 0 8px var(--ok); }
+  .conn.offline .dot { background: var(--error); box-shadow: 0 0 8px var(--error); }
+
+  /* ---------- layout ---------- */
+  .grid {
+    display: grid;
+    grid-template-columns: 230px minmax(0, 1fr) minmax(0, 1.05fr);
+    gap: 20px;
+    align-items: start;
+  }
+  @media (max-width: 1080px) {
+    .grid { grid-template-columns: 1fr; }
+  }
+
+  .card {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 18px;
+  }
+  .card h2 {
+    margin: 0 0 14px;
+    font-size: 12px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.8px;
+    color: var(--text-mute);
+  }
+
+  /* ---------- form controls ---------- */
+  label.field { display: block; margin-bottom: 14px; }
+  label.field .lbl {
+    display: block;
+    margin-bottom: 7px;
+    font-size: 13px;
+    color: var(--text-dim);
+    font-weight: 500;
+  }
+  textarea, select {
+    width: 100%;
+    background: var(--bg-2);
+    color: var(--text);
+    border: 1px solid var(--border-2);
+    border-radius: var(--radius-sm);
+    padding: 12px 13px;
+    font-family: inherit;
+    font-size: 14.5px;
+    resize: vertical;
+    outline: none;
+    transition: border-color .15s, box-shadow .15s;
+  }
+  textarea { min-height: 118px; line-height: 1.55; }
+  select {
+    appearance: none;
+    background-image:
+      url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'><path d='M1 1l5 5 5-5' stroke='%239aa3b2' stroke-width='1.6' fill='none' stroke-linecap='round' stroke-linejoin='round'/></svg>");
+    background-repeat: no-repeat;
+    background-position: right 13px center;
+    padding-right: 34px;
+    cursor: pointer;
+  }
+  textarea:focus, select:focus {
+    border-color: var(--accent);
+    box-shadow: 0 0 0 3px var(--accent-soft);
+  }
+
+  .check {
+    display: flex; align-items: center; gap: 10px;
+    cursor: pointer;
+    user-select: none;
+    margin-bottom: 16px;
+    font-size: 14px;
+    color: var(--text-dim);
+  }
+  .check input { position: absolute; opacity: 0; pointer-events: none; }
+  .box {
+    width: 20px; height: 20px; flex: none;
+    border-radius: 6px;
+    border: 1px solid var(--border-2);
+    background: var(--bg-2);
+    display: grid; place-items: center;
+    transition: background .15s, border-color .15s;
+  }
+  .box svg { width: 12px; height: 12px; opacity: 0; transition: opacity .12s; }
+  .check input:checked + .box {
+    background: var(--accent);
+    border-color: var(--accent);
+  }
+  .check input:checked + .box svg { opacity: 1; }
+  .check input:focus-visible + .box { box-shadow: 0 0 0 3px var(--accent-soft); }
+
+  /* ---------- buttons ---------- */
+  button {
+    font-family: inherit;
+    cursor: pointer;
+    border: none;
+    border-radius: var(--radius-sm);
+    font-size: 14.5px;
+    font-weight: 600;
+    transition: background .15s, opacity .15s, border-color .15s, transform .05s;
+  }
+  button:active:not(:disabled) { transform: translateY(1px); }
+  button:disabled { opacity: .5; cursor: not-allowed; }
+
+  .btn-primary {
+    width: 100%;
+    padding: 13px;
+    color: #fff;
+    background: linear-gradient(140deg, var(--accent) 0%, var(--accent-2) 100%);
+    display: flex; align-items: center; justify-content: center; gap: 9px;
+  }
+  .btn-primary:hover:not(:disabled) { filter: brightness(1.08); }
+
+  .btn-ghost {
+    padding: 10px 15px;
+    color: var(--text);
+    background: var(--panel-2);
+    border: 1px solid var(--border-2);
+  }
+  .btn-ghost:hover:not(:disabled) { border-color: var(--accent); color: #fff; }
+
+  /* ---------- spinner ---------- */
+  .spinner {
+    width: 15px; height: 15px;
+    border: 2px solid #ffffff55;
+    border-top-color: #fff;
+    border-radius: 50%;
+    animation: spin .7s linear infinite;
+    display: none;
+  }
+  .working .spinner { display: inline-block; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  /* ---------- projects sidebar ---------- */
+  .projects { display: flex; flex-direction: column; gap: 6px; max-height: 70vh; overflow-y: auto; }
+  .proj {
+    display: flex; align-items: center; gap: 9px;
+    padding: 10px 11px;
+    border-radius: var(--radius-sm);
+    border: 1px solid transparent;
+    cursor: pointer;
+    transition: background .12s, border-color .12s;
+    font-size: 14px;
+  }
+  .proj:hover { background: var(--panel-2); }
+  .proj.active { background: var(--accent-soft); border-color: var(--accent); }
+  .proj .name {
+    flex: 1; min-width: 0;
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  }
+  .proj .pdot {
+    width: 7px; height: 7px; border-radius: 50%; flex: none;
+    background: var(--border-2);
+  }
+  .proj.has-preview .pdot { background: var(--ok); box-shadow: 0 0 6px var(--ok); }
+  .empty { color: var(--text-mute); font-size: 13.5px; padding: 8px 2px; }
+
+  /* ---------- log ---------- */
+  .log {
+    background: #0a0c11;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    padding: 13px 14px;
+    font-family: ui-monospace, "SF Mono", "JetBrains Mono", Menlo, Consolas, monospace;
+    font-size: 12.7px;
+    line-height: 1.65;
+    height: 240px;
+    overflow-y: auto;
+    white-space: pre-wrap;
+    word-break: break-word;
+    color: var(--text-dim);
+  }
+  .log .line { padding: 1px 0; }
+  .log .line.err { color: var(--error); }
+  .log .line.sys { color: var(--text-mute); font-style: italic; }
+  .log .ts { color: var(--text-mute); margin-right: 8px; }
+  .log-empty { color: var(--text-mute); }
+
+  .status-bar {
+    display: flex; align-items: center; gap: 9px;
+    margin-top: 12px; min-height: 20px;
+    font-size: 13px; color: var(--text-dim);
+  }
+  .status-bar .spin2 {
+    width: 14px; height: 14px;
+    border: 2px solid var(--border-2);
+    border-top-color: var(--accent);
+    border-radius: 50%;
+    animation: spin .7s linear infinite;
+  }
+
+  /* ---------- preview ---------- */
+  .preview-head {
+    display: flex; align-items: center; justify-content: space-between; gap: 12px;
+    margin-bottom: 14px;
+  }
+  .preview-head h2 { margin: 0; }
+  .preview-sel {
+    font-size: 13px; color: var(--text-dim);
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+    max-width: 240px;
+  }
+  .preview-stage {
+    position: relative;
+    border-radius: var(--radius-sm);
+    overflow: hidden;
+    background:
+      repeating-linear-gradient(45deg, #14171f 0 12px, #11141b 12px 24px);
+    border: 1px solid var(--border);
+    aspect-ratio: 16 / 9;
+    display: grid; place-items: center;
+  }
+  .preview-stage img {
+    width: 100%; height: 100%; object-fit: contain; display: none;
+  }
+  .preview-stage.has-img img { display: block; }
+  .preview-stage.has-img .placeholder { display: none; }
+  .placeholder {
+    text-align: center; padding: 26px; color: var(--text-mute);
+    display: flex; flex-direction: column; align-items: center; gap: 14px;
+  }
+  .placeholder svg { width: 46px; height: 46px; opacity: .5; }
+  .placeholder p { margin: 0; font-size: 13.5px; max-width: 280px; }
+
+  .note {
+    margin-top: 14px;
+    background: var(--accent-soft);
+    border: 1px solid var(--accent);
+    border-radius: var(--radius-sm);
+    padding: 12px 13px;
+    font-size: 13px;
+    color: #c9d3ff;
+    display: none;
+  }
+  .note.show { display: block; }
+  .note strong { color: #fff; }
+  .note .sub { display: block; margin-top: 6px; color: #aab6ee; font-size: 12.5px; }
+
+  .preview-actions { margin-top: 14px; display: flex; gap: 10px; }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <header>
+    <div class="logo">
+      <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <path d="M8 5v14l11-7L8 5z" fill="#fff"/>
+      </svg>
+    </div>
+    <div class="title">
+      <h1>Playsmith</h1>
+      <p>prompt &rarr; a real Unreal Engine game</p>
+    </div>
+    <div class="conn offline" id="conn">
+      <span class="dot"></span>
+      <span id="connText">connecting&hellip;</span>
+    </div>
+  </header>
+
+  <div class="grid">
+
+    <!-- ===== projects sidebar ===== -->
+    <aside class="card">
+      <h2>Projects</h2>
+      <div class="projects" id="projects">
+        <div class="empty">Loading&hellip;</div>
+      </div>
+    </aside>
+
+    <!-- ===== center: build + log ===== -->
+    <section>
+      <div class="card" style="margin-bottom:20px;">
+        <h2>Build a game</h2>
+
+        <label class="field">
+          <span class="lbl">Prompt</span>
+          <textarea id="prompt" placeholder="a third-person parkour course with jump pads over lava"></textarea>
+        </label>
+
+        <label class="field">
+          <span class="lbl">Genre</span>
+          <select id="genre"></select>
+        </label>
+
+        <label class="check">
+          <input type="checkbox" id="dress" checked />
+          <span class="box">
+            <svg viewBox="0 0 12 12" fill="none"><path d="M2 6.2l2.6 2.6L10 3" stroke="#fff" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          </span>
+          <span>Dress the level <span style="color:var(--text-mute)">(place themed objects from your prompt)</span></span>
+        </label>
+
+        <button class="btn-primary" id="buildBtn">
+          <span class="spinner"></span>
+          <span class="label">Build game</span>
+        </button>
+      </div>
+
+      <div class="card">
+        <h2>Live log</h2>
+        <div class="log" id="log"><span class="log-empty">Waiting for activity&hellip;</span></div>
+        <div class="status-bar" id="statusBar"></div>
+      </div>
+    </section>
+
+    <!-- ===== preview ===== -->
+    <section class="card">
+      <div class="preview-head">
+        <h2>Preview</h2>
+        <span class="preview-sel" id="previewSel">No project selected</span>
+      </div>
+
+      <div class="preview-stage" id="stage">
+        <img id="previewImg" alt="rendered preview" />
+        <div class="placeholder" id="placeholder">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+            <rect x="3" y="4" width="18" height="14" rx="2"/>
+            <circle cx="8.5" cy="9.5" r="1.5"/>
+            <path d="M21 15l-5-5L5 18" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+          <p id="placeholderText">Select a project and render a preview to see it here.</p>
+        </div>
+      </div>
+
+      <div class="preview-actions">
+        <button class="btn-ghost" id="renderBtn" disabled>
+          <span>Render preview</span>
+        </button>
+      </div>
+
+      <div class="note" id="note"></div>
+    </section>
+
+  </div>
+</div>
+
+<script>
+"use strict";
+(function () {
+  // ---------------- state ----------------
+  var ws = null;
+  var wsReady = false;
+  var busy = false;            // a build/render is in flight
+  var reconnectTimer = null;
+  var genresLoaded = false;
+  var projects = [];           // [{name, has_preview}]
+  var selected = null;         // slug string
+
+  // ---------------- elements ----------------
+  var el = {
+    conn:        document.getElementById("conn"),
+    connText:    document.getElementById("connText"),
+    projects:    document.getElementById("projects"),
+    prompt:      document.getElementById("prompt"),
+    genre:       document.getElementById("genre"),
+    dress:       document.getElementById("dress"),
+    buildBtn:    document.getElementById("buildBtn"),
+    log:         document.getElementById("log"),
+    statusBar:   document.getElementById("statusBar"),
+    stage:       document.getElementById("stage"),
+    previewImg:  document.getElementById("previewImg"),
+    placeholder: document.getElementById("placeholder"),
+    placeholderText: document.getElementById("placeholderText"),
+    previewSel:  document.getElementById("previewSel"),
+    renderBtn:   document.getElementById("renderBtn"),
+    note:        document.getElementById("note"),
+  };
+
+  // ---------------- log helpers ----------------
+  function clearLogPlaceholder() {
+    var ph = el.log.querySelector(".log-empty");
+    if (ph) el.log.innerHTML = "";
+  }
+  function now() {
+    var d = new Date();
+    function p(n) { return (n < 10 ? "0" : "") + n; }
+    return p(d.getHours()) + ":" + p(d.getMinutes()) + ":" + p(d.getSeconds());
+  }
+  function logLine(text, kind) {
+    clearLogPlaceholder();
+    var line = document.createElement("div");
+    line.className = "line" + (kind ? " " + kind : "");
+    var ts = document.createElement("span");
+    ts.className = "ts";
+    ts.textContent = now();
+    line.appendChild(ts);
+    line.appendChild(document.createTextNode(text));
+    el.log.appendChild(line);
+    el.log.scrollTop = el.log.scrollHeight;
+  }
+
+  // ---------------- busy / status ----------------
+  function setBusy(on, label) {
+    busy = on;
+    el.buildBtn.disabled = on;
+    el.buildBtn.classList.toggle("working", on);
+    updateRenderBtn();
+
+    if (on) {
+      el.statusBar.innerHTML = "";
+      var s = document.createElement("span");
+      s.className = "spin2";
+      var t = document.createElement("span");
+      t.textContent = label || "working…";
+      el.statusBar.appendChild(s);
+      el.statusBar.appendChild(t);
+    } else {
+      el.statusBar.textContent = "";
+    }
+  }
+
+  function updateRenderBtn() {
+    el.renderBtn.disabled = busy || !selected || !wsReady;
+  }
+
+  // ---------------- websocket ----------------
+  function wsUrl() {
+    var proto = location.protocol === "https:" ? "wss:" : "ws:";
+    return proto + "//" + location.host + "/ws";
+  }
+
+  function connect() {
+    setConn("connecting", "connecting…");
+    try {
+      ws = new WebSocket(wsUrl());
+    } catch (e) {
+      scheduleReconnect();
+      return;
+    }
+
+    ws.onopen = function () {
+      wsReady = true;
+      setConn("online", "connected");
+      updateRenderBtn();
+    };
+
+    ws.onmessage = function (ev) {
+      var msg;
+      try { msg = JSON.parse(ev.data); } catch (e) { return; }
+      handleMessage(msg);
+    };
+
+    ws.onerror = function () {
+      // onclose will follow and handle reconnect
+    };
+
+    ws.onclose = function () {
+      wsReady = false;
+      setConn("offline", "disconnected");
+      if (busy) {
+        logLine("Connection lost during operation — reconnecting…", "err");
+        setBusy(false);
+      }
+      updateRenderBtn();
+      scheduleReconnect();
+    };
+  }
+
+  function scheduleReconnect() {
+    if (reconnectTimer) return;
+    reconnectTimer = setTimeout(function () {
+      reconnectTimer = null;
+      connect();
+    }, 2000);
+  }
+
+  function setConn(cls, text) {
+    el.conn.className = "conn " + cls;
+    el.connText.textContent = text;
+  }
+
+  function send(obj) {
+    if (!ws || ws.readyState !== WebSocket.OPEN) {
+      logLine("Not connected to the server. Please wait for reconnection.", "err");
+      return false;
+    }
+    ws.send(JSON.stringify(obj));
+    return true;
+  }
+
+  // ---------------- message handling ----------------
+  function handleMessage(msg) {
+    if (!msg || !msg.type) return;
+
+    if (msg.type === "log") {
+      logLine(msg.text || "", null);
+
+    } else if (msg.type === "error") {
+      logLine(msg.text || "Unknown error", "err");
+      setBusy(false);
+
+    } else if (msg.type === "done") {
+      setBusy(false);
+      var slug = msg.project;
+      var ok = msg.ok;
+      logLine(ok ? "✓ Done." : "Finished with warnings.", "sys");
+
+      // refresh list, then select the project from this run
+      refreshProjects().then(function () {
+        if (slug) {
+          selectProject(slug, /*loadPreview=*/true, /*forceBust=*/true);
+        }
+        // show the post-build guidance note
+        showNote();
+      });
+    }
+  }
+
+  // ---------------- note ----------------
+  function showNote() {
+    el.note.innerHTML =
+      "<strong>Open the project in the Unreal editor to play the full dressed level.</strong>" +
+      "<span class='sub'>The quick preview render may not show every placed object yet — " +
+      "World Partition streams them in the editor. Also note: the first render compiles shaders " +
+      "and can take a few minutes.</span>";
+    el.note.classList.add("show");
+  }
+
+  // ---------------- preview ----------------
+  function showPreview(slug, bust) {
+    var src = "/preview/" + encodeURIComponent(slug) + "?t=" + Date.now();
+    el.previewImg.onload = function () {
+      el.stage.classList.add("has-img");
+    };
+    el.previewImg.onerror = function () {
+      el.stage.classList.remove("has-img");
+      el.placeholderText.textContent =
+        "No preview rendered yet for this project. Click “Render preview” below " +
+        "(the first render compiles shaders and can take a few minutes).";
+    };
+    el.previewImg.src = src;
+  }
+
+  function clearPreview(text) {
+    el.stage.classList.remove("has-img");
+    el.previewImg.removeAttribute("src");
+    el.placeholderText.textContent = text ||
+      "Select a project and render a preview to see it here.";
+  }
+
+  // ---------------- projects ----------------
+  function refreshProjects() {
+    return fetch("/api/projects")
+      .then(function (r) { return r.json(); })
+      .then(function (data) {
+        projects = (data && data.projects) || [];
+        renderProjects();
+      })
+      .catch(function () {
+        logLine("Could not load projects list.", "err");
+      });
+  }
+
+  function renderProjects() {
+    el.projects.innerHTML = "";
+    if (!projects.length) {
+      var empty = document.createElement("div");
+      empty.className = "empty";
+      empty.textContent = "No projects yet. Build one!";
+      el.projects.appendChild(empty);
+      return;
+    }
+    projects.forEach(function (p) {
+      var row = document.createElement("div");
+      row.className = "proj" +
+        (p.has_preview ? " has-preview" : "") +
+        (p.name === selected ? " active" : "");
+      row.title = p.has_preview ? "Has a rendered preview" : "No preview yet";
+
+      var dot = document.createElement("span");
+      dot.className = "pdot";
+      var name = document.createElement("span");
+      name.className = "name";
+      name.textContent = p.name;
+
+      row.appendChild(dot);
+      row.appendChild(name);
+      row.addEventListener("click", function () {
+        selectProject(p.name, /*loadPreview=*/true, /*forceBust=*/false);
+      });
+      el.projects.appendChild(row);
+    });
+  }
+
+  function findProject(slug) {
+    for (var i = 0; i < projects.length; i++) {
+      if (projects[i].name === slug) return projects[i];
+    }
+    return null;
+  }
+
+  function selectProject(slug, loadPreview, forceBust) {
+    selected = slug;
+    el.previewSel.textContent = slug;
+    el.previewSel.title = slug;
+    renderProjects();
+    updateRenderBtn();
+
+    var p = findProject(slug);
+    if (loadPreview && p && p.has_preview) {
+      showPreview(slug, forceBust);
+    } else if (loadPreview && forceBust) {
+      // just-built project: list may already report a preview from a prior render;
+      // if not flagged, try to load anyway (will fall back to placeholder on 404)
+      showPreview(slug, true);
+    } else {
+      clearPreview("No preview rendered yet for “" + slug + "”. Click “Render preview” below.");
+    }
+  }
+
+  // ---------------- genres ----------------
+  function loadGenres() {
+    return fetch("/api/genres")
+      .then(function (r) { return r.json(); })
+      .then(function (data) {
+        var genres = (data && data.genres) || [];
+        el.genre.innerHTML = "";
+        genres.forEach(function (g) {
+          var opt = document.createElement("option");
+          opt.value = g;
+          opt.textContent = g;
+          el.genre.appendChild(opt);
+        });
+        // default to "third-person" if present
+        if (genres.indexOf("third-person") !== -1) {
+          el.genre.value = "third-person";
+        }
+        genresLoaded = true;
+      })
+      .catch(function () {
+        logLine("Could not load genres.", "err");
+        // provide a sensible fallback so the UI stays usable
+        ["first-person", "third-person", "top-down"].forEach(function (g) {
+          var opt = document.createElement("option");
+          opt.value = g; opt.textContent = g;
+          el.genre.appendChild(opt);
+        });
+        el.genre.value = "third-person";
+      });
+  }
+
+  // ---------------- actions ----------------
+  function doBuild() {
+    if (busy) return;
+    var prompt = el.prompt.value.trim();
+    if (!prompt) {
+      logLine("Please enter a prompt describing the game you want.", "err");
+      el.prompt.focus();
+      return;
+    }
+    if (!wsReady) {
+      logLine("Not connected yet — waiting for the server.", "err");
+      return;
+    }
+    el.note.classList.remove("show");
+    logLine("→ Build requested: “" + prompt + "”", "sys");
+    var sent = send({
+      action: "build",
+      prompt: prompt,
+      genre: el.genre.value,
+      dress: el.dress.checked,
+    });
+    if (sent) setBusy(true, "Building (cloning a large UE template — this is slow)…");
+  }
+
+  function doRender() {
+    if (busy || !selected) return;
+    if (!wsReady) {
+      logLine("Not connected yet — waiting for the server.", "err");
+      return;
+    }
+    logLine("→ Render requested for “" + selected + "”", "sys");
+    var sent = send({
+      action: "render",
+      name: selected,
+      genre: el.genre.value,
+    });
+    if (sent) setBusy(true, "Rendering on the GPU (first render compiles shaders — slow)…");
+  }
+
+  // ---------------- wire up ----------------
+  el.buildBtn.addEventListener("click", doBuild);
+  el.renderBtn.addEventListener("click", doRender);
+
+  // Ctrl/Cmd+Enter in the prompt triggers a build
+  el.prompt.addEventListener("keydown", function (e) {
+    if ((e.metaKey || e.ctrlKey) && e.key === "Enter") {
+      e.preventDefault();
+      doBuild();
+    }
+  });
+
+  // ---------------- init ----------------
+  loadGenres();
+  refreshProjects();
+  connect();
+})();
+</script>
+</body>
+</html>
