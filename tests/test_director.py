@@ -97,6 +97,33 @@ def test_plan_dressing_uses_llm_title_then_prompt_fallback() -> None:
     )
 
 
+def test_theme_palette_matches_keywords() -> None:
+    assert director._theme_palette("a FROZEN ice fortress")["name"] == "frozen fortress"
+    assert director._theme_palette("cross the lava and magma")["name"] == "volcanic"
+    assert director._theme_palette("a deep jungle temple")["name"] == "overgrown jungle"
+    assert director._theme_palette("a plain little adventure")["name"] == (
+        director._NEUTRAL_THEME["name"]
+    )
+
+
+def test_apply_theme_makes_a_frozen_prompt_icy() -> None:
+    spec = director.apply_theme(director.default_dressing(), "a frozen ruined fortress")
+    assert spec["theme"] == "frozen fortress"
+    plat = spec["palette"]["platform"]
+    assert plat[2] > plat[0]  # structure is blue-dominant (icy), not warm
+    assert spec["character"]["tint"][2] > spec["character"]["tint"][0]  # pale-blue character
+    assert spec["sun"]["color"][2] >= spec["sun"]["color"][0]  # cool light
+    assert spec["palette"]["hazard"][0] > 0.8  # gameplay accents stay readable across themes
+
+
+def test_plan_dressing_applies_theme_even_on_llm_fallback() -> None:
+    # garbage LLM -> default dressing, but a frozen prompt still produces an icy palette + theme
+    out = director.plan_dressing("a frozen glacier survival run", "third-person",
+                                 _FakeGateway("no json here"))
+    assert out["theme"] == "frozen fortress"
+    assert out["palette"]["platform"][2] > out["palette"]["platform"][0]
+
+
 def test_augment_adds_objects_variety_and_one_goal() -> None:
     out = director._augment(director.default_dressing(), size="large")
     assert len(out["placements"]) > len(director.default_dressing()["placements"])

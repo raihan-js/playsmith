@@ -111,6 +111,80 @@ def _place(kind, x, y, z, role, sx=1.0, sy=1.0, sz=1.0) -> dict:
     return {"kind": kind, "x": x, "y": y, "z": z, "sx": sx, "sy": sy, "sz": sz, "role": role}
 
 
+# Deterministic theme palettes keyed off prompt keywords, so a "frozen" prompt always yields an
+# ICY level (blue/white structure, cool light, pale character) regardless of how good — or absent —
+# the LLM's plan is. ``structure`` colours the bulk objects; gameplay roles (hazard/collectible/
+# goal) keep fixed, readable accents so the level stays legible against any theme.
+_THEMES: tuple[dict, ...] = (
+    {"name": "frozen fortress", "structure": [0.62, 0.78, 0.92], "sun": [0.72, 0.84, 1.0],
+     "intensity": 5.0, "pitch": -32.0, "fog": 0.05, "character": [0.55, 0.78, 0.95],
+     "keys": ("frozen", "ice", "icy", "snow", "glacier", "arctic", "winter", "tundra", "frost",
+              "blizzard", "cryo")},
+    {"name": "volcanic", "structure": [0.30, 0.17, 0.15], "sun": [1.0, 0.5, 0.28],
+     "intensity": 6.0, "pitch": -28.0, "fog": 0.045, "character": [0.85, 0.28, 0.12],
+     "keys": ("lava", "volcan", "magma", "fire", "ember", "inferno", "molten", "fiery", "scorch")},
+    {"name": "overgrown jungle", "structure": [0.30, 0.44, 0.24], "sun": [0.85, 0.95, 0.7],
+     "intensity": 5.5, "pitch": -42.0, "fog": 0.04, "character": [0.35, 0.55, 0.30],
+     "keys": ("jungle", "forest", "wood", "swamp", "overgrow", "vine", "foliage", "rainforest")},
+    {"name": "desert ruins", "structure": [0.82, 0.68, 0.42], "sun": [1.0, 0.92, 0.7],
+     "intensity": 7.0, "pitch": -52.0, "fog": 0.02, "character": [0.80, 0.65, 0.40],
+     "keys": ("desert", "sand", "dune", "canyon", "arid", "mesa", "wasteland", "dust")},
+    {"name": "sunken depths", "structure": [0.26, 0.55, 0.62], "sun": [0.6, 0.85, 1.0],
+     "intensity": 4.5, "pitch": -38.0, "fog": 0.07, "character": [0.30, 0.70, 0.78],
+     "keys": ("ocean", "underwater", "sunken", "aquatic", "reef", "abyss", "sea", "tidal")},
+    {"name": "neon night", "structure": [0.20, 0.20, 0.30], "sun": [0.45, 0.5, 0.85],
+     "intensity": 3.0, "pitch": -55.0, "fog": 0.06, "character": [0.35, 0.9, 0.95],
+     "keys": ("neon", "cyber", "synthwave", "futurist", "sci-fi", "scifi", "space", "station",
+              "galaxy", "robot", "android")},
+    {"name": "haunted ruins", "structure": [0.26, 0.23, 0.32], "sun": [0.5, 0.46, 0.62],
+     "intensity": 3.5, "pitch": -24.0, "fog": 0.075, "character": [0.62, 0.50, 0.72],
+     "keys": ("haunted", "spooky", "ghost", "graveyard", "horror", "cursed", "crypt", "nightmare",
+              "gothic")},
+)
+_NEUTRAL_THEME = {
+    "name": "stone ruins", "structure": [0.55, 0.50, 0.45], "sun": [1.0, 0.95, 0.85],
+    "intensity": 6.0, "pitch": -45.0, "fog": 0.02, "character": [0.60, 0.60, 0.65],
+}
+# Fixed, readable accents for gameplay roles (kept across themes so the level stays legible).
+_ROLE_ACCENT = {
+    "hazard": [0.95, 0.12, 0.06],
+    "collectible": [1.0, 0.80, 0.12],
+    "goal": [0.12, 0.95, 0.5],
+}
+
+
+def _theme_palette(text: str) -> dict:
+    """Match a theme palette from prompt/theme keywords; neutral stone ruins if nothing matches."""
+    t = (text or "").lower()
+    for theme in _THEMES:
+        if any(k in t for k in theme["keys"]):
+            return theme
+    return _NEUTRAL_THEME
+
+
+def apply_theme(spec: dict, text: str) -> dict:
+    """Stamp a consistent theme onto a dressing from the prompt: structure/role colours, lighting,
+    fog, and the character tint — so e.g. a 'frozen' prompt is always icy, even on a weak LLM plan.
+    """
+    p = _theme_palette(text)
+    s = p["structure"]
+    spec["palette"] = {
+        "platform": [min(1.0, c * 1.25) for c in s],
+        "obstacle": [c * 0.5 for c in s],
+        "cover": s,
+        "prop": s,
+        **_ROLE_ACCENT,
+    }
+    spec["sun"] = {"color": list(p["sun"]), "intensity": p["intensity"], "pitch": p["pitch"]}
+    spec["fog"] = p["fog"]
+    char = spec.get("character") if isinstance(spec.get("character"), dict) else {}
+    char = {"prefer": char.get("prefer", ""), "tint": list(p["character"])}
+    spec["character"] = char
+    if not spec.get("theme") or spec["theme"] == default_dressing()["theme"]:
+        spec["theme"] = p["name"]
+    return spec
+
+
 def default_dressing() -> dict:
     """A safe, playable dressing when no LLM spec is available: a short obstacle course + a goal."""
     return {
@@ -186,6 +260,9 @@ def plan_dressing(
     ``hints`` carries the studio composer's structured choices (theme/vibe/difficulty/size) so the
     player can be more directive than a single free-text line. A safe title is always present.
     """
+    theme_text = " ".join(
+        [prompt, (hints or {}).get("theme", ""), (hints or {}).get("vibe", "")]
+    )
     out = default_dressing()
     out["title"] = fallback_title(prompt)
     try:
@@ -201,10 +278,10 @@ def plan_dressing(
                 # If the model gave no title, sanitize used the generic default — prefer the prompt.
                 if spec["title"] == default_dressing()["title"]:
                     spec["title"] = fallback_title(prompt)
-                return spec
+                return apply_theme(spec, theme_text)
     except Exception:  # noqa: BLE001 - direction must never break a build
         pass
-    return out
+    return apply_theme(out, theme_text)
 
 
 # Kinds/roles the deterministic augmenter cycles through for variety (all known-good palette refs).
@@ -278,6 +355,7 @@ def improve_dressing(
     preserved across iterations.
     """
     size = (hints or {}).get("size")
+    theme_text = " ".join([prompt, (hints or {}).get("theme", ""), (hints or {}).get("vibe", "")])
     base_n = len(spec.get("placements") or [])
     try:
         resp = gateway.chat(
@@ -291,10 +369,10 @@ def improve_dressing(
                 improved = _sanitize(parsed)
                 improved["title"] = spec.get("title") or improved["title"]
                 if len(improved["placements"]) > base_n:  # accept only a genuinely richer plan
-                    return improved
+                    return apply_theme(improved, theme_text)
     except Exception:  # noqa: BLE001 - improvement must never break a build
         pass
-    return _augment(spec, size=size)
+    return apply_theme(_augment(spec, size=size), theme_text)
 
 
 # Per-role object colours (RGB 0..1) — turns the grey LevelPrototyping meshes into a readable,
@@ -319,7 +397,8 @@ def dress_level_script(spec: dict, map_path: str) -> str:
     """
     spec_json = json.dumps(spec)
     palette_json = json.dumps(PALETTE)
-    role_color_json = json.dumps(_ROLE_COLOR)
+    # Theme-derived per-role colours (apply_theme set spec["palette"]); fall back to the static map.
+    role_color_json = json.dumps(spec.get("palette") or _ROLE_COLOR)
     return (
         "import json, os\n"
         "import unreal\n"
